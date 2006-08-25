@@ -1,3 +1,8 @@
+/*
+rfc: rfc2812.txt
+rfc: rfc2813.txt
+*/
+
 LoadModule('socket')
 LoadModule('file')
 LoadModule('wxJS','wxJS_Init')
