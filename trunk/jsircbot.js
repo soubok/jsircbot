@@ -2,33 +2,11 @@
 rfc: rfc2812.txt
 rfc: rfc2813.txt
 */
-
+exec('deflib.js');
 LoadModule('socket')
-LoadModule('file')
-LoadModule('wxJS','wxJS_Init')
+//LoadModule('file')
 
-var log = new File('ircbot.log');
-
-function Dump( o, prefix ) {
-
-	for ( var p in o ) {
-		Print( prefix + '.' + p )
-
-		if ( typeof(o[p]) == 'object' )
-			Dump( o[p], prefix + '.' + p );
-		else
-			Print( o[p] );
-	}
-}
-
-
-function Alert( msg ) {
-
-	dlg = new wxDialog(null, -1, "Alert", wxDefaultPosition, new wxSize( 400, 100 ));
-	new wxStaticText( dlg, -1, msg, wxDefaultPosition, dlg.size, wxStaticText.ALIGN_CENTER );
-	dlg.showModal();
-}
-
+//var log = new File('ircbot.log');
 
 var NumericCommand = {
   1:'RPL_WELCOME',
@@ -354,7 +332,7 @@ function IRCClient( server, port ) {
 
 	this.Send = function( message ) {
 
-		Print( '> '+message );
+		print( '> '+message );
 
 		//_socket.Send( message+'\r\n' );
 		_sender.Send( message+'\r\n' );
@@ -377,10 +355,8 @@ function IRCClient( server, port ) {
 	}
 
 	this.OnMessage = function( message ) {
-
-		log.Open();
-		log.Write(message+'\r\n')
-		log.Close();
+		
+		print( 'raw message: '+message+'\r\n');
 
 		var prefix = message.indexOf( ':' );
 		var trailing = message.indexOf( ':', 1 );
@@ -392,14 +368,14 @@ function IRCClient( server, port ) {
 		if ( !isNaN( args[1] ) )
 			args[1] = NumericCommand[Number(args[1])];
 
-		Print( '< '+args );
+		print( '< '+args );
 
 		this.DispatchCommand.apply( this, args );
 	}
 
 	this.Create = function() {
 
-		var _receiveBuffer = ''
+		var _receiveBuffer = '';
 
 		_socket = new Socket();
 		_socket.Connect( server, port );
@@ -425,6 +401,9 @@ function IRCClient( server, port ) {
 		}
 		this.DispatchEvent( 'OnDisconnect' );
 	}
+	
+	
+	
 
 	this.AddModule = function( mod ) {
 		
@@ -433,6 +412,16 @@ function IRCClient( server, port ) {
 		_modules.push( mod );
 	}
 }
+
+/////////////////////////////////////////////////
+
+function ProcessSocket() {
+
+var socket = Socket.WaitForReceive( 100, _socket ) 
+
+
+}
+
 
 ///////////////////////////////////////////////// MODULES /////////////////////////////////////////////
 
@@ -495,7 +484,7 @@ function ChanModule( _channel ) {
 
 		if ( to == _channel && msg == '!!dump' ) {
 			
-			Dump( this.data, 'DATA' );
+			this.Send( 'PRIVMSG '+nick+' :'+this.data.toSource() );
 		}
 		
 		if ( to == _channel && msg == '!!flood' ) {
