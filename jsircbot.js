@@ -118,9 +118,9 @@ var NumericCommand = exec('NumericCommand.js');
 
 function Time() {
 
-	//return (new Date()).getTime(); // in ms
-	return IntervalNow();
+	return IntervalNow(); //return (new Date()).getTime(); // in ms
 }
+
 
 function FloodControlSender( max, time, rawSender ) {
 
@@ -130,23 +130,26 @@ function FloodControlSender( max, time, rawSender ) {
 	
 	function Process() {
 	
-		print('.');
-	
 		var buffer = '';
-		for ( ; _count > 0 && _queue.length > 0 ; _count--) {
+		for ( ; _count > 0 && _queue.length > 0 ; _count-- )
 			buffer += _queue.shift();
+		if ( buffer.length ) {
+		
+			rawSender(buffer);
+			print('*');
 		}
-		buffer != '' && rawSender(buffer);
 	}
 	
 	function timeout() {
+
+		print('.');
 
 		_count = max;
 		Process();
 		io.AddTimeout( time, timeout );
 	}
-	
 	io.AddTimeout( time, timeout );
+	
 	
 	this.Send = function( line ) {
 		
@@ -154,6 +157,9 @@ function FloodControlSender( max, time, rawSender ) {
 		Process();
 	}
 }
+
+// Flood tests
+// -----------
 // ( 15/16 bytes messages )
 // 1,  600 => 16
 // 1,  700 => 24
@@ -173,8 +179,8 @@ function IRCClient( server, port ) {
 	var _this = this;
 	var _startTime = Time();
 	var _socket;
-	var _receiveBuffer = '';	
-	var _sender = new FloodControlSender( 1, 1000, function(buffer) { _socket.Send( buffer ) } );
+	var _receiveBuffer = '';
+	var _sender = new FloodControlSender( 6, 12000, function(buffer) { _socket.Send( buffer ) } );
 	var _startTime;
 	var _modules = [];
 	var _data = { server:server, port:port };
@@ -206,7 +212,7 @@ function IRCClient( server, port ) {
 
 	this.OnMessage = function( message ) {
 		
-		log.WriteLn( 'raw message: ' + message );
+//		log.WriteLn( 'raw message: ' + message );
 
 		var prefix = message.indexOf( ':' );
 		var trailing = message.indexOf( ':', 1 );
@@ -272,15 +278,6 @@ function IRCClient( server, port ) {
 	
 		this.Send( 'QUIT :');
 	}
-}
-
-/////////////////////////////////////////////////
-
-function ProcessSocket() {
-
-var socket = Socket.WaitForReceive( 100, _socket ) 
-
-
 }
 
 
