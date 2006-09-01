@@ -7,98 +7,20 @@ exec('deflib.js');
 LoadModule('jsnspr');
 
 exec('dataObject.js');
-
-var timeout = new function() {
-
-	var _min;
-	var _tlist = {};
-	this.Add = function( time, func ) {
-	
-		var when = IntervalNow() + time;
-		while( _tlist[when] ) when++; // avoid same time
-		_tlist[when] = func;
-		if ( when < _min )
-			_min = when;
-		return when;
-	}
-	
-	this.Remove = function(when) {
-		
-		if ( when == _min )
-			_min = Number.POSITIVE_INFINITY;
-		delete _tlist[when];
-	}
-	
-	this.Next = function() {
-		
-		_min = Number.POSITIVE_INFINITY;
-		for ( var w in _tlist )
-			if ( w < _min )
-				_min = w;
-		return _min == Number.POSITIVE_INFINITY ? undefined : _min - IntervalNow();
-	}
-
-	this.Process = function() {
-		
-		var now = IntervalNow();
-		if ( _min > now )
-			return;
-		for ( var [w,f] in _tlist )
-			if ( w <= now ) {
-				f();
-				delete _tlist[w];
-			}
-	}
-}
-
-
-var io = new function() {
-	
-	var _descriptorList = [];
-	
-	this.AddTimeout = function( time, fct ) {
-	
-		timeout.Add( time, fct );
-	}
-	
-	this.AddDescriptor = function( d ) {
-	
-		_descriptorList.push(d);
-	}
-
-	this.RemoveDescriptor = function(d) {
-		
-		_descriptorList.splice( _descriptorList.indexOf(d), 1 );
-	}
-
-	this.Process = function( endPredicate ) {
-	
-		for ( ; !endPredicate() ; ) {
-
-			Poll(_descriptorList, timeout.Next() || 1000);
-			timeout.Process();
-		}
-
-	}
-	
-	this.Close = function() {
-		
-		for ( var [i,d] in _descriptorList )
-			d.Close();		
-	
-	}
-
-}
+exec('io.js');
+exec('ident.js');
 
 
 var log = new function() {
 
+	var _time0 = IntervalNow();
 	var _file = new File('ircbot.log');
 	_file.Open( File.CREATE_FILE + File.WRONLY + File.APPEND );
 	
 	this.Write = function( data ) {
 		
-		_file.Write( data );
+		var t = IntervalNow() - _time0;
+		_file.Write( t + ' : ' +data );
 	}
 	
 	this.WriteLn = function( data ) {
@@ -135,86 +57,67 @@ function FloodControlSender( max, time, rawSender ) {
 		var buffer = '';
 		for ( ; _count > 0 && _queue.length > 0 ; _count-- )
 			buffer += _queue.shift();
-		if ( buffer.length ) {
-		
+		if ( buffer.length )
 			rawSender(buffer);
-			print('*');
-		}
 	}
 	
 	function timeout() {
 
-		print('.');
-
 		_count = max;
-		Process();
+		Process(); // process unsent datas
 		io.AddTimeout( time, timeout );
 	}
+	
 	io.AddTimeout( time, timeout );
-	
-	
-	this.Send = function( line ) {
+		
+	this.Send = function( line, bypassAntiFlood ) {
+		
+		if ( bypassAntiFlood ) {
+			rawSender(line);
+			return;
+		}
 		
 		line != undefined && _queue.push(line);
 		Process();
 	}
 }
 
-// Flood tests
-// -----------
-// ( 15/16 bytes messages )
-// 1,  600 => 16
-// 1,  700 => 24
-// 1,  800 => 22
-// 1,  900 => 32
-// 1, 1000 => 38
-// 2, 2000 => 37
-// 4, 4000 => 37
-// 8, 8000 => 25
-
-// ( 31/32 bytes messages )
-// 1, 1000 => 28
-
 
 function IRCClient( server, port ) {
 
 	var _this = this;
-	var _startTime = Time();
 	var _socket;
 	var _receiveBuffer = '';
-	var _sender = new FloodControlSender( 6, 12000, function(buffer) { _socket.Send( buffer ) } );
-	var _startTime;
 	var _modules = [];
 	//var _data = { server:server, port:port };
 	var _data = newNode();
 	setData( _data.server, server );
 	setData( _data.port, port );
+	setData( _data.startTime, Time() );
+
+	var _sender = new FloodControlSender( 7, 12000, function(buffer) {
 	
-	
-//	var _messages = [];
+		_socket.Send( buffer );
+		setData( _data.lastMessageTime, Time() );
+	});
 
-	this.Send = function( message ) {
 
-		log.WriteLn( '> '+message );
+	this.Send = function( message, bypassAntiFlood ) {
 
-		//_socket.Send( message+'\r\n' );
-		_sender.Send( message+'\r\n' );
+		log.WriteLn( '-> '+message );
+		_sender.Send( message+'\r\n', bypassAntiFlood );
 	}
 
 	this.DispatchCommand = function( prefix, command ) {
 		
-		for ( m in _modules ) {
-			var mod = _modules[m];
-			mod[command] && mod[command].apply( mod, arguments );
-		}
+		for ( var [i,m] in _modules )
+			m[command] && m[command].apply( m, arguments );
 	}
 
 	this.DispatchEvent = function( event ) {
 		
-		for ( m in _modules ) {
-			var mod = _modules[m];
-			mod[event] && mod[event]();
-		}
+		for ( var [i,m] in _modules )
+			m[event] && m[event]();
 	}
 
 	this.OnMessage = function( message ) {
@@ -231,7 +134,7 @@ function IRCClient( server, port ) {
 		if ( !isNaN( args[1] ) )
 			args[1] = NumericCommand[Number(args[1])];
 
-		log.WriteLn( '< '+args );
+		log.WriteLn( '<- '+args );
 
 		this.DispatchCommand.apply( this, args );
 	}
@@ -281,9 +184,10 @@ function IRCClient( server, port ) {
 		_modules.push( mod );
 	}
 	
+	
 	this.Quit = function() {
 	
-		this.Send( 'QUIT :');
+		this.Send( 'QUIT :', true );
 	}
 }
 
@@ -292,6 +196,8 @@ function IRCClient( server, port ) {
 
 
 function DefaultModule( nick ) {
+	
+	var _this = this;
 
 // [TBD] autodetect max message length ( with a self sent mesage )
 // [TBD] autodetect flood limit
@@ -299,6 +205,7 @@ function DefaultModule( nick ) {
 
 	this.OnConnect = function() {
 
+		Ident( io, function(identRequest) { return( identRequest + ' : USERID : UNIX : '+nick+'\r\n' ) }, 2000 );
 //		this.Send( 'USER '+nick+' 127.0.0.1 '+this.data.server+' :'+nick );
 		this.Send( 'USER '+nick+' 127.0.0.1 '+ getData( this.data.server ) +' :'+nick );
 		this.Send( 'NICK '+nick );
@@ -310,7 +217,7 @@ function DefaultModule( nick ) {
 		setData( this.data.nick, to );
 		this.Send( 'USERHOST ' + to );
 	}
-
+	
 	this.RPL_USERHOST = function( from, command, to, host ) {
 		
 //		this.data.userHost = host;
@@ -319,7 +226,7 @@ function DefaultModule( nick ) {
 
 	this.ERR_NICKNAMEINUSE = function() {
 
-	  // ...
+	  // ...try a random nick, then, when ready, try a better nick
 	}
 
 	this.PING = function( prefix, command, arg ) {
@@ -329,10 +236,34 @@ function DefaultModule( nick ) {
 
 	this.PRIVMSG = function( from, command, to, msg ) {
 
-		if ( msg.charAt(0) == '\1' ) {
+		if ( msg[0] == '\1' ) {
 			// manage CTCP message
 		}
 	}
+
+	this.NOTICE = function( from, command, to, msg ) {
+	
+		// only once
+		// on 2 ca 1(4) ft 20(20) tr
+		
+		var expr = new RegExp('on (\d.) ca (\d.)\((\d.)\) ft (\d.)\((\d.)\) tr');
+		
+		var res = expr.exec(msg);
+		print( res );
+	
+	}
+
+/*
+irc.clockworkorange.co.uk- on 1 ca 1(2) ft 10(10) tr
+
+where:
+on = Number of globally connected clients including yourself from your IP-number.
+ca = Connect Attempts, You have tried once, after 2 sequential connects you get throttled.
+ft = Free Targets. This is how many different people you may contact at once, also see 3.10
+tr = Targets Restored. Your targets are kept for 2 minutes or until someone else from your IP logs on. 
+     This stops you from “refilling” your free targets by reconnection.	
+*/	
+	
 }
 
 /////////////
@@ -352,7 +283,7 @@ function ChanModule( _channel ) {
 
 		if ( to == _channel && msg == '!!dump' ) {
 			
-//d			this.Send( 'PRIVMSG '+nick+' :'+this.data.toSource() );
+			this.Send( 'PRIVMSG '+nick+' :'+this.data.toSource() );
 		}
 		
 		if ( to == _channel && msg == '!!flood' ) {
@@ -454,7 +385,7 @@ function ChanModule( _channel ) {
 		for ( var i = 5; i < arguments.length; i++)
 			args[i-5] = arguments[i];
 //d		this._ParseModes( modes, args, this.data.channel[_channel] );
-		this._ParseModes( modes, args, getData( this.data.channel[_channel] ) );
+		this._ParseModes( modes, args, this.data.channel[_channel] );
 	}
 
 	this.MODE = function( who, command, what, modes /*, ...*/ ) {
@@ -466,7 +397,7 @@ function ChanModule( _channel ) {
 		for ( var i = 4; i < arguments.length; i++)
 			args[i-4] = arguments[i];
 //d		this._ParseModes( modes, args, this.data.channel[_channel] );
-		this._ParseModes( modes, args, getData( this.data.channel[_channel] ) );
+		this._ParseModes( modes, args, this.data.channel[_channel] );
 	}
 
 
@@ -532,7 +463,7 @@ function ChanModule( _channel ) {
 			setData( chanData.secret, true );
 			
 		if (type == '*')
-			chanData.priv = true;
+//			chanData.priv = true;
 			setData( chanData.priv, true );
 		
 		var names = list.split(' ');
@@ -558,33 +489,74 @@ function ChanModule( _channel ) {
 	}
 }
 
+
+////////// test module//////////
+
+
+function Test() {
+
+	var _this = this;
+	
+	this.OnConnect = function() {
+	
+		addListener( this.data.channel['#soubok'].names['soubokk'], function() {
+			_this.Send( 'PRIVMSG soubokk :hi soubok!' );
+		});
+	}
+}
+
+
+
 ////////// Start //////////
 
 var client = new IRCClient( 'euroserv.fr.quakenet.org', 6667 );
 
 client.AddModule( new DefaultModule( 'cdd_etf_bot' ) ); 
 client.AddModule( new ChanModule( '#soubok' ) );
-
+client.AddModule( new Test() );
 
 client.Create();
-
 io.Process( function() { return endSignal } );
-print('\nbreak!\n');
-
-client.Quit();
-
-//io.Close();
+client.Quit(); // clean QUIT
+io.Close(); // from now, Client has 1000ms to QUIT ...
 
 log.WriteLn(' ========================================================= END ========================================================= ');
 log.Close();
 
+/*
 
-// My notes
-// ========
+links:
+=====
+
+http://www.irchelp.org/irchelp/misc/ccosmos.html
+
+infos:
+=====
+
+6.9 Characters on IRC
+	For chatting in channels, anything that can be translated to ASCII gets through. (ASCII is a standard way to express characters) Note however, that since the parts of the ASCII table may be country-specific, your ASCII-art may not turn out as well for others. Fancy fonts will only show up on your own computer. You can use character map (charmap.exe) in windows to view the ASCII table.
+
+	Channelnames: After the initial #, & or +, all characters except NUL (\0), BELL (\007), CR (\r), LF (\n) a space or a comma
+	Colons in channelnames are valid for ircu but may be reserved for other purposes on other nets.
+
+	Nicks: The allowed characters are a to z, A to Z, 0 to 9 and [ ] { } [ ] { } \ | ^ ` - _
+	This is the same as saying that ’-’ and the characters ’0’ to ’9’ and ’A’ to ’}’ in the ASCII table are allowed.
+	The first character in a nick cannot be a ’-’ or a number.
+
+	The characters { } | ^ are considered the lower case equivalents of [ ] \ ~ respectively. This is said to be because of IRCs scandinavian origin, but while scandinavians will notice that Æ,Ø,Å is forced lowercase in channelnames, Å and Ä is not equivalent with each other or with any of { } | ^. This bear the mark of a backward-compatible ircu feature, and how non-american letters are treated on IRC may vary between nets.
+
+	A weird side-effect happens when trying to ban people with these characters in the name.
+	Trying to ban the nick “ac\dc”, *|*!*@* will work where *\*!*@* fails. *ac\dc*!*@* works just fine too.
+
+
+
+
+notes:
+=====
 
 // user mode message: <nickname> *( ( "+" / "-" ) *( "i" / "w" / "o" / "O" / "r" ) )
 // channel mode message: <channel> *( ( "-" / "+" ) *<modes> *<modeparams> )
-/*
+
 :cdd_etf_bot!~cdd_etf_b@host.com MODE cdd_etf_bot +i
 :soubok!~chatzilla@host.com MODE #soubok +vo soubok cdd_etf_bot
 :soubok!~chatzilla@host.com MODE #soubok -v soubok
@@ -602,27 +574,27 @@ log.Close();
 :soubok!~chatzilla@host.com MODE #soubok +b aa!bb@cc
 :soubok!~chatzilla@host.com MODE #soubok +l 1337
 :soubok!~chatzilla@host.com MODE #soubok -l
-*/
-
-// quakenet +r flag: you must be authed to join (+r)
-
-//   353    RPL_NAMREPLY "( "=" / "*" / "@" ) <channel> :[ "@" / "+" ] <nick> *( " " [ "@" / "+" ] <nick> )
-//         - "@" is used for secret channels, "*" for private channels, and "=" for others (public channels).
-
-// :soubok!soubok@soubok.users.quakenet.org PART #soubok
-
-// modes infos/servers: http://www.alien.net.au/irc/chanmodes.html
-
-// this.test getter = function() { echo('getter') }
-// this.test setter = function() { echo('setter') }
-
-// http://www.irchelp.org/irchelp/rfc/rfc2811.txt
-// http://www.croczilla.com/~alex/reference/javascript_ref/object.html
-// http://www.js-examples.com/javascript/core_js15/obj.php
-// CTCP: http://www.irchelp.org/irchelp/rfc/ctcpspec.html
 
 
-/*
+quakenet +r flag: you must be authed to join (+r)
+
+  353    RPL_NAMREPLY "( "=" / "*" / "@" ) <channel> :[ "@" / "+" ] <nick> *( " " [ "@" / "+" ] <nick> )
+        - "@" is used for secret channels, "*" for private channels, and "=" for others (public channels).
+
+:soubok!soubok@soubok.users.quakenet.org PART #soubok
+
+modes infos/servers: http://www.alien.net.au/irc/chanmodes.html
+
+this.test getter = function() { echo('getter') }
+this.test setter = function() { echo('setter') }
+
+http://www.irchelp.org/irchelp/rfc/rfc2811.txt
+http://www.croczilla.com/~alex/reference/javascript_ref/object.html
+http://www.js-examples.com/javascript/core_js15/obj.php
+CTCP: http://www.irchelp.org/irchelp/rfc/ctcpspec.html
+
+
+
 
 MODE soubok :+i
 PING :LAGTIMER
