@@ -6,6 +6,8 @@ rfc: rfc2813.txt
 exec('deflib.js');
 LoadModule('jsnspr');
 
+exec('dataObject.js');
+
 var timeout = new function() {
 
 	var _min;
@@ -183,7 +185,12 @@ function IRCClient( server, port ) {
 	var _sender = new FloodControlSender( 6, 12000, function(buffer) { _socket.Send( buffer ) } );
 	var _startTime;
 	var _modules = [];
-	var _data = { server:server, port:port };
+	//var _data = { server:server, port:port };
+	var _data = newNode();
+	setData( _data.server, server );
+	setData( _data.port, port );
+	
+	
 //	var _messages = [];
 
 	this.Send = function( message ) {
@@ -292,19 +299,22 @@ function DefaultModule( nick ) {
 
 	this.OnConnect = function() {
 
-		this.Send( 'USER '+nick+' 127.0.0.1 '+this.data.server+' :'+nick );
+//		this.Send( 'USER '+nick+' 127.0.0.1 '+this.data.server+' :'+nick );
+		this.Send( 'USER '+nick+' 127.0.0.1 '+ getData( this.data.server ) +' :'+nick );
 		this.Send( 'NICK '+nick );
 	} 
 
 	this.RPL_WELCOME = function( from, command, to ) {
 		
-		this.data.nick = to;
+		//this.data.nick = to;
+		setData( this.data.nick, to );
 		this.Send( 'USERHOST ' + to );
 	}
 
 	this.RPL_USERHOST = function( from, command, to, host ) {
 		
-		this.data.userHost = host;
+//		this.data.userHost = host;
+		setData( this.data.userHost, host );
 	}
 
 	this.ERR_NICKNAMEINUSE = function() {
@@ -332,7 +342,7 @@ function ChanModule( _channel ) {
 
 	this.RPL_WELCOME = function() {
 
-		this.data.channel || ( this.data.channel = {} );
+//d		this.data.channel || ( this.data.channel = {} );
 		this.Send( 'JOIN ' + _channel );
 	}
 
@@ -342,7 +352,7 @@ function ChanModule( _channel ) {
 
 		if ( to == _channel && msg == '!!dump' ) {
 			
-			this.Send( 'PRIVMSG '+nick+' :'+this.data.toSource() );
+//d			this.Send( 'PRIVMSG '+nick+' :'+this.data.toSource() );
 		}
 		
 		if ( to == _channel && msg == '!!flood' ) {
@@ -359,20 +369,24 @@ function ChanModule( _channel ) {
 	
 		var nick = who.substring( 0, who.indexOf('!') ); // [TBD] try to auto extract this
 		
-		if ( nick == this.data.nick ) {// self
+//d		if ( nick == this.data.nick ) {// self
+		if ( nick == getData(this.data.nick) ) {// self
 
-			this.data.channel[_channel] = {};
+//d			this.data.channel[_channel] = {};
 			this.Send( 'MODE '+_channel );
 			this.Send( 'MODE '+_channel+' +b' );
-		} else
-			this.data.channel[_channel].names[nick] = {};
+		}
+//d		else
+//d			this.data.channel[_channel].names[nick] = {};
+
 	}
 	
 	this.RPL_BANLIST = function( from, command, to, channel, ban, banBy, time ) {
 		
-		var chanData = this.data.channel[_channel];
-		chanData.bans || ( chanData.bans = {} );
-		chanData.bans[ban] = true;
+//d		var chanData = this.data.channel[_channel];
+//d		chanData.bans || ( chanData.bans = {} );
+//d		chanData.bans[ban] = true;
+		setData( this.data.channel[_channel].bans[ban], true );
 	}
 
 	this.PART = function( who, command, channel ) {
@@ -382,44 +396,53 @@ function ChanModule( _channel ) {
 	
 		var nick = who.substring( 0, who.indexOf('!') ); // [TBD] try to auto extract this
 		if ( nick == this.data.nick )
-			delete this.data.channel[_channel];
+//d			delete this.data.channel[_channel];
+			delData( this.data.channel[_channel] );
 		else
-			delete this.data.channel[_channel].names[nick];
+//d			delete this.data.channel[_channel].names[nick];
+			delData( this.data.channel[_channel].names[nick] );
 	}
 
 	this.QUIT = function( who, command ) {
 	
 		var nick = who.substring( 0, who.indexOf('!') );
-		delete this.data.channel[_channel].names[nick];
+//d		delete this.data.channel[_channel].names[nick];
+		delData( this.data.channel[_channel].names[nick] );
 	}
 
 	this.NICK = function( who, command, newNick ) {
 
 		var nick = who.substring( 0, who.indexOf('!') );
 
-		this.data.channel[_channel].names[newNick] = this.data.channel[_channel].names[nick];
-		delete this.data.channel[_channel].names[nick];
+//d		this.data.channel[_channel].names[newNick] = this.data.channel[_channel].names[nick];
+//		renameData( this.data.channel[_channel].names, nick,newNick );
+		moveData( this.data.channel[_channel].names[nick], this.data.channel[_channel].names[newNick] );
+		
+//d		delete this.data.channel[_channel].names[nick];
 	}
 	
 	this.RPL_NOTOPIC = function( channel ) {
 
 		if ( channel != _channel )
 			return;
-		delete this.data.channel[_channel].topic;
+//d		delete this.data.channel[_channel].topic;
+		delData( this.data.channel[_channel].topic );
 	}
 	
 	this.TOPIC = function( from, command, channel, topic ) {
 
 		if ( channel != _channel )
 			return;
-		this.data.channel[_channel].topic = topic;
+//d		this.data.channel[_channel].topic = topic;
+		setData( this.data.channel[_channel].topic, topic );
 	}
 	
 	this.RPL_TOPIC = function( from, command, to, channel, topic ) {
 
 		if ( channel != _channel )
 			return;
-		this.data.channel[_channel].topic = topic;
+//d		this.data.channel[_channel].topic = topic;
+		setData( this.data.channel[_channel].topic, topic );
 	}
 
 	this.RPL_CHANNELMODEIS = function( from, command, to, channel, modes /*, ...*/ ) {
@@ -430,7 +453,8 @@ function ChanModule( _channel ) {
 		var args = [];
 		for ( var i = 5; i < arguments.length; i++)
 			args[i-5] = arguments[i];
-		this._ParseModes( modes, args, this.data.channel[_channel] );
+//d		this._ParseModes( modes, args, this.data.channel[_channel] );
+		this._ParseModes( modes, args, getData( this.data.channel[_channel] ) );
 	}
 
 	this.MODE = function( who, command, what, modes /*, ...*/ ) {
@@ -441,7 +465,8 @@ function ChanModule( _channel ) {
 		var args = [];
 		for ( var i = 4; i < arguments.length; i++)
 			args[i-4] = arguments[i];
-		this._ParseModes( modes, args, this.data.channel[_channel] );
+//d		this._ParseModes( modes, args, this.data.channel[_channel] );
+		this._ParseModes( modes, args, getData( this.data.channel[_channel] ) );
 	}
 
 
@@ -462,26 +487,33 @@ function ChanModule( _channel ) {
 					set = false;
 					break;
 				case 'k' :
-					chanData.key = args[argPos++];
+//d					chanData.key = args[argPos++];
+					setData( chanData.key, args[argPos++] );
 					break;
 				case 'o' :
-					chanData.names[args[argPos++]].operator  = set;
+//d					chanData.names[args[argPos++]].operator  = set;
+					setData( chanData.names[args[argPos++]].operator, set );
 					break;
 				case 'v' :
-					chanData.names[args[argPos++]].voice = set;
+//d					chanData.names[args[argPos++]].voice = set;
+					setData( chanData.names[args[argPos++]].voice, set );
 					break;
 				case 'l' :
 					if ( set )
-						chanData.userLimit = args[argPos++];
+//d						chanData.userLimit = args[argPos++];
+						setData( chanData.userLimit, args[argPos++] );
 					else
-						delete chanData.userLimit;
+//d						delete chanData.userLimit;
+						delData( chanData.userLimit );
 					break;
 				case 'b' :
-					chanData.bans || ( chanData.bans = {} );
-					chanData.bans[args[argPos++]] = set;
+//d					chanData.bans || ( chanData.bans = {} );
+//d					chanData.bans[args[argPos++]] = set;
+						setData( chanData.bans[args[argPos++]], set );
 					break;
 				default:
-					chanData[simpleMode[c]] = set;
+//d					chanData[simpleMode[c]] = set;
+					setData( chanData[simpleMode[c]], set );
 			}
 			pos++;
 		}		
@@ -493,13 +525,15 @@ function ChanModule( _channel ) {
 			return;
 
 		var chanData = this.data.channel[_channel];
-		chanData.names || ( chanData.names = {} );
+//d		chanData.names || ( chanData.names = {} );
 		
 		if (type == '@')
-			chanData.secret = true;
+//d			chanData.secret = true;
+			setData( chanData.secret, true );
 			
 		if (type == '*')
 			chanData.priv = true;
+			setData( chanData.priv, true );
 		
 		var names = list.split(' ');
 		for ( var n in names ) {
@@ -518,7 +552,8 @@ function ChanModule( _channel ) {
 					pos = 1;
 					break;
 			}
-			chanData.names[name.substring( pos )] = nameData;
+//d			chanData.names[name.substring( pos )] = nameData;
+			setData( chanData.names[name.substring( pos )], nameData );
 		}
 	}
 }
