@@ -2,7 +2,7 @@ function Ident( io, callback, timeout ) {
 
 	var identServerSocket = new Socket(); // create a server ( rendez-vous ) socket
 	io.AddDescriptor( identServerSocket ); // add the socket to the 'pollable' list
-	identServerSocket.Listen(113); // listen on port 113
+	identServerSocket.Listen(113); // listen on port 113 (ident)
 	
 	var listenTimeoutId = io.AddTimeout(timeout, function() { // create a timeout to prevent ...
 		identServerSocket.Close();
