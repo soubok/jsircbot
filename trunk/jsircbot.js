@@ -88,9 +88,10 @@ function IRCClient( server, port ) {
 	var _this = this;
 	var _socket;
 	var _receiveBuffer = '';
+	var _listeners = {};
 	var _modules = [];
 	//var _data = { server:server, port:port };
-	var _data = newNode();
+	var _data = newDataNode();
 	setData( _data.server, server );
 	setData( _data.port, port );
 	setData( _data.startTime, Time() );
@@ -108,7 +109,27 @@ function IRCClient( server, port ) {
 		_sender.Send( message+'\r\n', bypassAntiFlood );
 	}
 
+
+	this.AddListener = function( command, func ) {
+		
+		(_listeners[command] || (_listeners[command]=[])).push(func);
+	}
+	
+	this.RemoveListener = function( command, func ) {
+	
+		var list = (_listeners[command] || (_listeners[command]=[]));
+		list.splice( list.indexOf(func), 1 );
+	}
+
+	this.FireListener = function( command, arg ) {
+
+		for ( var [i,l] in _listeners[command] || (_listeners[command]=[]) )
+			l.apply(this,arg);
+	}
+
 	this.DispatchCommand = function( prefix, command ) {
+	
+		this.FireListener( command, arguments );
 		
 		for ( var [i,m] in _modules )
 			m[command] && m[command].apply( m, arguments );
@@ -116,6 +137,8 @@ function IRCClient( server, port ) {
 
 	this.DispatchEvent = function( event ) {
 		
+		this.FireListener( event, arguments );
+
 		for ( var [i,m] in _modules )
 			m[event] && m[event]();
 	}
@@ -175,12 +198,20 @@ function IRCClient( server, port ) {
 		}
 		io.AddDescriptor(_socket);
 	}
-
-
+	
 	this.AddModule = function( mod ) {
+
+		mod.AddListener = this.AddListener;
+		mod.RemoveListener = this.RemoveListener;
 		
 		mod.Send = this.Send;
 		mod.data = _data;
+		_modules.push( mod );
+	}
+
+	this.AddModule2 = function( mod ) {
+
+		mod.Init( this.AddListener, this.RemoveListener, this.Send, _data );
 		_modules.push( mod );
 	}
 	
@@ -246,14 +277,15 @@ function DefaultModule( nick ) {
 		// only once
 		// on 2 ca 1(4) ft 20(20) tr
 		
-		var expr = new RegExp('on (\d.) ca (\d.)\((\d.)\) ft (\d.)\((\d.)\) tr');
-		
-		var res = expr.exec(msg);
-		print( res );
+		if ( msg.substr(0,2) == 'on' ) {
+			var expr = new RegExp('^on ([0-9]+) ca ([0-9]+)\\(([0-9]+)\\) ft ([0-9]+)\\(([0-9]+)\\) tr$'); // http://developer.mozilla.org/en/docs/Core_JavaScript_1.5_Guide:Writing_a_Regular_Expression_Pattern
+			var res = expr(msg);
+//			print( '(' + typeof res + ')' + res );
+		}
 	
 	}
 
-/*
+/* 
 irc.clockworkorange.co.uk- on 1 ca 1(2) ft 10(10) tr
 
 where:
@@ -495,12 +527,19 @@ function ChanModule( _channel ) {
 
 function Test() {
 
-	var _this = this;
+	this.Init = function( AddListener, RemoveListener, Send, data ) {
+
+		function oncafttrNotice( from, comment, to, message ) {
+
+			print(message, '(oncafttrNotice)\n');
+			RemoveListener( 'NOTICE', oncafttrNotice );
+		}
+		AddListener( 'NOTICE', oncafttrNotice );
+		
 	
-	this.OnConnect = function() {
-	
-		addListener( this.data.channel['#soubok'].names['soubokk'], function() {
-			_this.Send( 'PRIVMSG soubokk :hi soubok!' );
+		addDataListener( data.channel['#soubok'].names['soubokk'], function() {
+		
+			Send( 'PRIVMSG soubokk :hi soubok!' );
 		});
 	}
 }
@@ -513,7 +552,10 @@ var client = new IRCClient( 'euroserv.fr.quakenet.org', 6667 );
 
 client.AddModule( new DefaultModule( 'cdd_etf_bot' ) ); 
 client.AddModule( new ChanModule( '#soubok' ) );
-client.AddModule( new Test() );
+
+client.AddModule2( new Test() );
+
+
 
 client.Create();
 io.Process( function() { return endSignal } );
