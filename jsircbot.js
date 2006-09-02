@@ -73,12 +73,14 @@ function FloodControlSender( max, time, rawSender ) {
 	this.Send = function( line, bypassAntiFlood ) {
 		
 		if ( bypassAntiFlood ) {
-			rawSender(line);
-			return;
-		}
 		
-		line != undefined && _queue.push(line);
-		Process();
+			_count--;
+			rawSender(line);
+		} else {
+		
+			line != undefined && _queue.push(line);
+			Process();
+		}
 	}
 }
 
@@ -90,12 +92,15 @@ function IRCClient( server, port ) {
 	var _receiveBuffer = '';
 	var _listeners = {};
 	var _modules = [];
-	//var _data = { server:server, port:port };
 	var _data = newDataNode();
-	setData( _data.server, server );
-	setData( _data.port, port );
-	setData( _data.startTime, Time() );
-
+	
+	setData( _data.hostname, '127.0.0.1' );
+	setData( _data.username, 'no_user_name' );
+	setData( _data.realname, 'no real name' );
+	setData( _data.opsys, 'UNIX' ); // identd
+	setData( _data.userid, 'USERID' ); // identd
+	
+	
 	var _sender = new FloodControlSender( 7, 12000, function(buffer) {
 	
 		_socket.Send( buffer );
@@ -109,44 +114,33 @@ function IRCClient( server, port ) {
 		_sender.Send( message+'\r\n', bypassAntiFlood );
 	}
 
-
-	this.AddListener = function( command, func ) {
+	this.AddMessageListener = function( command, func ) {
 		
 		(_listeners[command] || (_listeners[command]=[])).push(func);
 	}
 	
-	this.RemoveListener = function( command, func ) {
+	this.RemoveMessageListener = function( command, func ) {
 	
 		var list = (_listeners[command] || (_listeners[command]=[]));
 		list.splice( list.indexOf(func), 1 );
 	}
 
-	this.FireListener = function( command, arg ) {
+	this.FireMessageListener = function( command, arg ) {
 
 		for ( var [i,l] in _listeners[command] || (_listeners[command]=[]) )
 			l.apply(this,arg);
 	}
 
-	this.DispatchCommand = function( prefix, command ) {
-	
-		this.FireListener( command, arguments );
+	this.NotifyModule = function( event ) {
 		
-		for ( var [i,m] in _modules )
-			m[command] && m[command].apply( m, arguments );
-	}
-
-	this.DispatchEvent = function( event ) {
-		
-		this.FireListener( event, arguments );
-
+		log.WriteLn( '== '+event );
 		for ( var [i,m] in _modules )
 			m[event] && m[event]();
 	}
+	
 
-	this.OnMessage = function( message ) {
+	this.DispatchMessage = function( message ) {
 		
-//		log.WriteLn( 'raw message: ' + message );
-
 		var prefix = message.indexOf( ':' );
 		var trailing = message.indexOf( ':', 1 );
 		var args = message.substring( prefix?0:1, trailing>0?trailing-1:message.length ).split(' ');
@@ -157,18 +151,16 @@ function IRCClient( server, port ) {
 		if ( !isNaN( args[1] ) )
 			args[1] = NumericCommand[Number(args[1])];
 
-		log.WriteLn( '<- '+args );
-
-		this.DispatchCommand.apply( this, args );
+		log.WriteLn( '<- ' + args );
+		this.FireMessageListener( args[1], args );
 	}
 
-
-	this.onSocketReadable = function(s) {
+	function onSocketReadable(s) {
 
 		var buf = _socket.Recv();
 		if ( buf.length == 0 ) {
 	
-			_this.DispatchEvent( 'OnDisconnect' );
+			_this.NotifyModule( 'OnDisconnect' );
 			delete s.readable;
 			s.Close();
 			io.RemoveDescriptor(s);
@@ -178,47 +170,47 @@ function IRCClient( server, port ) {
 		_receiveBuffer += buf;
 
 		var eol;
-		while ( (eol = _receiveBuffer.indexOf('\r\n')) != -1 ) {
+		while ( (eol=_receiveBuffer.indexOf('\r\n')) != -1 ) {
 
-			_this.OnMessage( _receiveBuffer.substring( 0, eol ) )
+			_this.DispatchMessage( _receiveBuffer.substring( 0, eol ) )
 			_receiveBuffer = _receiveBuffer.substring( eol+2 ); // +2 for '\r\n';
 		}
 	}
 
-	this.Create = function() {
+	this.Connect = function() {
+
+		setData( _data.server, server );
+		setData( _data.port, port );
+		setData( _data.connectTime, Time() );
 
 		_socket = new Socket();
+		io.AddDescriptor(_socket);
 		_socket.Connect( server, port );
 		_socket.writable = function() {
 		
 			delete _socket.writable;
-	
-			_socket.readable = _this.onSocketReadable;
-			_this.DispatchEvent( 'OnConnect' );
+			_socket.readable = onSocketReadable;
+			_this.NotifyModule( 'OnConnect' );
 		}
-		io.AddDescriptor(_socket);
 	}
 	
 	this.AddModule = function( mod ) {
-
-		mod.AddListener = this.AddListener;
-		mod.RemoveListener = this.RemoveListener;
 		
+		mod.AddMessageListener = this.AddMessageListener;
+		mod.RemoveMessageListener = this.RemoveMessageListener;
 		mod.Send = this.Send;
 		mod.data = _data;
-		_modules.push( mod );
-	}
-
-	this.AddModule2 = function( mod ) {
-
-		mod.Init( this.AddListener, this.RemoveListener, this.Send, _data );
+		mod.InitModule(mod);
 		_modules.push( mod );
 	}
 	
 	
-	this.Quit = function() {
-	
-		this.Send( 'QUIT :', true );
+	this.Close = function() {
+		
+		this.NotifyModule( 'OnClose' );
+		_socket.linger = 1000;
+		_socket.Close();
+		io.RemoveDescriptor(_socket);
 	}
 }
 
@@ -228,297 +220,268 @@ function IRCClient( server, port ) {
 
 function DefaultModule( nick ) {
 	
-	var _this = this;
-
 // [TBD] autodetect max message length ( with a self sent mesage )
 // [TBD] autodetect flood limit
 
-
 	this.OnConnect = function() {
-
-		Ident( io, function(identRequest) { return( identRequest + ' : USERID : UNIX : '+nick+'\r\n' ) }, 2000 );
-//		this.Send( 'USER '+nick+' 127.0.0.1 '+this.data.server+' :'+nick );
-		this.Send( 'USER '+nick+' 127.0.0.1 '+ getData( this.data.server ) +' :'+nick );
+		
+		var data = this.data;
+		Ident( io, function(identRequest) { return( identRequest + ' : '+getData(data.userid)+' : '+getData(data.opsys)+' : '+nick+'\r\n' ) }, 2000 );
+		this.Send( 'USER '+getData(data.username)+' '+getData(data.hostname)+' '+getData(data.server)+' :'+getData(data.realname) );
 		this.Send( 'NICK '+nick );
 	} 
-
-	this.RPL_WELCOME = function( from, command, to ) {
-		
-		//this.data.nick = to;
-		setData( this.data.nick, to );
-		this.Send( 'USERHOST ' + to );
-	}
 	
-	this.RPL_USERHOST = function( from, command, to, host ) {
+	this.OnClose = function() {
+	
+		this.Send( 'QUIT :', true );
+	}
+
+	this.InitModule = function(module) {
+
+		this.AddMessageListener( 'RPL_WELCOME', function( from, command, to ) {
+
+			setData( module.data.nick, to );
+			module.Send( 'USERHOST ' + to );
+		});
+
+		this.AddMessageListener( 'RPL_USERHOST', function( from, command, to, host ) {
+
+			setData( module.data.userHost, host );
+		});
 		
-//		this.data.userHost = host;
-		setData( this.data.userHost, host );
-	}
+//		function firstModeMessage( who, command, what, modes ) {
+//
+//			this.RemoveMessageListener( 'MODE', firstModeMessage );
+//		}
+//		this.AddMessageListener( 'MODE', firstModeMessage );
 
-	this.ERR_NICKNAMEINUSE = function() {
 
-	  // ...try a random nick, then, when ready, try a better nick
-	}
+		this.AddMessageListener( 'ERR_ERRONEUSNICKNAME', function() {
+		  
+		  //.Close();
+		  // ...try to find server nick policy
+		});
 
-	this.PING = function( prefix, command, arg ) {
+		this.AddMessageListener( 'ERR_NICKNAMEINUSE', function() {
+		
+			var tmpNick = 'tmp'+Math.random().toString(16).substr(2);
+			this.Send( 'NICK '+tmpNick );
 
-		this.Send( 'PONG '+arg );
-	}
+		  // ...try a random nick, then, when ready, try a better nick
+		});
 
-	this.PRIVMSG = function( from, command, to, msg ) {
+		this.AddMessageListener( 'PING', function( prefix, command, arg ) {
 
-		if ( msg[0] == '\1' ) {
-			// manage CTCP message
+			module.Send( 'PONG '+arg );
+		});
+
+		this.AddMessageListener( 'PRIVMSG', function( from, command, to, msg ) {
+
+			if ( msg[0] == '\1' ) {
+				// manage CTCP message
+			}
+		});
+
+		// irc.clockworkorange.co.uk- on 1 ca 1(2) ft 10(10) tr
+		// where:
+		//  on = Number of globally connected clients including yourself from your IP-number.
+		//  ca = Connect Attempts, You have tried once, after 2 sequential connects you get throttled.
+		//  ft = Free Targets. This is how many different people you may contact at once, also see 3.10
+		//  tr = Targets Restored. Your targets are kept for 2 minutes or until someone else from your IP logs on. 
+		//       This stops you from “refilling” your free targets by reconnection.	
+		var oncafttrExpr = new RegExp('^on ([0-9]+) ca ([0-9]+)\\(([0-9]+)\\) ft ([0-9]+)\\(([0-9]+)\\) *(tr)?$'); // http://developer.mozilla.org/en/docs/Core_JavaScript_1.5_Guide:Writing_a_Regular_Expression_Pattern
+		
+		function oncafttrNotice( from, comment, to, message ) {
+
+			if ( message.substr(0,2) == 'on' ) {
+
+				var res = oncafttrExpr(message);
+				if ( res == null )
+					return;
+				//print( res );
+				this.RemoveMessageListener( 'NOTICE', oncafttrNotice );
+			}
 		}
-	}
 
-	this.NOTICE = function( from, command, to, msg ) {
-	
-		// only once
-		// on 2 ca 1(4) ft 20(20) tr
+		this.AddMessageListener( 'NOTICE', oncafttrNotice );
 		
-		if ( msg.substr(0,2) == 'on' ) {
-			var expr = new RegExp('^on ([0-9]+) ca ([0-9]+)\\(([0-9]+)\\) ft ([0-9]+)\\(([0-9]+)\\) tr$'); // http://developer.mozilla.org/en/docs/Core_JavaScript_1.5_Guide:Writing_a_Regular_Expression_Pattern
-			var res = expr(msg);
-//			print( '(' + typeof res + ')' + res );
-		}
-	
 	}
-
-/* 
-irc.clockworkorange.co.uk- on 1 ca 1(2) ft 10(10) tr
-
-where:
-on = Number of globally connected clients including yourself from your IP-number.
-ca = Connect Attempts, You have tried once, after 2 sequential connects you get throttled.
-ft = Free Targets. This is how many different people you may contact at once, also see 3.10
-tr = Targets Restored. Your targets are kept for 2 minutes or until someone else from your IP logs on. 
-     This stops you from “refilling” your free targets by reconnection.	
-*/	
-	
 }
+
 
 /////////////
 
 function ChanModule( _channel ) {
 
+	this.InitModule = function(module) {
 
-	this.RPL_WELCOME = function() {
+		this.AddMessageListener( 'RPL_WELCOME', function() {
 
-//d		this.data.channel || ( this.data.channel = {} );
-		this.Send( 'JOIN ' + _channel );
-	}
+			module.Send( 'JOIN ' + _channel );
+		});
 
-	this.PRIVMSG = function( from, command, to, msg ) {
-		
-		var nick = from.substring( 0, from.indexOf('!') );
+		this.AddMessageListener( 'JOIN', function( who, command, channel ) { // :cdd_etf_bot!~cdd_etf_b@nost.net JOIN #soubok
 
-		if ( to == _channel && msg == '!!dump' ) {
-			
-			this.Send( 'PRIVMSG '+nick+' :'+this.data.toSource() );
-		}
-		
-		if ( to == _channel && msg == '!!flood' ) {
-			
-			for ( var i = 0; i<100; i++ )
-			  this.Send( 'PRIVMSG '+nick+' :XxxxxxxxXxxxxxxxXxxxxxxxXxxxx '+i );
-		}
-	}
+			if ( channel != _channel )
+				return;
 
-	this.JOIN = function( who, command, channel ) { // :cdd_etf_bot!~cdd_etf_b@nost.net JOIN #soubok
+			var nick = who.substring( 0, who.indexOf('!') ); // [TBD] try to auto extract this
 
-		if ( channel != _channel )
-			return;
-	
-		var nick = who.substring( 0, who.indexOf('!') ); // [TBD] try to auto extract this
-		
-//d		if ( nick == this.data.nick ) {// self
-		if ( nick == getData(this.data.nick) ) {// self
+			if ( nick == getData(module.data.nick) ) {// self
 
-//d			this.data.channel[_channel] = {};
-			this.Send( 'MODE '+_channel );
-			this.Send( 'MODE '+_channel+' +b' );
-		}
-//d		else
-//d			this.data.channel[_channel].names[nick] = {};
-
-	}
-	
-	this.RPL_BANLIST = function( from, command, to, channel, ban, banBy, time ) {
-		
-//d		var chanData = this.data.channel[_channel];
-//d		chanData.bans || ( chanData.bans = {} );
-//d		chanData.bans[ban] = true;
-		setData( this.data.channel[_channel].bans[ban], true );
-	}
-
-	this.PART = function( who, command, channel ) {
-
-		if ( channel != _channel )
-			return;
-	
-		var nick = who.substring( 0, who.indexOf('!') ); // [TBD] try to auto extract this
-		if ( nick == this.data.nick )
-//d			delete this.data.channel[_channel];
-			delData( this.data.channel[_channel] );
-		else
-//d			delete this.data.channel[_channel].names[nick];
-			delData( this.data.channel[_channel].names[nick] );
-	}
-
-	this.QUIT = function( who, command ) {
-	
-		var nick = who.substring( 0, who.indexOf('!') );
-//d		delete this.data.channel[_channel].names[nick];
-		delData( this.data.channel[_channel].names[nick] );
-	}
-
-	this.NICK = function( who, command, newNick ) {
-
-		var nick = who.substring( 0, who.indexOf('!') );
-
-//d		this.data.channel[_channel].names[newNick] = this.data.channel[_channel].names[nick];
-//		renameData( this.data.channel[_channel].names, nick,newNick );
-		moveData( this.data.channel[_channel].names[nick], this.data.channel[_channel].names[newNick] );
-		
-//d		delete this.data.channel[_channel].names[nick];
-	}
-	
-	this.RPL_NOTOPIC = function( channel ) {
-
-		if ( channel != _channel )
-			return;
-//d		delete this.data.channel[_channel].topic;
-		delData( this.data.channel[_channel].topic );
-	}
-	
-	this.TOPIC = function( from, command, channel, topic ) {
-
-		if ( channel != _channel )
-			return;
-//d		this.data.channel[_channel].topic = topic;
-		setData( this.data.channel[_channel].topic, topic );
-	}
-	
-	this.RPL_TOPIC = function( from, command, to, channel, topic ) {
-
-		if ( channel != _channel )
-			return;
-//d		this.data.channel[_channel].topic = topic;
-		setData( this.data.channel[_channel].topic, topic );
-	}
-
-	this.RPL_CHANNELMODEIS = function( from, command, to, channel, modes /*, ...*/ ) {
-	
-		if ( channel != _channel ) // can be a user mode OR a mod for another channel
-			return;
-		
-		var args = [];
-		for ( var i = 5; i < arguments.length; i++)
-			args[i-5] = arguments[i];
-//d		this._ParseModes( modes, args, this.data.channel[_channel] );
-		this._ParseModes( modes, args, this.data.channel[_channel] );
-	}
-
-	this.MODE = function( who, command, what, modes /*, ...*/ ) {
-
-		if ( what != _channel ) // can be a user mode OR a mod for another channel
-			return;
-
-		var args = [];
-		for ( var i = 4; i < arguments.length; i++)
-			args[i-4] = arguments[i];
-//d		this._ParseModes( modes, args, this.data.channel[_channel] );
-		this._ParseModes( modes, args, this.data.channel[_channel] );
-	}
-
-
-	this._ParseModes = function( modes, args, chanData ) {
-
-		var simpleMode = { i:'inviteOnly', t:'topicByOp', p:'priv', s:'secret', m:'moderated', n:'noExternalMessages', r:'reop', C:'noCtcp', N:'noExternalNotice'  };
-		var argPos = 0;
-		var pos = 0;
-		var set;
-		var c;
-		while ( (c = modes.charAt(pos)) != '' ) {
-
-			switch(c) {
-				case '+' :
-					set = true;
-					break;
-				case '-' :
-					set = false;
-					break;
-				case 'k' :
-//d					chanData.key = args[argPos++];
-					setData( chanData.key, args[argPos++] );
-					break;
-				case 'o' :
-//d					chanData.names[args[argPos++]].operator  = set;
-					setData( chanData.names[args[argPos++]].operator, set );
-					break;
-				case 'v' :
-//d					chanData.names[args[argPos++]].voice = set;
-					setData( chanData.names[args[argPos++]].voice, set );
-					break;
-				case 'l' :
-					if ( set )
-//d						chanData.userLimit = args[argPos++];
-						setData( chanData.userLimit, args[argPos++] );
-					else
-//d						delete chanData.userLimit;
-						delData( chanData.userLimit );
-					break;
-				case 'b' :
-//d					chanData.bans || ( chanData.bans = {} );
-//d					chanData.bans[args[argPos++]] = set;
-						setData( chanData.bans[args[argPos++]], set );
-					break;
-				default:
-//d					chanData[simpleMode[c]] = set;
-					setData( chanData[simpleMode[c]], set );
+				module.Send( 'MODE '+_channel );
+				module.Send( 'MODE '+_channel+' +b' );
 			}
-			pos++;
-		}		
-	}
 
-	this.RPL_NAMREPLY = function( from, command, to, type, channel, list ) {
+		});
 
-		if ( channel != _channel ) // [TBD] use a kind of filter to avoid doing this (eg. register RPL_NAMREPLY with #chan as filter )
-			return;
+		this.AddMessageListener( 'RPL_BANLIST', function( from, command, to, channel, ban, banBy, time ) {
 
-		var chanData = this.data.channel[_channel];
-//d		chanData.names || ( chanData.names = {} );
-		
-		if (type == '@')
-//d			chanData.secret = true;
-			setData( chanData.secret, true );
-			
-		if (type == '*')
-//			chanData.priv = true;
-			setData( chanData.priv, true );
-		
-		var names = list.split(' ');
-		for ( var n in names ) {
+			setData( module.data.channel[_channel].bans[ban], true );
+		});
 
-			var nameData = {};
-			var name = names[n];
+		this.AddMessageListener( 'PART', function( who, command, channel ) {
+
+			if ( channel != _channel )
+				return;
+
+			var nick = who.substring( 0, who.indexOf('!') ); // [TBD] try to auto extract this
+			if ( nick == module.data.nick )
+				delData( module.data.channel[_channel] );
+			else
+				delData( module.data.channel[_channel].names[nick] );
+		});
+
+		this.AddMessageListener( 'QUIT', function( who, command ) {
+
+			var nick = who.substring( 0, who.indexOf('!') );
+			delData( module.data.channel[_channel].names[nick] );
+		});
+
+		this.AddMessageListener( 'NICK', function( who, command, newNick ) {
+
+			var nick = who.substring( 0, who.indexOf('!') );
+
+	//		renameData( this.data.channel[_channel].names, nick,newNick );
+			moveData( module.data.channel[_channel].names[nick], module.data.channel[_channel].names[newNick] );
+		});
+
+		this.AddMessageListener( 'RPL_NOTOPIC', function( channel ) {
+
+			if ( channel != _channel )
+				return;
+			delData( module.data.channel[_channel].topic );
+		});
+
+		this.AddMessageListener( 'TOPIC', function( from, command, channel, topic ) {
+
+			if ( channel != _channel )
+				return;
+			setData( module.data.channel[_channel].topic, topic );
+		});
+
+		this.AddMessageListener( 'RPL_TOPIC', function( from, command, to, channel, topic ) {
+
+			if ( channel != _channel )
+				return;
+			setData( module.data.channel[_channel].topic, topic );
+		});
+
+		this.AddMessageListener( 'RPL_CHANNELMODEIS', function( from, command, to, channel, modes /*, ...*/ ) {
+
+			if ( channel != _channel ) // can be a user mode OR a mod for another channel
+				return;
+
+			var args = [];
+			for ( var i = 5; i < arguments.length; i++)
+				args[i-5] = arguments[i];
+			module._ParseModes( modes, args, module.data.channel[_channel] );
+		});
+
+		this.AddMessageListener( 'MODE', function( who, command, what, modes /*, ...*/ ) {
+
+			if ( what != _channel ) // can be a user mode OR a mod for another channel
+				return;
+
+			var args = [];
+			for ( var i = 4; i < arguments.length; i++)
+				args[i-4] = arguments[i];
+			module._ParseModes( modes, args, module.data.channel[_channel] );
+		});
+
+
+		this._ParseModes = function( modes, args, chanData ) {
+
+			var simpleMode = { i:'inviteOnly', t:'topicByOp', p:'priv', s:'secret', m:'moderated', n:'noExternalMessages', r:'reop', C:'noCtcp', N:'noExternalNotice'  };
+			var argPos = 0;
 			var pos = 0;
-			switch( name.charAt(0) ) {
-			
-				case '+':
-					nameData.voice = true;
-					pos = 1;
-					break;
-				case '@':
-					nameData.operator = true;
-					pos = 1;
-					break;
-			}
-//d			chanData.names[name.substring( pos )] = nameData;
-			setData( chanData.names[name.substring( pos )], nameData );
+			var set;
+			var c;
+			while ( (c = modes.charAt(pos)) != '' ) {
+
+				switch(c) {
+					case '+' :
+						set = true;
+						break;
+					case '-' :
+						set = false;
+						break;
+					case 'k' :
+						setData( chanData.key, args[argPos++] );
+						break;
+					case 'o' :
+						setData( chanData.names[args[argPos++]].operator, set );
+						break;
+					case 'v' :
+						setData( chanData.names[args[argPos++]].voice, set );
+						break;
+					case 'l' :
+						if ( set )
+							setData( chanData.userLimit, args[argPos++] );
+						else
+							delData( chanData.userLimit );
+						break;
+					case 'b' :
+							setData( chanData.bans[args[argPos++]], set );
+						break;
+					default:
+						setData( chanData[simpleMode[c]], set );
+				}
+				pos++;
+			}		
 		}
-	}
+
+		this.AddMessageListener( 'RPL_NAMREPLY', function( from, command, to, type, channel, list ) {
+
+			if ( channel != _channel ) // [TBD] use a kind of filter to avoid doing this (eg. register RPL_NAMREPLY with #chan as filter )
+				return;
+
+			var chanData = module.data.channel[_channel];
+
+			if (type == '@')
+				setData( chanData.secret, true );
+
+			if (type == '*')
+				setData( chanData.priv, true );
+
+			var names = list.split(' ');
+			for ( var n in names ) {
+
+				var name = names[n];
+				switch( name[0] ) {
+
+					case '+':
+						setData( chanData.names[name.substring(1)].voice, true );
+						break;
+					case '@':
+						setData( chanData.names[name.substring(1)].operator, true );
+						break;
+					default:						
+						setData( chanData.names[name] );
+				}
+			}
+		});
+	} // InitModule
 }
 
 
@@ -527,19 +490,28 @@ function ChanModule( _channel ) {
 
 function Test() {
 
-	this.Init = function( AddListener, RemoveListener, Send, data ) {
+	this.InitModule = function(module) {
 
-		function oncafttrNotice( from, comment, to, message ) {
+		this.AddMessageListener( 'PRIVMSG', function( from, command, to, msg ) {
 
-			print(message, '(oncafttrNotice)\n');
-			RemoveListener( 'NOTICE', oncafttrNotice );
-		}
-		AddListener( 'NOTICE', oncafttrNotice );
-		
+			var nick = from.substring( 0, from.indexOf('!') );
+
+			if ( msg == '!!dump' ) {
+
+				//module.Send( 'PRIVMSG '+nick+' :'+dumpData(module.data) );
+				print(dumpData(module.data), '\n');
+			}
+
+			if ( msg == '!!flood' ) {
+
+				for ( var i = 0; i<100; i++ )
+				  module.Send( 'PRIVMSG '+nick+' :XxxxxxxxXxxxxxxxXxxxxxxxXxxxx '+i );
+			}
+		});
 	
-		addDataListener( data.channel['#soubok'].names['soubokk'], function() {
+		addDataListener( module.data.channel['#soubok'].names['soubok'], function() {
 		
-			Send( 'PRIVMSG soubokk :hi soubok!' );
+			module.Send( 'PRIVMSG soubokk :hi soubok!' );
 		});
 	}
 }
@@ -552,19 +524,19 @@ var client = new IRCClient( 'euroserv.fr.quakenet.org', 6667 );
 
 client.AddModule( new DefaultModule( 'cdd_etf_bot' ) ); 
 client.AddModule( new ChanModule( '#soubok' ) );
-
-client.AddModule2( new Test() );
-
+client.AddModule( new Test() );
 
 
-client.Create();
+client.Connect();
 io.Process( function() { return endSignal } );
-client.Quit(); // clean QUIT
+client.Close(); // clean QUIT
 io.Close(); // from now, Client has 1000ms to QUIT ...
 
 log.WriteLn(' ========================================================= END ========================================================= ');
 log.Close();
 
+
+print('\nEnd.\n');
 /*
 
 links:

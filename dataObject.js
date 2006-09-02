@@ -10,6 +10,12 @@ function get( what, obj, id, val, aux ) {
 	return id in obj ? val : obj[id] = newDataNode(obj);
 }
 
+//function set( what, obj, id, val, aux ) {
+//	
+//	return val
+//}
+
+
 function addDataListener( path, listener ) {
 
 	objex.Aux( path ).listenerList.push(listener);
@@ -23,7 +29,7 @@ function removeDataListener( path, listener ) {
 
 function setData( path, data ) {
 	
-	var aux = objex.Aux( path );
+	var aux = objex.Aux(path);
 	
 	for ( var [i,l] in aux.listenerList )
 		l('set', data);
@@ -37,9 +43,9 @@ function setData( path, data ) {
 		l('set', data);
 }
 
-function getData( path, data ) {
+function getData( path ) {
 
-	return objex.Aux( path ).data || undefined; // "|| undefined" avoids strict warning
+	return objex.Aux(path).data || undefined; // "|| undefined" avoids strict warning
 }
 
 function moveData( path, newPath ) {
@@ -60,4 +66,16 @@ function delData( path ) { // delete datas but not listeners
 	delete aux.data;
 	for ( var [k,v] in path )
 		delData( v );
+}
+
+
+function dumpData( path, tab ) {
+
+	tab = tab||'';
+	var out = '';
+	for ( var [name,child] in path ) {
+		var data = getData(child);
+		out += tab+name+(( data != undefined ) ?'='+data : '')+'\n'+dumpData(child,tab+'  ');
+	}
+	return out;
 }
