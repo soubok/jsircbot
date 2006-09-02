@@ -1,3 +1,4 @@
+// http://www.ietf.org/rfc/rfc1413.txt
 function Ident( io, callback, timeout ) {
 
 	var identServerSocket = new Socket(); // create a server ( rendez-vous ) socket
