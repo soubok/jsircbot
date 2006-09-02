@@ -1,18 +1,24 @@
 LoadModule('jsobjex');
 
-function newNode(parent) {
+function newDataNode(parent) {
 
 	return new objex(undefined,undefined,get,undefined,{listenerList:[],parent:parent});
 }
 
 function get( what, obj, id, val, aux ) {
 	
-	return id in obj ? val : obj[id] = newNode(obj);
+	return id in obj ? val : obj[id] = newDataNode(obj);
 }
 
-function addListener( path, listener ) {
+function addDataListener( path, listener ) {
 
 	objex.Aux( path ).listenerList.push(listener);
+}
+
+function removeDataListener( path, listener ) {
+
+	var list = objex.Aux( path ).listenerList;
+	list.splice( list.indexOf(listener), 1 );
 }
 
 function setData( path, data ) {
