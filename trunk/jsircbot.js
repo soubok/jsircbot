@@ -243,6 +243,13 @@ function DefaultModule( nick ) {
 	}
 
 	this.InitModule = function(module) {
+	
+		module.api.privmsg = function( to, message ) {
+			
+			module.Send( 'PRIVMSG '+to+' :'+message );
+		}
+
+
 
 		this.AddMessageListener( 'RPL_WELCOME', function( from, command, to ) {
 
@@ -697,7 +704,74 @@ function Test() {
 	}
 }
 
+////////// DCCReceiver //////////
 
+
+function DCCReceiver( destinationPath ) {
+
+	function IntegerToIp(number) {
+	
+		return (number>>24 & 255)+'.'+(number>>16 & 255)+'.'+(number>>8 & 255)+'.'+(number & 255);
+	}
+	
+	function Uint32ToNetworkOrderString(number) {
+		
+		return String.fromCharCode(number>>24 & 255)+String.fromCharCode(number>>16 & 255)+String.fromCharCode(number>>8 & 255)+String.fromCharCode(number & 255);
+	}
+	
+	function DCCReceive( ip, port, fileName, timeout ) { // receiver is a client socket / sender is the server
+		
+		var dccSocket = new Socket();
+		var file = new File(fileName);
+		file.Open( File.CREATE_FILE + File.WRONLY );
+		
+		dccSocket.Connect( ip, port );
+		io.AddDescriptor( dccSocket );
+
+		var totalReceived = 0;
+		var timeoutId;
+		
+		function Finalize() {
+			
+			io.RemoveTimeout(timeoutId);
+			dccSocket.Close();
+			io.RemoveDescriptor( dccSocket );
+			file.Close();
+		}
+
+		timeoutId = io.AddTimeout( timeout, Finalize );
+
+		dccSocket.readable = function(s) {
+			
+			var buf = s.Recv();
+			var len = buf.length;
+			if ( len == 0 ) {
+				Finalize();
+				return;
+			}
+			totalReceived += len;
+			s.Send( Uint32ToNetworkOrderString(totalReceived) ); // ack.
+			file.Write( buf );
+			io.RemoveTimeout(timeoutId);
+			timeoutId = io.AddTimeout( timeout, Finalize );
+		}
+	}
+
+	this.InitModule = function(module) {
+
+		module.api.AddCtcpListener( function(from,to,tag,data) {
+			
+			if ( tag != 'DCC' )
+				return;
+			var [type,argument,address,port,size] = data.split(' ');
+			if ( type != 'SEND' )
+				return;
+			DCCReceive( IntegerToIp(address), port, argument, 2000 );
+			
+//			var nick = from.substring( 0, from.indexOf('!') );
+		});
+	}
+}
 
 ////////// Start //////////
 
@@ -706,6 +780,7 @@ var client = new IRCClient( 'euroserv.fr.quakenet.org', 6667 );
 client.AddModule( new DefaultModule( 'cdd_etf_bot' ) ); 
 client.AddModule( new CTCPModule() ); 
 client.AddModule( new ChanModule( '#soubok' ) );
+client.AddModule( new DCCReceiver( 'c:\\tmp' ) );
 //client.AddModule( new ChanModule( '#soubok2' ) );
 client.AddModule( new Test() );
 
