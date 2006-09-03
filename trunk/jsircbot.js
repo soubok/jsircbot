@@ -93,6 +93,7 @@ function IRCClient( server, port ) {
 	var _listeners = {};
 	var _modules = [];
 	var _data = newDataNode();
+	var _api = {};
 	
 	setData( _data.hostname, '127.0.0.1' );
 	setData( _data.username, 'no_user_name' );
@@ -101,7 +102,7 @@ function IRCClient( server, port ) {
 	setData( _data.userid, 'USERID' ); // identd
 	
 	
-	var _sender = new FloodControlSender( 7, 12000, function(buffer) {
+	var _sender = new FloodControlSender( 10, 20000, function(buffer) {
 	
 		_socket.Send( buffer );
 		setData( _data.lastMessageTime, Time() );
@@ -122,12 +123,13 @@ function IRCClient( server, port ) {
 	this.RemoveMessageListener = function( command, func ) {
 	
 		var list = (_listeners[command] || (_listeners[command]=[]));
-		list.splice( list.indexOf(func), 1 );
+		var pos = list.indexOf(func)
+		pos != -1 && list.splice( pos, 1 );
 	}
 
 	this.FireMessageListener = function( command, arg ) {
 
-		for ( var [i,l] in _listeners[command] || (_listeners[command]=[]) )
+		for ( var [,l] in _listeners[command] || (_listeners[command]=[]) )
 			l.apply(this,arg);
 	}
 
@@ -153,7 +155,10 @@ function IRCClient( server, port ) {
 
 		log.WriteLn( '<- ' + args );
 		this.FireMessageListener( args[1], args );
+//		log.WriteLn( dumpData( _data ) );
+		
 	}
+	
 
 	function onSocketReadable(s) {
 
@@ -200,6 +205,7 @@ function IRCClient( server, port ) {
 		mod.RemoveMessageListener = this.RemoveMessageListener;
 		mod.Send = this.Send;
 		mod.data = _data;
+		mod.api = _api;		
 		mod.InitModule(mod);
 		_modules.push( mod );
 	}
@@ -245,16 +251,25 @@ function DefaultModule( nick ) {
 		});
 
 		this.AddMessageListener( 'RPL_USERHOST', function( from, command, to, host ) {
-
-			setData( module.data.userHost, host );
+			
+			var [,hostinfo] = host.split('=');
+			setData( module.data.userhost, hostinfo.substr(1) ); // hostinfo[0] = '+' or '-' : AWAY message set
 		});
 		
-//		function firstModeMessage( who, command, what, modes ) {
-//
-//			this.RemoveMessageListener( 'MODE', firstModeMessage );
-//		}
-//		this.AddMessageListener( 'MODE', firstModeMessage );
 
+/* same info in RPL_USERHOST
+		function firstModeMessage( who, command, what, modes ) {
+			
+			var nick = who.substring( 0, who.indexOf('!') ); // [TBD] try to auto extract this
+
+			if ( nick == getData(module.data.nick) ) { // self
+				
+				setData( module.data.fullnick, who );
+				this.RemoveMessageListener( 'MODE', firstModeMessage );
+			}
+		}
+		this.AddMessageListener( 'MODE', firstModeMessage );
+*/
 
 		this.AddMessageListener( 'ERR_ERRONEUSNICKNAME', function() {
 		  
@@ -275,12 +290,6 @@ function DefaultModule( nick ) {
 			module.Send( 'PONG '+arg );
 		});
 
-		this.AddMessageListener( 'PRIVMSG', function( from, command, to, msg ) {
-
-			if ( msg[0] == '\1' ) {
-				// manage CTCP message
-			}
-		});
 
 		// irc.clockworkorange.co.uk- on 1 ca 1(2) ft 10(10) tr
 		// where:
@@ -291,7 +300,7 @@ function DefaultModule( nick ) {
 		//       This stops you from “refilling” your free targets by reconnection.	
 		var oncafttrExpr = new RegExp('^on ([0-9]+) ca ([0-9]+)\\(([0-9]+)\\) ft ([0-9]+)\\(([0-9]+)\\) *(tr)?$'); // http://developer.mozilla.org/en/docs/Core_JavaScript_1.5_Guide:Writing_a_Regular_Expression_Pattern
 		
-		function oncafttrNotice( from, comment, to, message ) {
+		function oncafttrNotice( from, command, to, message ) {
 
 			if ( message.substr(0,2) == 'on' ) {
 
@@ -324,15 +333,19 @@ function ChanModule( _channel ) {
 
 			if ( channel != _channel )
 				return;
-
+				
 			var nick = who.substring( 0, who.indexOf('!') ); // [TBD] try to auto extract this
 
-			if ( nick == getData(module.data.nick) ) {// self
+			if ( nick == getData(module.data.nick) ) { // self
 
-				module.Send( 'MODE '+_channel );
-				module.Send( 'MODE '+_channel+' +b' );
+				setData( module.data.channel[channel], true );
+
+				module.Send( 'MODE '+_channel ); // request modes
+				module.Send( 'MODE '+_channel+' +b' ); // request banlist
+			} else {
+
+				setData( module.data.channel[channel].names[nick], true );
 			}
-
 		});
 
 		this.AddMessageListener( 'RPL_BANLIST', function( from, command, to, channel, ban, banBy, time ) {
@@ -346,7 +359,7 @@ function ChanModule( _channel ) {
 				return;
 
 			var nick = who.substring( 0, who.indexOf('!') ); // [TBD] try to auto extract this
-			if ( nick == module.data.nick )
+			if ( nick == getData(module.data.nick) )
 				delData( module.data.channel[_channel] );
 			else
 				delData( module.data.channel[_channel].names[nick] );
@@ -409,9 +422,8 @@ function ChanModule( _channel ) {
 			module._ParseModes( modes, args, module.data.channel[_channel] );
 		});
 
-
 		this._ParseModes = function( modes, args, chanData ) {
-
+		
 			var simpleMode = { i:'inviteOnly', t:'topicByOp', p:'priv', s:'secret', m:'moderated', n:'noExternalMessages', r:'reop', C:'noCtcp', N:'noExternalNotice'  };
 			var argPos = 0;
 			var pos = 0;
@@ -455,7 +467,7 @@ function ChanModule( _channel ) {
 
 			if ( channel != _channel ) // [TBD] use a kind of filter to avoid doing this (eg. register RPL_NAMREPLY with #chan as filter )
 				return;
-
+				
 			var chanData = module.data.channel[_channel];
 
 			if (type == '@')
@@ -465,27 +477,194 @@ function ChanModule( _channel ) {
 				setData( chanData.priv, true );
 
 			var names = list.split(' ');
-			for ( var n in names ) {
-
-				var name = names[n];
+			for ( var [,name] in names ) {
+			
+				var nameOnly;
 				switch( name[0] ) {
 
 					case '+':
-						setData( chanData.names[name.substring(1)].voice, true );
+						nameOnly = name.substring(1);
+						setData( chanData.names[nameOnly].voice, true );
 						break;
 					case '@':
-						setData( chanData.names[name.substring(1)].operator, true );
+						nameOnly = name.substring(1);
+						setData( chanData.names[nameOnly].operator, true );
 						break;
-					default:						
-						setData( chanData.names[name] );
+					default:
+						nameOnly = name;
 				}
+				setData( chanData.names[nameOnly], true );
 			}
 		});
 	} // InitModule
 }
 
+////////// CTCP module //////////
 
-////////// test module//////////
+function CTCPModule() {
+
+	function lowLevelCtcpQuote(data) { // NUL, NL, CR, QUOTE -> QUOTE 0, QUOTE n, QUOTE r, QUOTE QUOTE
+		
+//		var tr={ '\0':'\0200', '\r':'\020r', '\n':'\020n', '\020':'\020\020' };
+		var out='';
+		for ( var [,c] in data )
+			switch (c) {
+				case '\0':
+					out+='\0200';
+					break;
+				case '\r':
+					out+='\020r';
+					break;
+				case '\n':
+					out+='\020n';
+					break;
+				case '\020':
+					out+='\020\020';
+					break;
+				default:
+					out+=c;
+			}
+		return out;		
+	}
+
+	function lowLevelCtcpDequote(data) {
+
+		var out='';
+		var len=data.length;
+		for ( var i=0; i<len; i++ )
+			if ( data[i]=='\020' )
+				switch (data[++i]) {
+				case '0':
+					out+='\0';
+					break;
+				case 'r':
+					out+='\r';
+					break;
+				case 'n':
+					out+='\n';
+					break;
+				case '\020':
+					out+='\020';
+					break;
+				}
+			else
+				out+=data[i];
+		return out;		
+	}
+
+	function ctcpLevelQuote(data) {
+
+		var out='';
+		for ( var [,c] in data )
+			switch (c) {
+			case '\1':
+				out+='\\a';
+				break;
+			case '\\':
+				out+='\\\\';
+				break;
+			default:
+				out+=c;
+			}
+		return out;
+	}
+
+	function ctcpLevelDequote(data) {
+
+		var out='';
+		var len=data.length;
+		for ( var i=0; i<len; i++ )
+			if ( data[i]=='\\' )
+				switch (data[++i]) {
+				case '\\':
+					out+='\\';
+					break;
+				case 'a':
+					out+='\1';
+					break;
+				}
+			else
+				out+=data[i];
+		return out;		
+	}
+	
+
+	this.InitModule = function(module) {
+
+		var _ctclListenerList=[];
+		
+		module.api.AddCtcpListener = function(func) {
+
+			_ctclListenerList.push(func);
+		}
+		
+		module.api.RemoveCtcpListener = function(func) {
+
+			var pos = _ctclListenerList.indexOf(func)
+			pos != -1 && list.splice( pos, 1 );
+		}
+
+		function FireCtcpListener( from, to, tag, data ) {
+
+			for ( var [,l] in _ctclListenerList )
+				l.apply(this,arguments);
+		}
+		
+		function DispatchCtcpMessage( from, to, ctcpMessage ) {
+		
+			var pos = ctcpMessage.indexOf(' ');
+			var tag, data;
+			if ( pos == -1 )
+				tag = ctcpMessage;
+			else {
+				tag = ctcpMessage.substring( 0, pos );
+				data = ctcpMessage.substring( pos+1 );
+			}
+			FireCtcpListener( from, to, tag, data );
+		}
+		
+		module.api.CtcpQuery = function(who, tag, data) {
+			
+			module.Send( 'PRIVMSG '+who+' :'+lowLevelCtcpDequote( '\1'+ctcpLevelQuote(tag+' '+data)+'\1' ) );
+		}
+		
+		module.api.CtcpResponse = function(who, tag, data) {
+			
+			module.Send( 'NOTICE '+who+' :'+lowLevelCtcpDequote( '\1'+ctcpLevelQuote(tag+' '+data)+'\1' ) );
+		}
+
+		module.AddMessageListener( 'PRIVMSG', function( from, command, to, msg ) { // ctcp responses
+
+			var even = 0;
+			while (true) {
+				var odd = msg.indexOf('\1',even);
+				if ( odd != -1 ) {
+					odd++;
+					var even = msg.indexOf('\1',odd);
+					if ( even != -1 ) { // ok, we've got a first ctcp message
+
+						DispatchCtcpMessage( from, to, msg.substring( odd, even ) );
+						even++;
+					} else break;
+				} else break;
+			}
+		});
+		
+// CTCP PING
+		function CtcPing(from,to,tag,data) {
+			
+			var nick = from.substring( 0, from.indexOf('!') );
+
+			if ( tag=='PING' )
+				module.api.CtcpResponse( nick, tag, data );
+		}
+		module.api.AddCtcpListener( CtcPing );
+	}
+	
+	
+}
+
+////////// test module //////////
 
 
 function Test() {
@@ -494,7 +673,7 @@ function Test() {
 
 		this.AddMessageListener( 'PRIVMSG', function( from, command, to, msg ) {
 
-			var nick = from.substring( 0, from.indexOf('!') );
+			var nick = from.substring( from.indexOf('!')+1 );
 
 			if ( msg == '!!dump' ) {
 
@@ -508,10 +687,12 @@ function Test() {
 				  module.Send( 'PRIVMSG '+nick+' :XxxxxxxxXxxxxxxxXxxxxxxxXxxxx '+i );
 			}
 		});
-	
-		addDataListener( module.data.channel['#soubok'].names['soubok'], function() {
+
+		addDataListener( module.data.channel['#soubok'].names['soubok'], function(info) {
 		
-			module.Send( 'PRIVMSG soubokk :hi soubok!' );
+			module.Send( 'PRIVMSG soubok :hi soubok! ('+info+')' );
+//			module.Send( 'PRIVMSG soubok :'+module.api.Ctcp('VERSION') );
+			
 		});
 	}
 }
@@ -523,7 +704,9 @@ function Test() {
 var client = new IRCClient( 'euroserv.fr.quakenet.org', 6667 );
 
 client.AddModule( new DefaultModule( 'cdd_etf_bot' ) ); 
+client.AddModule( new CTCPModule() ); 
 client.AddModule( new ChanModule( '#soubok' ) );
+//client.AddModule( new ChanModule( '#soubok2' ) );
 client.AddModule( new Test() );
 
 
@@ -543,6 +726,14 @@ links:
 =====
 
 http://www.irchelp.org/irchelp/misc/ccosmos.html
+
+DCC protocol (Direct Client Connection):
+  http://www.irchelp.org/irchelp/rfc/dccspec.html
+  
+CTCP Protocol (Client-To-Client Protocol)
+  http://www.irchelp.org/irchelp/rfc/ctcpspec.html
+  http://mathieu-lemoine.developpez.com/tutoriels/irc/ctcp/
+  
 
 infos:
 =====
