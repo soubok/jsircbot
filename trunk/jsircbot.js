@@ -767,8 +767,6 @@ function DCCReceiver( destinationPath ) {
 			if ( type != 'SEND' )
 				return;
 			DCCReceive( IntegerToIp(address), port, argument, 2000 );
-			
-//			var nick = from.substring( 0, from.indexOf('!') );
 		});
 	}
 }
