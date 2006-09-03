@@ -57,7 +57,7 @@ var io = new function() {
 	
 		timeout.Remove( when );
 	}
-	
+
 	this.AddDescriptor = function( d ) {
 	
 		_descriptorList.push(d);
