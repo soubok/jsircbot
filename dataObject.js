@@ -24,7 +24,8 @@ function addDataListener( path, listener ) {
 function removeDataListener( path, listener ) {
 
 	var list = objex.Aux( path ).listenerList;
-	list.splice( list.indexOf(listener), 1 );
+	var pos = list.indexOf(listener);
+	pos != -1 && list.splice( pos, 1 );
 }
 
 function setData( path, data ) {
@@ -38,9 +39,10 @@ function setData( path, data ) {
 //	while ( path = (aux=objex.Aux(path)).parent || undefined )
 //		aux.listener && aux.listener('set (children)');
 
-	var paux = objex.Aux(aux.parent);
-	for ( var [i,l] in paux.listenerList )
-		l('set', data);
+// bubble to all parents
+//	var paux = objex.Aux(aux.parent);
+//	for ( var [i,l] in paux.listenerList )
+//		l('set', data);
 }
 
 function getData( path ) {
@@ -61,7 +63,7 @@ function delData( path ) { // delete datas but not listeners
 	var aux = objex.Aux(path);
 	
 	for ( var [i,l] in aux.listenerList )
-		l('del', data);
+		l('del');
 		
 	delete aux.data;
 	for ( var [k,v] in path )
