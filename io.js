@@ -65,7 +65,8 @@ var io = new function() {
 
 	this.RemoveDescriptor = function(d) {
 		
-		_descriptorList.splice( _descriptorList.indexOf(d), 1 );
+		var pos = _descriptorList.indexOf(d);
+		pos != -1 && _descriptorList.splice( pos, 1 );
 	}
 
 	this.Process = function( endPredicate ) {
