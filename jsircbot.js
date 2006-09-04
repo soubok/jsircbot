@@ -57,7 +57,7 @@ function FloodControlSender( max, time, rawSender ) {
 		var buffer = '';
 		for ( ; _count > 0 && _queue.length > 0 ; _count-- )
 			buffer += _queue.shift();
-		if ( buffer.length )
+		if ( buffer.length > 0 )
 			rawSender(buffer);
 	}
 	
@@ -84,6 +84,7 @@ function FloodControlSender( max, time, rawSender ) {
 	}
 }
 
+const CRLF = '\r\n';
 
 function IRCClient( server, port ) {
 
@@ -95,24 +96,16 @@ function IRCClient( server, port ) {
 	var _data = newDataNode();
 	var _api = {};
 	
-	setData( _data.hostname, '127.0.0.1' );
-	setData( _data.username, 'no_user_name' );
-	setData( _data.realname, 'no real name' );
-	setData( _data.opsys, 'UNIX' ); // identd
-	setData( _data.userid, 'USERID' ); // identd
-	
-	
 	var _sender = new FloodControlSender( 10, 20000, function(buffer) {
 	
 		_socket.Send( buffer );
 		setData( _data.lastMessageTime, Time() );
 	});
 
-
 	this.Send = function( message, bypassAntiFlood ) {
 
 		log.WriteLn( '-> '+message );
-		_sender.Send( message+'\r\n', bypassAntiFlood );
+		_sender.Send( message+CRLF, bypassAntiFlood );
 	}
 
 	this.AddMessageListener = function( command, func, context ) {
@@ -168,29 +161,6 @@ function IRCClient( server, port ) {
 
 		log.WriteLn( '<- ' + args );
 		this.FireMessageListener( args[1], args );
-//		log.WriteLn( dumpData( _data ) );
-	}
-
-	function onSocketReadable(s) {
-
-		var buf = _socket.Recv();
-		if ( buf.length == 0 ) { // remotely closed
-	
-			_this.NotifyModule( 'OnDisconnect' );
-			delete s.readable;
-			s.Close();
-			io.RemoveDescriptor(s);
-			return;
-		}
-
-		_receiveBuffer += buf;
-
-		var eol;
-		while ( (eol=_receiveBuffer.indexOf('\r\n')) != -1 ) {
-
-			_this.DispatchMessage( _receiveBuffer.substring( 0, eol ) )
-			_receiveBuffer = _receiveBuffer.substring( eol+2 ); // +2 for '\r\n';
-		}
 	}
 
 	this.Connect = function() {
@@ -205,7 +175,37 @@ function IRCClient( server, port ) {
 		_socket.writable = function() {
 		
 			delete _socket.writable;
-			_socket.readable = onSocketReadable;
+			_socket.readable = function(s) {
+
+				var buf = _socket.Recv();
+				if ( buf.length == 0 ) { // remotely closed
+
+					_this.NotifyModule( 'OnDisconnect' );
+					delete s.readable;
+					s.Close();
+					io.RemoveDescriptor(s);
+					return;
+				}
+
+				_receiveBuffer += buf;
+
+				for ( var eol; (eol=_receiveBuffer.indexOf(CRLF)) != -1; _receiveBuffer = _receiveBuffer.substring( eol+2 ) ) { // +2 for CRLF ('\r\n');
+
+					var message = _receiveBuffer.substring( 0, eol );
+					var prefix = message.indexOf( ':' );
+					var trailing = message.indexOf( ':', 1 );
+					var args = message.substring( prefix?0:1, trailing>0?trailing-1:message.length ).split(' ');
+					if (prefix)
+						args.unshift( undefined );
+					if ( trailing>0 )
+						args.push( message.substring( trailing+1 ) );
+					if ( !isNaN( args[1] ) )
+						args[1] = numericCommand[Number(args[1])];
+
+					log.WriteLn( '<- ' + args );
+					_this.FireMessageListener( args[1], args );
+				}
+			}
 			_this.NotifyModule( 'OnConnect' );
 		}
 	}
@@ -221,13 +221,14 @@ function IRCClient( server, port ) {
 		mod.api = _api;		
 		mod.InitModule(mod);
 		_modules.push( mod );
+		return mod;
 	}
 
 	this.Close = function() {
 
 		this.NotifyModule( 'Finalize' );
 		this.NotifyModule( 'OnClose' );
-		_socket.linger = 1000;
+//		_socket.linger = 1000;
 		_socket.Close();
 		io.RemoveDescriptor(_socket);
 	}
@@ -237,7 +238,8 @@ function IRCClient( server, port ) {
 ///////////////////////////////////////////////// MODULES /////////////////////////////////////////////
 
 
-function DefaultModule( nick ) {
+function DefaultModule( nick, username, realname ) {
+
 	
 // [TBD] autodetect max message length ( with a self sent mesage )
 // [TBD] autodetect flood limit
@@ -316,7 +318,7 @@ function DefaultModule( nick ) {
 	this.OnConnect = function() {
 		
 		var data = this.data;
-		Ident( io, function(identRequest) { return( identRequest + ' : '+getData(data.userid)+' : '+getData(data.opsys)+' : '+nick+'\r\n' ) }, 2000 );
+		Ident( io, function(identRequest) { return( identRequest + ' : '+getData(data.userid)+' : '+getData(data.opsys)+' : '+nick+CRLF ) }, 2000 );
 		this.Send( 'USER '+getData(data.username)+' '+getData(data.hostname)+' '+getData(data.server)+' :'+getData(data.realname) );
 		this.Send( 'NICK '+nick );
 	} 
@@ -327,7 +329,13 @@ function DefaultModule( nick ) {
 	}
 	
 	this.InitModule = function() {
-	
+
+		setData( _data.hostname, '127.0.0.1' );
+		setData( _data.username, username||'no_user_name' );
+		setData( _data.realname, realname||'no real name' );
+		setData( _data.opsys, 'UNIX' ); // identd
+		setData( _data.userid, 'USERID' ); // identd
+
 		this.api.privmsg = function( to, message ) {
 			
 			this.Send( 'PRIVMSG '+to+' :'+message );
@@ -439,6 +447,8 @@ function ChanModule( _channel ) {
 		NICK: function( who, command, newNick ) {
 
 			var nick = who.substring( 0, who.indexOf('!') );
+			if ( nick == getData( this.data.nick ) ) // do not manage bot nick change here!
+				return;
 
 	//		renameData( this.data.channel[_channel].names, nick,newNick );
 			moveData( this.data.channel[_channel].names[nick], this.data.channel[_channel].names[newNick] );
@@ -679,8 +689,10 @@ function CTCPModule() {
 
 						DispatchCtcpMessage( from, to, msg.substring( odd, even ) );
 						even++;
-					} else break;
-				} else break;
+					} else 
+						break;
+				} else 
+					break;
 			}
 		});
 		
@@ -717,7 +729,7 @@ function DCCReceiver( destinationPath ) {
 		return (number>>24 & 255)+'.'+(number>>16 & 255)+'.'+(number>>8 & 255)+'.'+(number & 255);
 	}
 	
-	function Uint32ToNetworkOrderString(number) {
+	function NumberToUint32NetworkOrderString(number) {
 		
 		return String.fromCharCode(number>>24 & 255)+String.fromCharCode(number>>16 & 255)+String.fromCharCode(number>>8 & 255)+String.fromCharCode(number & 255);
 	}
@@ -725,8 +737,16 @@ function DCCReceiver( destinationPath ) {
 	function DCCReceive( ip, port, fileName, timeout ) { // receiver is a client socket / sender is the server
 		
 		var dccSocket = new Socket();
-		var file = new File(fileName);
-		file.Open( File.CREATE_FILE + File.WRONLY );
+		var file = new File( destinationPath +'/' + fileName);
+		
+		try {
+			
+			file.Open( File.CREATE_FILE + File.WRONLY );
+		} catch ( ex if ex instanceof NSPRError ) {
+			
+			print('Unable to create '+fileName+' in '+destinationPath, '\n'); // non-fatal error
+			return; // abort
+		}
 		
 		dccSocket.Connect( ip, port );
 		io.AddDescriptor( dccSocket );
@@ -753,7 +773,7 @@ function DCCReceiver( destinationPath ) {
 				return;
 			}
 			totalReceived += len;
-			s.Send( Uint32ToNetworkOrderString(totalReceived) ); // ack.
+			s.Send( NumberToUint32NetworkOrderString(totalReceived) ); // ack.
 			file.Write( buf );
 			io.RemoveTimeout(timeoutId);
 			timeoutId = io.AddTimeout( timeout, Finalize );
@@ -819,26 +839,24 @@ function Test() {
 
 ////////// Start //////////
 
-var client = new IRCClient( 'euroserv.fr.quakenet.org', 6667 );
+var bot = new IRCClient( 'euroserv.fr.quakenet.org', 6667 );
 
-client.AddModule( new DefaultModule( 'cdd_etf_bot' ) ); 
-client.AddModule( new CTCPModule() ); 
-client.AddModule( new ChanModule( '#soubok' ) );
-client.AddModule( new DCCReceiver( 'c:\\tmp' ) );
-//client.AddModule( new ChanModule( '#soubok2' ) );
-client.AddModule( new Test() );
+bot.AddModule( new DefaultModule( 'cdd_etf_bot' ) ); 
+bot.AddModule( new CTCPModule() ); 
+bot.AddModule( new ChanModule( '#soubok' ) );
+bot.AddModule( new DCCReceiver( 'c:/tmp' ) );
+bot.AddModule( new Test() );
 
 
-client.Connect();
+bot.Connect();
 io.Process( function() { return endSignal } );
-client.Close(); // clean QUIT
+bot.Close(); // clean QUIT
 io.Close(); // from now, Client has 1000ms to QUIT ...
 
 log.WriteLn(' ========================================================= END ========================================================= ');
 log.Close();
 
-
-print('\nEnd.\n');
+print('\nGracefully end.\n');
 /*
 
 links:
