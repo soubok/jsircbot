@@ -330,11 +330,11 @@ function DefaultModule( nick, username, realname ) {
 	
 	this.InitModule = function() {
 
-		setData( _data.hostname, '127.0.0.1' );
-		setData( _data.username, username||'no_user_name' );
-		setData( _data.realname, realname||'no real name' );
-		setData( _data.opsys, 'UNIX' ); // identd
-		setData( _data.userid, 'USERID' ); // identd
+		setData( this.data.hostname, '127.0.0.1' );
+		setData( this.data.username, username||'no_user_name' );
+		setData( this.data.realname, realname||'no real name' );
+		setData( this.data.opsys, 'UNIX' ); // identd
+		setData( this.data.userid, 'USERID' ); // identd
 
 		this.api.privmsg = function( to, message ) {
 			
