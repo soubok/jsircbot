@@ -3,7 +3,7 @@ rfc: rfc2812.txt
 rfc: rfc2813.txt
 */
 
-exec('deflib.js');
+Exec('deflib.js');
 LoadModule('jsnspr');
 
 exec('dataObject.js');
@@ -308,7 +308,7 @@ function DefaultModule( nick, username, realname ) {
 				var res = oncafttrExpr(message);
 				if ( res == null )
 					return;
-				//print( res );
+				//Print( res );
 //				this.RemoveMessageListener( 'NOTICE', oncafttrNotice );
 			}
 		}
@@ -744,7 +744,7 @@ function DCCReceiver( destinationPath ) {
 			file.Open( File.CREATE_FILE + File.WRONLY );
 		} catch ( ex if ex instanceof NSPRError ) {
 			
-			print('Unable to create '+fileName+' in '+destinationPath, '\n'); // non-fatal error
+			Print('Unable to create '+fileName+' in '+destinationPath, '\n'); // non-fatal error
 			return; // abort
 		}
 		
@@ -815,7 +815,7 @@ function Test() {
 			if ( msg == '!!dump' ) {
 
 				//module.Send( 'PRIVMSG '+nick+' :'+dumpData(module.data) );
-				print(dumpData(module.data), '\n');
+				Print(dumpData(module.data), '\n');
 			}
 
 			if ( msg == '!!flood' ) {
@@ -856,7 +856,7 @@ io.Close(); // from now, Client has 1000ms to QUIT ...
 log.WriteLn(' ========================================================= END ========================================================= ');
 log.Close();
 
-print('\nGracefully end.\n');
+Print('\nGracefully end.\n');
 /*
 
 links:
