@@ -280,10 +280,8 @@ function DefaultModule( nick, username, realname ) {
 
 		ERR_NICKNAMEINUSE: function() {
 		
-			var tmpNick = 'tmp'+Math.random().toString(16).substr(2);
+			var tmpNick = 'tmp'+Math.random().toString(16).substr(2); // ...try a random nick, then, when ready, try a better nick
 			this.Send( 'NICK '+tmpNick );
-
-		  // ...try a random nick, then, when ready, try a better nick
 		},
 		
 		PING: function( prefix, command, arg ) {
@@ -333,13 +331,14 @@ function DefaultModule( nick, username, realname ) {
 		setData( this.data.hostname, '127.0.0.1' );
 		setData( this.data.username, username||'no_user_name' );
 		setData( this.data.realname, realname||'no real name' );
-		setData( this.data.opsys, 'UNIX' ); // identd
-		setData( this.data.userid, 'USERID' ); // identd
+		setData( this.data.opsys, 'UNIX' ); // for identd
+		setData( this.data.userid, 'USERID' ); // for identd
 
 		this.api.privmsg = function( to, message ) {
 			
 			this.Send( 'PRIVMSG '+to+' :'+message );
 		}
+		
 		this.AddMessageListenerSet( listenerSet, this ); // listeners table , context (this)
 	}
 

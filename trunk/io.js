@@ -83,7 +83,7 @@ var io = new function() {
 		//Poll(_descriptorList, 1000);
 		Sleep(500);
 		
-		for ( var [i,d] in _descriptorList )
+		for each ( var i in _descriptorList )
 			d.Close();		
 	}
 }
