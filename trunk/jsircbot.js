@@ -1,8 +1,17 @@
-/*
-rfc: rfc2812.txt
-rfc: rfc2813.txt
-*/
-
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: GNU GPL 2.0
+ *
+ * The contents of this file are subject to the
+ * GNU General Public License Version 2.0; you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ * http://www.gnu.org/licenses/gpl.html
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ * ***** END LICENSE BLOCK ***** */
+ 
 Exec('deflib.js');
 LoadModule('jsnspr');
 
@@ -869,10 +878,13 @@ DCC protocol (Direct Client Connection):
 CTCP Protocol (Client-To-Client Protocol)
   http://www.irchelp.org/irchelp/rfc/ctcpspec.html
   http://mathieu-lemoine.developpez.com/tutoriels/irc/ctcp/
-  
+
 
 infos:
 =====
+
+rfc: rfc2812.txt
+rfc: rfc2813.txt
 
 6.9 Characters on IRC
 	For chatting in channels, anything that can be translated to ASCII gets through. (ASCII is a standard way to express characters) Note however, that since the parts of the ASCII table may be country-specific, your ASCII-art may not turn out as well for others. Fancy fonts will only show up on your own computer. You can use character map (charmap.exe) in windows to view the ASCII table.
