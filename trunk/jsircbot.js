@@ -11,13 +11,13 @@
  * for the specific language governing rights and limitations under the
  * License.
  * ***** END LICENSE BLOCK ***** */
- 
-Exec('deflib.js');
+
+LoadModule('jsstd'); 
 LoadModule('jsnspr');
 
-exec('dataObject.js');
-exec('io.js');
-exec('ident.js');
+Exec('dataObject.js');
+Exec('io.js');
+Exec('ident.js');
 
 
 var log = new function() {
@@ -47,7 +47,7 @@ var log = new function() {
 ///////////////////////////////////////////////////////
 
 
-var numericCommand = exec('NumericCommand.js');
+var numericCommand = Exec('NumericCommand.js');
 
 function Time() {
 
@@ -848,12 +848,18 @@ function Test() {
 
 ////////// Start //////////
 
+var downloadedFilesPath = './DCC_receivedFiles';
+
 var bot = new IRCClient( 'euroserv.fr.quakenet.org', 6667 );
 
 bot.AddModule( new DefaultModule( 'cdd_etf_bot' ) ); 
 bot.AddModule( new CTCPModule() ); 
 bot.AddModule( new ChanModule( '#soubok' ) );
-bot.AddModule( new DCCReceiver( 'c:/tmp' ) );
+
+var dir = new Directory(downloadedFilesPath);
+dir.Make();
+
+bot.AddModule( new DCCReceiver( downloadedFilesPath ) );
 bot.AddModule( new Test() );
 
 
