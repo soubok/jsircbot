@@ -811,6 +811,10 @@ function DCCReceiver( destinationPath ) {
 }
 
 
+
+
+
+
 ////////// test module //////////
 
 function Test() {
@@ -835,9 +839,9 @@ function Test() {
 
 		});
 
-		addDataListener( module.data.channel['#soubok'].names['soubok'], function(info) {
+		addDataListener( module.data.channel['#jslibs'].names['soubok'], function(info) {
 		
-			module.Send( 'PRIVMSG soubok :hi soubok! ('+info+')' );
+			module.Send( 'PRIVMSG soubok :hi! ('+info+')' );
 //			module.Send( 'PRIVMSG soubok :'+module.api.Ctcp('VERSION') );
 			
 		});
@@ -846,22 +850,18 @@ function Test() {
 
 
 
+
 ////////// Start //////////
 
-var downloadedFilesPath = './DCC_receivedFiles';
+Print( 'Press ctrl-c to exit...', '\n' );
 
+var downloadedFilesPath = '.';
 var bot = new IRCClient( 'euroserv.fr.quakenet.org', 6667 );
-
-bot.AddModule( new DefaultModule( 'cdd_etf_bot' ) ); 
+bot.AddModule( new DefaultModule( 'jsircbot' ) ); 
 bot.AddModule( new CTCPModule() ); 
-bot.AddModule( new ChanModule( '#soubok' ) );
-
-var dir = new Directory(downloadedFilesPath);
-dir.Make();
-
+bot.AddModule( new ChanModule( '#jslibs' ) );
 bot.AddModule( new DCCReceiver( downloadedFilesPath ) );
 bot.AddModule( new Test() );
-
 
 bot.Connect();
 io.Process( function() { return endSignal } );
