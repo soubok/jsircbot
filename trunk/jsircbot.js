@@ -54,6 +54,9 @@ function Time() {
 	return IntervalNow(); //return (new Date()).getTime(); // in ms
 }
 
+const CRLF = '\r\n';
+
+
 
 function FloodControlSender( max, time, rawSender ) {
 
@@ -92,8 +95,6 @@ function FloodControlSender( max, time, rawSender ) {
 		}
 	}
 }
-
-const CRLF = '\r\n';
 
 function IRCClient( server, port ) {
 
