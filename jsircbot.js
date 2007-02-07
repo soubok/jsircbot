@@ -812,43 +812,19 @@ function DCCReceiver( destinationPath ) {
 
 
 
+function LoadModulesFromDisk(bot, path) {
 
+	function FileExtension(filename) {
 
-
-////////// test module //////////
-
-function Test() {
-
-	this.InitModule = function(module) {
-
-		this.AddMessageListener( 'PRIVMSG', function( from, command, to, msg ) {
-
-			var nick = from.substring( from.indexOf('!')+1 );
-
-			if ( msg == '!!dump' ) {
-
-				//module.Send( 'PRIVMSG '+nick+' :'+dumpData(module.data) );
-				Print(dumpData(module.data), '\n');
-			}
-
-			if ( msg == '!!flood' ) {
-
-				for ( var i = 0; i<100; i++ )
-				  module.Send( 'PRIVMSG '+nick+' :XxxxxxxxXxxxxxxxXxxxxxxxXxxxx '+i );
-			}
-
-		});
-
-		addDataListener( module.data.channel['#jslibs'].names['soubok'], function(info) {
-		
-			module.Send( 'PRIVMSG soubok :hi! ('+info+')' );
-//			module.Send( 'PRIVMSG soubok :'+module.api.Ctcp('VERSION') );
-			
-		});
+		var pt = filename.lastIndexOf('.');
+		return pt != -1 ? filename.substr(++pt) : undefined;
 	}
+
+	var entry, dir = new Directory(path, Directory.SKIP_BOTH);
+	for ( dir.Open(); ( entry = dir.Read() ); )
+		if ( FileExtension(entry) == 'jsmod' )
+			bot.AddModule( new Exec(path+'/'+entry) );
 }
-
-
 
 
 ////////// Start //////////
@@ -861,9 +837,13 @@ bot.AddModule( new DefaultModule( 'jsircbot' ) );
 bot.AddModule( new CTCPModule() ); 
 bot.AddModule( new ChanModule( '#jslibs' ) );
 bot.AddModule( new DCCReceiver( downloadedFilesPath ) );
-bot.AddModule( new Test() );
+//bot.AddModule( new Test() );
+
+LoadModulesFromDisk( bot, '.' );
 
 bot.Connect();
+
+
 io.Process( function() { return endSignal } );
 bot.Close(); // clean QUIT
 io.Close(); // from now, Client has 1000ms to QUIT ...
