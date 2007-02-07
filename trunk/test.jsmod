@@ -1,0 +1,30 @@
+function() {
+
+	this.InitModule = function(module) {
+
+		this.AddMessageListener( 'PRIVMSG', function( from, command, to, msg ) {
+
+			var nick = from.substring( from.indexOf('!')+1 );
+
+			if ( msg == '!!dump' ) {
+
+				//module.Send( 'PRIVMSG '+nick+' :'+dumpData(module.data) );
+				Print(dumpData(module.data), '\n');
+			}
+
+			if ( msg == '!!flood' ) {
+
+				for ( var i = 0; i<100; i++ )
+				  module.Send( 'PRIVMSG '+nick+' :XxxxxxxxXxxxxxxxXxxxxxxxXxxxx '+i );
+			}
+
+		});
+
+		addDataListener( module.data.channel['#jslibs'].names['soubok'], function(info) {
+		
+			module.Send( 'PRIVMSG soubok :hi! ('+info+')' );
+//			module.Send( 'PRIVMSG soubok :'+module.api.Ctcp('VERSION') );
+			
+		});
+	}
+}
