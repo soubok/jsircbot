@@ -146,14 +146,14 @@ function IRCClient( server, port ) {
 	this.FireMessageListener = function( command, arg ) {
 
 		if ( command in _listeners )
-			for ( var [,item] in _listeners[command] ) // var [func,context]=item;
+			for each ( var item in _listeners[command] ) // var [func,context]=item;
 				item[0].apply(item[1],arg);
 	}
 
 	this.NotifyModule = function( event ) {
 		
 		log.WriteLn( '== '+event );
-		for ( var [,m] in _modules )
+		for each ( var m in _modules )
 			m[event] && m[event]();
 	}
 	
@@ -182,16 +182,19 @@ function IRCClient( server, port ) {
 		_socket = new Socket();
 		io.AddDescriptor(_socket);
 		_socket.Connect( server, port );
-		_socket.writable = function() {
+		_socket.writable = function(s) { // connection accepted
+			
+			setData( _data.sockName, s.sockName() );
+			setData( _data.peerName, s.peerName() );
 		
-			delete _socket.writable;
-			_socket.readable = function(s) {
+			delete s.writable; // cancel writable notification
+			s.readable = function(s) {
 
-				var buf = _socket.Recv();
+				var buf = s.Recv();
 				if ( buf.length == 0 ) { // remotely closed
 
 					_this.NotifyModule( 'OnDisconnect' );
-					delete s.readable;
+					delete s.readable;// cancel readable notification
 					s.Close();
 					io.RemoveDescriptor(s);
 					return;
@@ -211,7 +214,6 @@ function IRCClient( server, port ) {
 						args.push( message.substring( trailing+1 ) );
 					if ( !isNaN( args[1] ) )
 						args[1] = numericCommand[Number(args[1])];
-
 					log.WriteLn( '<- ' + args );
 					_this.FireMessageListener( args[1], args );
 				}
@@ -249,7 +251,6 @@ function IRCClient( server, port ) {
 
 
 function DefaultModule( nick, username, realname ) {
-
 	
 // [TBD] autodetect max message length ( with a self sent mesage )
 // [TBD] autodetect flood limit
