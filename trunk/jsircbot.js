@@ -813,12 +813,13 @@ function DCCReceiver( destinationPath ) {
 
 
 
-function LoadModulesFromDisk(bot, path) {
+function LoadModulesFromPath(bot, path) {
 
 	function FileExtension(filename) {
 
 		var pt = filename.lastIndexOf('.');
-		return pt != -1 ? filename.substr(++pt) : undefined;
+		if ( pt != -1 )
+			return filename.substr(++pt);
 	}
 
 	var entry, dir = new Directory(path, Directory.SKIP_BOTH);
@@ -840,7 +841,7 @@ bot.AddModule( new ChanModule( '#jslibs' ) );
 bot.AddModule( new DCCReceiver( downloadedFilesPath ) );
 //bot.AddModule( new Test() );
 
-LoadModulesFromDisk( bot, '.' );
+LoadModulesFromPath( bot, '.' );
 
 bot.Connect();
 
