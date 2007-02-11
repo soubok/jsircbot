@@ -18,6 +18,11 @@ function() {
 				  module.Send( 'PRIVMSG '+nick+' :XxxxxxxxXxxxxxxxXxxxxxxxXxxxx '+i );
 			}
 
+			if ( msg == '!!quit' ) {
+
+				module.api.Quit('bye...');
+			}
+
 		});
 
 		addDataListener( module.data.channel['#jslibs'].names['soubok'], function(info) {
