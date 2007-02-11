@@ -107,9 +107,11 @@ function IRCClient( server, port ) {
 	var _api = {};
 	var _hasFinished;
 	
-	var _sender = new FloodControlSender( 10, 20000, function(buffer) {
+	var _sender = new FloodControlSender( 10, 20000, function(buffer) { // allow 10 message each 20 seconds
 	
-		_socket.Send( buffer );
+		var unsentData = _socket.Send( buffer );
+		if ( unsentData.length != 0 )
+			throw "Case not handled yet.";
 		setData( _data.lastMessageTime, Time() );
 	});
 
@@ -209,11 +211,11 @@ function IRCClient( server, port ) {
 		_socket = new Socket();
 		io.AddDescriptor(_socket);
 		_socket.Connect( server, port );
+		_this.NotifyModule( 'OnConnecting' );
 		_socket.writable = function(s) { // connection accepted
 			
 			setData( _data.sockName, s.sockName );
 			setData( _data.peerName, s.peerName );
-		
 			delete s.writable; // cancel writable notification
 			s.readable = function(s) {
 
@@ -249,7 +251,7 @@ function IRCClient( server, port ) {
 					_this.FireMessageListener( args[1], args );
 				}
 			}
-			_this.NotifyModule( 'OnConnect' );
+			_this.NotifyModule( 'OnConnected' );
 		}
 	}
 		
@@ -346,7 +348,7 @@ function DefaultModule( nick, username, realname ) {
 	};
 	
 	
-	this.OnConnect = function() {
+	this.OnConnected = function() {
 		
 		var data = this.data;
 		Ident( io, function(identRequest) { return( identRequest + ' : '+getData(data.userid)+' : '+getData(data.opsys)+' : '+nick+CRLF ) }, 2000 );
@@ -356,7 +358,7 @@ function DefaultModule( nick, username, realname ) {
 
 	this.InitModule = function(mod) {
 
-		setData( this.data.hostname, '127.0.0.1' );
+		setData( this.data.hostname, '127.0.0.1' ); // try something else
 		setData( this.data.username, username||'no_user_name' );
 		setData( this.data.realname, realname||'no real name' );
 		setData( this.data.opsys, 'UNIX' ); // for identd
@@ -369,7 +371,7 @@ function DefaultModule( nick, username, realname ) {
 
 		mod.api.Quit = function(quitMessage) {
 
-			mod.Send( 'QUIT :'+quitMessage, true );
+			mod.Send( 'QUIT :'+quitMessage, true ); // true = force the message to be post ASAP
 		}
 		
 		this.AddMessageListenerSet( listenerSet, this ); // listeners table , context (this)
@@ -840,9 +842,7 @@ function LoadModulesFromPath(bot, path) {
 	function FileExtension(filename) {
 
 		var pt = filename.lastIndexOf('.');
-		if ( pt != -1 )
-			return filename.substr(++pt);
-		return undefined;
+		return  pt == -1 ? undefined : filename.substr(++pt);
 	}
 
 	var entry, dir = new Directory(path, Directory.SKIP_BOTH);
@@ -857,7 +857,7 @@ function LoadModulesFromPath(bot, path) {
 Print( 'Press ctrl-c to exit...', '\n' );
 
 var downloadedFilesPath = '.';
-var bot = new IRCClient( 'euroserv.fr.quakenet.org', 6667 );
+var bot = new IRCClient( 'xs4all.nl.quakenet.org', 6667 );
 bot.AddModule( new DefaultModule( 'jsircbot' ) ); 
 bot.AddModule( new CTCPModule() ); 
 bot.AddModule( new ChanModule( '#jslibs' ) );
