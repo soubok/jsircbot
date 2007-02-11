@@ -94,7 +94,7 @@ var io = new function() {
 	
 	this.Close = function() {
 		
-		for each ( var i in _descriptorList )
+		for each ( var d in _descriptorList )
 			d.Close();		
 	}
 }
