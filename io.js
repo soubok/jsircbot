@@ -87,15 +87,12 @@ var io = new function() {
 	
 		for ( ; !endPredicate() ; ) {
 		
-			Poll(_descriptorList, timeout.Next(1000));
+			Poll(_descriptorList, timeout.Next(500));
 			timeout.Process();
 		}
 	}
 	
 	this.Close = function() {
-
-		//Poll(_descriptorList, 1000);
-		Sleep(500);
 		
 		for each ( var i in _descriptorList )
 			d.Close();		

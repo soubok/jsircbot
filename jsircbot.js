@@ -105,6 +105,7 @@ function IRCClient( server, port ) {
 	var _modules = [];
 	var _data = newDataNode();
 	var _api = {};
+	var _hasFinished;
 	
 	var _sender = new FloodControlSender( 10, 20000, function(buffer) {
 	
@@ -173,7 +174,33 @@ function IRCClient( server, port ) {
 		this.FireMessageListener( args[1], args );
 	}
 
+	this.hasFinished = function() {
+		
+		return _hasFinished;
+	}
+
+	this.Disconnect = function() { // make a Gracefully disconnect
+
+		_this.NotifyModule( 'OnDisconnecting' );
+		delete _socket.writable;
+		_socket.Shutdown(); // both
+		var timeoutId;
+		function Close() {
+
+			delete _socket.readable
+			io.RemoveTimeout(timeoutId); // cancel the timeout
+			io.RemoveDescriptor(_socket); // no more read/write notifications are needed
+			_socket.Close();
+			_this.NotifyModule( 'OnDisconnected' );
+			_hasFinished = true;
+		}
+		_socket.readable = Close;
+		timeoutId = io.AddTimeout( 1000, Close ); // force disconnect after the timeout
+	}
+
 	this.Connect = function() {
+
+		_hasFinished = false;
 
 		setData( _data.server, server );
 		setData( _data.port, port );
@@ -184,8 +211,8 @@ function IRCClient( server, port ) {
 		_socket.Connect( server, port );
 		_socket.writable = function(s) { // connection accepted
 			
-			setData( _data.sockName, s.sockName() );
-			setData( _data.peerName, s.peerName() );
+			setData( _data.sockName, s.sockName );
+			setData( _data.peerName, s.peerName );
 		
 			delete s.writable; // cancel writable notification
 			s.readable = function(s) {
@@ -193,10 +220,14 @@ function IRCClient( server, port ) {
 				var buf = s.Recv();
 				if ( buf.length == 0 ) { // remotely closed
 
-					_this.NotifyModule( 'OnDisconnect' );
-					delete s.readable;// cancel readable notification
-					s.Close();
+					delete s.readable;
+					delete s.writable;
+					log.WriteLn( '<- Disconnected' );
+					_this.NotifyModule( 'OnDisconnecting' );
 					io.RemoveDescriptor(s);
+					s.Close();
+					_this.NotifyModule( 'OnDisconnected' );
+					_hasFinished = true;
 					return;
 				}
 
@@ -221,7 +252,7 @@ function IRCClient( server, port ) {
 			_this.NotifyModule( 'OnConnect' );
 		}
 	}
-	
+		
 	this.AddModule = function( mod ) {
 		
 		mod.AddMessageListener = this.AddMessageListener;
@@ -230,19 +261,10 @@ function IRCClient( server, port ) {
 		mod.RemoveMessageListenerSet = this.RemoveMessageListenerSet;
 		mod.Send = this.Send;
 		mod.data = _data;
-		mod.api = _api;		
+		mod.api = _api;
 		mod.InitModule(mod);
-		_modules.push( mod );
+		_modules.push(mod);
 		return mod;
-	}
-
-	this.Close = function() {
-
-		this.NotifyModule( 'Finalize' );
-		this.NotifyModule( 'OnClose' );
-//		_socket.linger = 1000;
-		_socket.Close();
-		io.RemoveDescriptor(_socket);
 	}
 }
 
@@ -331,13 +353,8 @@ function DefaultModule( nick, username, realname ) {
 		this.Send( 'USER '+getData(data.username)+' '+getData(data.hostname)+' '+getData(data.server)+' :'+getData(data.realname) );
 		this.Send( 'NICK '+nick );
 	} 
-	
-	this.OnClose = function() {
-	
-		this.Send( 'QUIT :', true );
-	}
-	
-	this.InitModule = function() {
+
+	this.InitModule = function(mod) {
 
 		setData( this.data.hostname, '127.0.0.1' );
 		setData( this.data.username, username||'no_user_name' );
@@ -345,9 +362,14 @@ function DefaultModule( nick, username, realname ) {
 		setData( this.data.opsys, 'UNIX' ); // for identd
 		setData( this.data.userid, 'USERID' ); // for identd
 
-		this.api.privmsg = function( to, message ) {
+		mod.api.privmsg = function( to, message ) {
 			
 			this.Send( 'PRIVMSG '+to+' :'+message );
+		}
+
+		mod.api.Quit = function(quitMessage) {
+
+			mod.Send( 'QUIT :'+quitMessage, true );
 		}
 		
 		this.AddMessageListenerSet( listenerSet, this ); // listeners table , context (this)
@@ -820,12 +842,13 @@ function LoadModulesFromPath(bot, path) {
 		var pt = filename.lastIndexOf('.');
 		if ( pt != -1 )
 			return filename.substr(++pt);
+		return undefined;
 	}
 
 	var entry, dir = new Directory(path, Directory.SKIP_BOTH);
 	for ( dir.Open(); ( entry = dir.Read() ); )
 		if ( FileExtension(entry) == 'jsmod' )
-			bot.AddModule( new Exec(path+'/'+entry) );
+			bot.AddModule( new (Exec(path+'/'+entry)) );
 }
 
 
@@ -844,11 +867,8 @@ bot.AddModule( new DCCReceiver( downloadedFilesPath ) );
 LoadModulesFromPath( bot, '.' );
 
 bot.Connect();
-
-
-io.Process( function() { return endSignal } );
-bot.Close(); // clean QUIT
-io.Close(); // from now, Client has 1000ms to QUIT ...
+io.Process( function() { return bot.hasFinished() || endSignal } );
+io.Close();
 
 log.WriteLn(' ========================================================= END ========================================================= ');
 log.Close();
