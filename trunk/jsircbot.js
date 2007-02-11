@@ -121,15 +121,15 @@ function IRCClient( server, port ) {
 		_sender.Send( message+CRLF, bypassAntiFlood );
 	}
 
-	this.AddMessageListener = function( command, func, context ) {
+	this.AddMessageListener = function( command, func ) {
 		
-		(_listeners[command] || (_listeners[command]=[])).push([func,context]);
+		(_listeners[command] || (_listeners[command]=[])).push([func,this]);
 	}
 	
-	this.AddMessageListenerSet = function( funcSet, context ) {
+	this.AddMessageListenerSet = function( funcSet ) {
 		
 		for ( var [command,func] in funcSet )
-			this.AddMessageListener( command, func, context );
+			_this.AddMessageListener.call( this, command, func );
 	}
 	
 	this.RemoveMessageListener = function( command, func ) {
@@ -143,7 +143,7 @@ function IRCClient( server, port ) {
 	this.RemoveMessageListenerSet = function( funcSet ) {
 	
 		for ( var [command,func] in funcSet )
-			this.RemoveMessageListener( command, func );
+			_this.RemoveMessageListener( command, func );
 	}
 
 	this.FireMessageListener = function( command, arg ) {
@@ -155,9 +155,13 @@ function IRCClient( server, port ) {
 
 	this.NotifyModule = function( event ) {
 		
-		log.WriteLn( '== '+event );
+		var a = '';
+		for ( var i=0; i<arguments.length; i++ )
+			a+= arguments[i] + ' | ';
+		log.WriteLn( '== ' + a );
+		
 		for each ( var m in _modules )
-			m[event] && m[event]();
+			m[event] && m[event].apply(m, arguments);
 	}
 	
 	this.DispatchMessage = function( message ) {
@@ -173,7 +177,7 @@ function IRCClient( server, port ) {
 			args[1] = numericCommand[Number(args[1])];
 
 		log.WriteLn( '<- ' + args );
-		this.FireMessageListener( args[1], args );
+		_this.FireMessageListener( args[1], args );
 	}
 
 	this.hasFinished = function() {
@@ -194,6 +198,8 @@ function IRCClient( server, port ) {
 			io.RemoveDescriptor(_socket); // no more read/write notifications are needed
 			_socket.Close();
 			_this.NotifyModule( 'OnDisconnected' );
+			_this.NotifyModule( 'FinalizeModuleListeners' );
+			_this.NotifyModule( 'FinalizeModuleAPI' );
 			_hasFinished = true;
 		}
 		_socket.readable = Close;
@@ -229,6 +235,8 @@ function IRCClient( server, port ) {
 					io.RemoveDescriptor(s);
 					s.Close();
 					_this.NotifyModule( 'OnDisconnected' );
+					_this.NotifyModule( 'FinalizeModuleListeners' );
+					_this.NotifyModule( 'FinalizeModuleAPI' );
 					_hasFinished = true;
 					return;
 				}
@@ -307,9 +315,8 @@ function DefaultModule( nick, username, realname ) {
 		this.AddMessageListener( 'MODE', firstModeMessage );
 */
 
-		ERR_ERRONEUSNICKNAME: function() {
+		ERR_ERRONEUSNICKNAME: function() { // Erroneous nickname
 		  
-		  //.Close();
 		  // ...try to find server nick policy
 		},
 
@@ -351,7 +358,7 @@ function DefaultModule( nick, username, realname ) {
 	this.OnConnected = function() {
 		
 		var data = this.data;
-		Ident( io, function(identRequest) { return( identRequest + ' : '+getData(data.userid)+' : '+getData(data.opsys)+' : '+nick+CRLF ) }, 2000 );
+		Ident( io, function(identRequest) { return( identRequest + ' : '+getData(data.userid)+' : '+getData(data.opsys)+' : '+nick+CRLF ) }, 2000 ); // let 2 seconds to the server to make the IDENT request
 		this.Send( 'USER '+getData(data.username)+' '+getData(data.hostname)+' '+getData(data.server)+' :'+getData(data.realname) );
 		this.Send( 'NICK '+nick );
 	} 
@@ -366,7 +373,7 @@ function DefaultModule( nick, username, realname ) {
 
 		mod.api.privmsg = function( to, message ) {
 			
-			this.Send( 'PRIVMSG '+to+' :'+message );
+			mod.Send( 'PRIVMSG '+to+' :'+message );
 		}
 
 		mod.api.Quit = function(quitMessage) {
@@ -374,12 +381,12 @@ function DefaultModule( nick, username, realname ) {
 			mod.Send( 'QUIT :'+quitMessage, true ); // true = force the message to be post ASAP
 		}
 		
-		this.AddMessageListenerSet( listenerSet, this ); // listeners table , context (this)
+		this.AddMessageListenerSet( listenerSet ); // listeners table , context (this)
 	}
 
-	this.FinalizeModule = function() {
+	this.FinalizeModuleListeners = function() {
 
-		this.RemoveMessageListenerSet( listenerSet, module ); // listeners table , context (this)
+		this.RemoveMessageListenerSet( listenerSet ); // listeners table , context (this)
 	}
 }
 
@@ -568,12 +575,12 @@ function ChanModule( _channel ) {
 
 	this.InitModule = function() {
 
-		this.AddMessageListenerSet( listenerSet, this ); // listeners table , context (this)
+		this.AddMessageListenerSet( listenerSet ); // listeners table , context (this)
 	}
 
-	this.FinalizeModule = function() {
+	this.FinalizeModuleListeners = function() {
 
-		this.RemoveMessageListenerSet( listenerSet, this ); // listeners table , context (this)
+		this.RemoveMessageListenerSet( listenerSet ); // listeners table , context (this)
 	}
 }
 
@@ -679,7 +686,7 @@ function CTCPModule() {
 		module.api.RemoveCtcpListener = function(func) {
 
 			var pos = _ctclListenerList.indexOf(func)
-			pos != -1 && list.splice( pos, 1 );
+			pos != -1 && _ctclListenerList.splice( pos, 1 );
 		}
 
 		function FireCtcpListener( from, to, tag, data ) {
@@ -731,21 +738,24 @@ function CTCPModule() {
 		});
 		
 // CTCP PING
-		function CtcpPing( from, to, tag, data ) {
+		this.CtcpPing = function( from, to, tag, data ) {
 			
 			var nick = from.substring( 0, from.indexOf('!') );
 
 			if ( tag == 'PING' )
 				module.api.CtcpResponse( nick, tag, data );
 		}
-		this.api.AddCtcpListener( CtcpPing );
+		this.api.AddCtcpListener( this.CtcpPing );
 	}
 
 
-	this.FinalizeModule = function() {
+	this.FinalizeModuleListeners = function() {
 
-		this.api.RemoveCtcpListener( CtcpPing ); // listeners table , context (this)
-		
+		this.api.RemoveCtcpListener( this.CtcpPing ); // listeners table , context (this)
+	}
+
+	this.FinalizeModuleAPI = function() {
+	
 		delete this.api.AddCtcpListener;
 		delete this.api.RemoveCtcpListener;
 		delete this.api.CtcpQuery;
@@ -824,14 +834,14 @@ function DCCReceiver( destinationPath ) {
 		DCCReceive( IntegerToIp(address), port, argument, 2000 );
 	}	
 
-	this.InitModule = function(module) {
+	this.InitModule = function() {
 
-		module.api.AddCtcpListener( dccSendRequest );
+		this.api.AddCtcpListener( dccSendRequest );
 	}
 
-	this.FinalizeModule = function(module) {
+	this.FinalizeModuleListeners = function() {
 		
-		module.api.RemoveCtcpListener( dccSendRequest );
+		this.api.RemoveCtcpListener( dccSendRequest );
 	}
 }
 
@@ -860,8 +870,8 @@ var downloadedFilesPath = '.';
 var bot = new IRCClient( 'xs4all.nl.quakenet.org', 6667 );
 bot.AddModule( new DefaultModule( 'jsircbot' ) ); 
 bot.AddModule( new CTCPModule() ); 
-bot.AddModule( new ChanModule( '#jslibs' ) );
 bot.AddModule( new DCCReceiver( downloadedFilesPath ) );
+bot.AddModule( new ChanModule( '#jslibs' ) );
 //bot.AddModule( new Test() );
 
 LoadModulesFromPath( bot, '.' );
