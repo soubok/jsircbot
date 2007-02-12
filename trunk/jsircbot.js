@@ -57,7 +57,6 @@ function Time() {
 const CRLF = '\r\n';
 
 
-
 function FloodControlSender( max, time, rawSender ) {
 
 	var _count = max;
@@ -155,11 +154,10 @@ function IRCClient( server, port ) {
 
 	this.NotifyModule = function( event ) {
 		
-		var a = '';
+		var a = 'NotifyModule: ';
 		for ( var i=0; i<arguments.length; i++ )
-			a+= arguments[i] + ' | ';
+			a += arguments[i] + ' | ';
 		log.WriteLn( '== ' + a );
-		
 		for each ( var m in _modules )
 			m[event] && m[event].apply(m, arguments);
 	}
@@ -175,7 +173,6 @@ function IRCClient( server, port ) {
 			args.push( message.substring( trailing+1 ) );
 		if ( !isNaN( args[1] ) )
 			args[1] = numericCommand[Number(args[1])];
-
 		log.WriteLn( '<- ' + args );
 		_this.FireMessageListener( args[1], args );
 	}
@@ -183,6 +180,18 @@ function IRCClient( server, port ) {
 	this.hasFinished = function() {
 		
 		return _hasFinished;
+	}
+	
+	this.Finish = function() {
+	
+		delete s.readable;
+		delete s.writable;
+		io.RemoveDescriptor(_socket); // no more read/write notifications are needed
+		_socket.Close();
+		_this.NotifyModule( 'OnDisconnected' );
+		_this.NotifyModule( 'FinalizeModuleListeners' );
+		_this.NotifyModule( 'FinalizeModuleAPI' );
+		_hasFinished = true;
 	}
 
 	this.Disconnect = function() { // make a Gracefully disconnect
@@ -193,14 +202,8 @@ function IRCClient( server, port ) {
 		var timeoutId;
 		function Close() {
 
-			delete _socket.readable
 			io.RemoveTimeout(timeoutId); // cancel the timeout
-			io.RemoveDescriptor(_socket); // no more read/write notifications are needed
-			_socket.Close();
-			_this.NotifyModule( 'OnDisconnected' );
-			_this.NotifyModule( 'FinalizeModuleListeners' );
-			_this.NotifyModule( 'FinalizeModuleAPI' );
-			_hasFinished = true;
+			_this.Finish();
 		}
 		_socket.readable = Close;
 		timeoutId = io.AddTimeout( 1000, Close ); // force disconnect after the timeout
@@ -228,16 +231,9 @@ function IRCClient( server, port ) {
 				var buf = s.Recv();
 				if ( buf.length == 0 ) { // remotely closed
 
-					delete s.readable;
-					delete s.writable;
-					log.WriteLn( '<- Disconnected' );
+					log.WriteLn( '<- Remotely disconnected' );
 					_this.NotifyModule( 'OnDisconnecting' );
-					io.RemoveDescriptor(s);
-					s.Close();
-					_this.NotifyModule( 'OnDisconnected' );
-					_this.NotifyModule( 'FinalizeModuleListeners' );
-					_this.NotifyModule( 'FinalizeModuleAPI' );
-					_hasFinished = true;
+					_this.Finish();
 					return;
 				}
 
@@ -272,8 +268,8 @@ function IRCClient( server, port ) {
 		mod.Send = this.Send;
 		mod.data = _data;
 		mod.api = _api;
-		mod.InitModule(mod);
 		_modules.push(mod);
+		mod.InitModule();
 		return mod;
 	}
 }
@@ -674,16 +670,18 @@ function CTCPModule() {
 	}
 	
 
-	this.InitModule = function(module) {
+	this.InitModule = function() {
+		
+		var _module = this;
 
 		var _ctclListenerList=[];
 		
-		module.api.AddCtcpListener = function(func) {
+		this.api.AddCtcpListener = function(func) {
 
 			_ctclListenerList.push(func);
 		}
 		
-		module.api.RemoveCtcpListener = function(func) {
+		this.api.RemoveCtcpListener = function(func) {
 
 			var pos = _ctclListenerList.indexOf(func)
 			pos != -1 && _ctclListenerList.splice( pos, 1 );
@@ -695,14 +693,14 @@ function CTCPModule() {
 				l.apply(this,arguments);
 		}
 
-		module.api.CtcpQuery = function(who, tag, data) {
+		this.api.CtcpQuery = function(who, tag, data) {
 			
-			module.Send( 'PRIVMSG '+who+' :'+lowLevelCtcpDequote( '\1'+ctcpLevelQuote(tag+' '+data)+'\1' ) );
+			_module.Send( 'PRIVMSG '+who+' :'+lowLevelCtcpDequote( '\1'+ctcpLevelQuote(tag+' '+data)+'\1' ) );
 		}
 		
-		module.api.CtcpResponse = function(who, tag, data) {
+		this.api.CtcpResponse = function(who, tag, data) {
 			
-			module.Send( 'NOTICE '+who+' :'+lowLevelCtcpDequote( '\1'+ctcpLevelQuote(tag+' '+data)+'\1' ) );
+			_module.Send( 'NOTICE '+who+' :'+lowLevelCtcpDequote( '\1'+ctcpLevelQuote(tag+' '+data)+'\1' ) );
 		}
 		
 		function DispatchCtcpMessage( from, to, ctcpMessage ) {
@@ -718,7 +716,7 @@ function CTCPModule() {
 			FireCtcpListener( from, to, tag, data );
 		}
 		
-		module.AddMessageListener( 'PRIVMSG', function( from, command, to, msg ) { // ctcp responses
+		this.AddMessageListener( 'PRIVMSG', function( from, command, to, msg ) { // ctcp responses
 
 			var even = 0;
 			while (true) {
@@ -743,7 +741,7 @@ function CTCPModule() {
 			var nick = from.substring( 0, from.indexOf('!') );
 
 			if ( tag == 'PING' )
-				module.api.CtcpResponse( nick, tag, data );
+				_module.api.CtcpResponse( nick, tag, data );
 		}
 		this.api.AddCtcpListener( this.CtcpPing );
 	}
