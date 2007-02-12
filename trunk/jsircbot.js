@@ -184,8 +184,8 @@ function IRCClient( server, port ) {
 	
 	this.Finish = function() {
 	
-		delete s.readable;
-		delete s.writable;
+		delete _socket.readable;
+		delete _socket.writable;
 		io.RemoveDescriptor(_socket); // no more read/write notifications are needed
 		_socket.Close();
 		_this.NotifyModule( 'OnDisconnected' );
@@ -359,7 +359,9 @@ function DefaultModule( nick, username, realname ) {
 		this.Send( 'NICK '+nick );
 	} 
 
-	this.InitModule = function(mod) {
+	this.InitModule = function() {
+		
+		var _module = this;
 
 		setData( this.data.hostname, '127.0.0.1' ); // try something else
 		setData( this.data.username, username||'no_user_name' );
@@ -367,14 +369,14 @@ function DefaultModule( nick, username, realname ) {
 		setData( this.data.opsys, 'UNIX' ); // for identd
 		setData( this.data.userid, 'USERID' ); // for identd
 
-		mod.api.privmsg = function( to, message ) {
+		this.api.privmsg = function( to, message ) {
 			
-			mod.Send( 'PRIVMSG '+to+' :'+message );
+			_module.Send( 'PRIVMSG '+to+' :'+message );
 		}
 
-		mod.api.Quit = function(quitMessage) {
+		this.api.Quit = function(quitMessage) {
 
-			mod.Send( 'QUIT :'+quitMessage, true ); // true = force the message to be post ASAP
+			_module.Send( 'QUIT :'+quitMessage, true ); // true = force the message to be post ASAP
 		}
 		
 		this.AddMessageListenerSet( listenerSet ); // listeners table , context (this)

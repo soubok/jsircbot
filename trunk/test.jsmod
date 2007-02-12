@@ -1,6 +1,8 @@
 function() {
 
-	this.InitModule = function(module) {
+	this.InitModule = function() {
+
+		var _module = this;
 
 		this.AddMessageListener( 'PRIVMSG', function( from, command, to, msg ) {
 
@@ -8,27 +10,27 @@ function() {
 
 			if ( msg == '!!dump' ) {
 
-				//module.Send( 'PRIVMSG '+nick+' :'+dumpData(module.data) );
-				Print(dumpData(module.data), '\n');
+				//_module.Send( 'PRIVMSG '+nick+' :'+dumpData(_module.data) );
+				Print(dumpData(_module.data), '\n');
 			}
 
 			if ( msg == '!!flood' ) {
 
 				for ( var i = 0; i<100; i++ )
-				  module.Send( 'PRIVMSG '+nick+' :XxxxxxxxXxxxxxxxXxxxxxxxXxxxx '+i );
+				  _module.Send( 'PRIVMSG '+nick+' :XxxxxxxxXxxxxxxxXxxxxxxxXxxxx '+i );
 			}
 
 			if ( msg == '!!quit' ) {
 
-				module.api.Quit('bye...');
+				_module.api.Quit('bye...');
 			}
 
 		});
 
-		addDataListener( module.data.channel['#jslibs'].names['soubok'], function(info) {
+		addDataListener( _module.data.channel['#jslibs'].names['soubok'], function(info) {
 		
-			module.Send( 'PRIVMSG soubok :hi! ('+info+')' );
-//			module.Send( 'PRIVMSG soubok :'+module.api.Ctcp('VERSION') );
+			_module.Send( 'PRIVMSG soubok :hi! ('+info+')' );
+//			_module.Send( 'PRIVMSG soubok :'+_module.api.Ctcp('VERSION') );
 			
 		});
 	}
