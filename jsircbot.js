@@ -19,17 +19,22 @@ Exec('dataObject.js');
 Exec('io.js');
 Exec('ident.js');
 
+const CRLF = '\r\n';
+
+///////////////////////////////////////////////////////
 
 var log = new function() {
 
 	var _time0 = IntervalNow();
+
 	var _file = new File('ircbot.log');
-	_file.Open( File.CREATE_FILE + File.WRONLY + File.APPEND );
 	
 	this.Write = function( data ) {
 		
 		var t = IntervalNow() - _time0;
+		_file.Open( File.CREATE_FILE + File.WRONLY + File.APPEND );
 		_file.Write( t + ' : ' +data );
+		_file.Close();
 		Print(data);
 	}
 	
@@ -37,31 +42,14 @@ var log = new function() {
 		
 		this.Write( data + '\n' );
 	}
-
-	this.Close = function() {
-		
-		_file.Close();
-	}
 }
-
 
 ///////////////////////////////////////////////////////
-
-
-var numericCommand = Exec('NumericCommand.js');
-
-function Time() {
-
-	return IntervalNow(); //return (new Date()).getTime(); // in ms
-}
-
-const CRLF = '\r\n';
-
 
 function FloodControlSender( max, time, rawSender ) {
 
 	var _count = max;
-	var _time = Time();
+	var _time = IntervalNow();
 	var _queue = [];
 	
 	function Process() {
@@ -96,6 +84,13 @@ function FloodControlSender( max, time, rawSender ) {
 	}
 }
 
+function DirectSender( rawSender ) {
+	
+	this.Send = rawSender;
+}
+
+///////////////////////////////////////////////////////
+
 function ClientCore( server, port ) {
 
 	var _this = this;
@@ -106,6 +101,7 @@ function ClientCore( server, port ) {
 	var _data = newDataNode();
 	var _api = {};
 	var _hasFinished;
+	var _numericCommand = Exec('NumericCommand.js');
 	
 	var _sender = new FloodControlSender( 10, 20000, function(buffer) { // allow 10 message each 20 seconds
 	
@@ -113,7 +109,7 @@ function ClientCore( server, port ) {
 		var unsentData = _socket.Send( buffer );
 		if ( unsentData.length != 0 )
 			throw "Case not handled yet.";
-		setData( _data.lastMessageTime, Time() );
+		setData( _data.lastMessageTime, IntervalNow() );
 	});
 
 	this.Send = function( message, bypassAntiFlood ) {
@@ -155,7 +151,7 @@ function ClientCore( server, port ) {
 
 	this.NotifyModules = function( event ) {
 		
-		log.WriteLn( ' > ' + Array.join(arguments,',') );
+		log.WriteLn( ' > ' + Array.join(arguments,' , ') );
 		for each ( var m in _modules )
 			m[event] && m[event].apply(m, arguments);
 	}
@@ -170,7 +166,7 @@ function ClientCore( server, port ) {
 		if ( trailing>0 )
 			args.push( message.substring( trailing+1 ) );
 		if ( !isNaN( args[1] ) )
-			args[1] = numericCommand[Number(args[1])];
+			args[1] = _numericCommand[Number(args[1])];
 		log.WriteLn( '-> ' + args );
 		_this.FireMessageListener( args[1], args );
 	}
@@ -213,7 +209,7 @@ function ClientCore( server, port ) {
 
 		setData( _data.server, server );
 		setData( _data.port, port );
-		setData( _data.connectTime, Time() );
+		setData( _data.connectTime, IntervalNow() );
 
 		_socket = new Socket();
 		io.AddDescriptor(_socket);
@@ -226,7 +222,7 @@ function ClientCore( server, port ) {
 			_hasFinished = true;
 		} );
 		
-		_this.NotifyModules( 'OnConnecting' );
+		_this.NotifyModules( 'OnConnecting', server, port );
 		try {		
 			
 			_socket.Connect( server, port );
@@ -269,7 +265,7 @@ function ClientCore( server, port ) {
 					if ( trailing>0 )
 						args.push( message.substring( trailing+1 ) );
 					if ( !isNaN( args[1] ) )
-						args[1] = numericCommand[Number(args[1])];
+						args[1] = _numericCommand[Number(args[1])];
 					log.WriteLn( '-> ' + args );
 					_this.FireMessageListener( args[1], args );
 				}
@@ -279,7 +275,7 @@ function ClientCore( server, port ) {
 	}
 		
 	this.AddModule = function( mod ) {
-		
+	
 		mod.AddMessageListener = this.AddMessageListener;
 		mod.RemoveMessageListener = this.RemoveMessageListener;
 		mod.AddMessageListenerSet = this.AddMessageListenerSet;
@@ -369,7 +365,6 @@ function DefaultModule( nick, username, realname ) {
 		}
 	};
 	
-	
 	this.OnConnected = function() {
 		
 		var data = this.data;
@@ -398,12 +393,12 @@ function DefaultModule( nick, username, realname ) {
 			_module.Send( 'QUIT :'+quitMessage, true ); // true = force the message to be post ASAP
 		}
 		
-		this.AddMessageListenerSet( listenerSet ); // listeners table , context (this)
+		this.AddMessageListenerSet( listenerSet ); // listeners table
 	}
 
 	this.FinalizeModuleListeners = function() {
 
-		this.RemoveMessageListenerSet( listenerSet ); // listeners table , context (this)
+		this.RemoveMessageListenerSet( listenerSet ); // listeners table
 	}
 }
 
@@ -885,14 +880,11 @@ function LoadModulesFromPath(bot, path) {
 
 Print( 'Press ctrl-c to exit...', '\n' );
 
-var downloadedFilesPath = '.';
 var bot = new ClientCore( 'localhost', 80 );
 bot.AddModule( new DefaultModule( 'jsircbot' ) ); 
 bot.AddModule( new CTCPModule() ); 
-bot.AddModule( new DCCReceiver( downloadedFilesPath ) );
+bot.AddModule( new DCCReceiver( '.' ) );
 bot.AddModule( new ChanModule( '#jslibs' ) );
-//bot.AddModule( new Test() );
-
 LoadModulesFromPath( bot, '.' );
 
 bot.Connect();
@@ -900,7 +892,6 @@ io.Process( function() { return bot.hasFinished() || endSignal } );
 io.Close();
 
 log.WriteLn(' ========================================================= END ========================================================= ');
-log.Close();
 
 Print('\nGracefully end.\n');
 
