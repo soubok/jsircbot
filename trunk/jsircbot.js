@@ -30,6 +30,7 @@ var log = new function() {
 		
 		var t = IntervalNow() - _time0;
 		_file.Write( t + ' : ' +data );
+		Print(data);
 	}
 	
 	this.WriteLn = function( data ) {
@@ -95,7 +96,7 @@ function FloodControlSender( max, time, rawSender ) {
 	}
 }
 
-function IRCClient( server, port ) {
+function ClientCore( server, port ) {
 
 	var _this = this;
 	var _socket;
@@ -116,7 +117,7 @@ function IRCClient( server, port ) {
 
 	this.Send = function( message, bypassAntiFlood ) {
 
-		log.WriteLn( '-> '+message );
+		log.WriteLn( '<- '+message );
 		_sender.Send( message+CRLF, bypassAntiFlood );
 	}
 
@@ -152,12 +153,9 @@ function IRCClient( server, port ) {
 				item[0].apply(item[1],arg);
 	}
 
-	this.NotifyModule = function( event ) {
+	this.NotifyModules = function( event ) {
 		
-		var a = 'NotifyModule: ';
-		for ( var i=0; i<arguments.length; i++ )
-			a += arguments[i] + ' | ';
-		log.WriteLn( '== ' + a );
+		log.WriteLn( ' = ' + Array.join(arguments,',') );
 		for each ( var m in _modules )
 			m[event] && m[event].apply(m, arguments);
 	}
@@ -173,12 +171,12 @@ function IRCClient( server, port ) {
 			args.push( message.substring( trailing+1 ) );
 		if ( !isNaN( args[1] ) )
 			args[1] = numericCommand[Number(args[1])];
-		log.WriteLn( '<- ' + args );
+		log.WriteLn( '-> ' + args );
 		_this.FireMessageListener( args[1], args );
 	}
 
 	this.hasFinished = function() {
-		
+
 		return _hasFinished;
 	}
 	
@@ -188,15 +186,15 @@ function IRCClient( server, port ) {
 		delete _socket.writable;
 		io.RemoveDescriptor(_socket); // no more read/write notifications are needed
 		_socket.Close();
-		_this.NotifyModule( 'OnDisconnected' );
-		_this.NotifyModule( 'FinalizeModuleListeners' );
-		_this.NotifyModule( 'FinalizeModuleAPI' );
+		_this.NotifyModules( 'OnDisconnected' );
+		_this.NotifyModules( 'FinalizeModuleListeners' );
+		_this.NotifyModules( 'FinalizeModuleAPI' );
 		_hasFinished = true;
 	}
 
 	this.Disconnect = function() { // make a Gracefully disconnect
 
-		_this.NotifyModule( 'OnDisconnecting' );
+		_this.NotifyModules( 'OnDisconnecting' );
 		delete _socket.writable;
 		_socket.Shutdown(); // both
 		var timeoutId;
@@ -219,20 +217,42 @@ function IRCClient( server, port ) {
 
 		_socket = new Socket();
 		io.AddDescriptor(_socket);
-		_socket.Connect( server, port );
-		_this.NotifyModule( 'OnConnecting' );
-		_socket.writable = function(s) { // connection accepted
-			
-			setData( _data.sockName, s.sockName );
-			setData( _data.peerName, s.peerName );
-			delete s.writable; // cancel writable notification
-			s.readable = function(s) {
 
-				var buf = s.Recv();
+		var _connectionTimeoutId = io.AddTimeout( 5000, function() {
+			
+			io.RemoveDescriptor(_socket);
+			_socket.Close();
+			io.RemoveTimeout(_connectionTimeoutId); // cancel the timeout
+			_this.NotifyModules( 'OnConnectionTimeout' );
+			_hasFinished = true;
+		} );
+		
+		_this.NotifyModules( 'OnConnecting' );
+		try {		
+			
+			_socket.Connect( server, port );
+		} catch(ex) {
+			
+			io.RemoveDescriptor(_socket);
+			io.RemoveTimeout(_connectionTimeoutId); // cancel the timeout
+			_this.NotifyModules( 'OnConnectionFailed' );
+			_hasFinished = true;
+		}
+		
+		_socket.writable = function() { // connection accepted
+			
+			io.RemoveTimeout(_connectionTimeoutId); // cancel the timeout
+
+			setData( _data.sockName, _socket.sockName );
+			setData( _data.peerName, _socket.peerName );
+			delete _socket.writable; // cancel writable notification
+			_socket.readable = function() {
+
+				var buf = _socket.Recv();
 				if ( buf.length == 0 ) { // remotely closed
 
-					log.WriteLn( '<- Remotely disconnected' );
-					_this.NotifyModule( 'OnDisconnecting' );
+					log.WriteLn( '-> Remotely disconnected' );
+					_this.NotifyModules( 'OnDisconnecting' );
 					_this.Finish();
 					return;
 				}
@@ -251,11 +271,11 @@ function IRCClient( server, port ) {
 						args.push( message.substring( trailing+1 ) );
 					if ( !isNaN( args[1] ) )
 						args[1] = numericCommand[Number(args[1])];
-					log.WriteLn( '<- ' + args );
+					log.WriteLn( '-> ' + args );
 					_this.FireMessageListener( args[1], args );
 				}
 			}
-			_this.NotifyModule( 'OnConnected' );
+			_this.NotifyModules( 'OnConnected' );
 		}
 	}
 		
@@ -741,10 +761,10 @@ function CTCPModule() {
 		this.CtcpPing = function( from, to, tag, data ) {
 			
 			var nick = from.substring( 0, from.indexOf('!') );
-
 			if ( tag == 'PING' )
 				_module.api.CtcpResponse( nick, tag, data );
 		}
+		
 		this.api.AddCtcpListener( this.CtcpPing );
 	}
 
@@ -867,7 +887,7 @@ function LoadModulesFromPath(bot, path) {
 Print( 'Press ctrl-c to exit...', '\n' );
 
 var downloadedFilesPath = '.';
-var bot = new IRCClient( 'xs4all.nl.quakenet.org', 6667 );
+var bot = new ClientCore( 'localhost', 80 );
 bot.AddModule( new DefaultModule( 'jsircbot' ) ); 
 bot.AddModule( new CTCPModule() ); 
 bot.AddModule( new DCCReceiver( downloadedFilesPath ) );
