@@ -109,6 +109,7 @@ function ClientCore( server, port ) {
 	
 	var _sender = new FloodControlSender( 10, 20000, function(buffer) { // allow 10 message each 20 seconds
 	
+		log.WriteLn( '<- '+buffer );
 		var unsentData = _socket.Send( buffer );
 		if ( unsentData.length != 0 )
 			throw "Case not handled yet.";
@@ -117,7 +118,6 @@ function ClientCore( server, port ) {
 
 	this.Send = function( message, bypassAntiFlood ) {
 
-		log.WriteLn( '<- '+message );
 		_sender.Send( message+CRLF, bypassAntiFlood );
 	}
 
@@ -155,7 +155,7 @@ function ClientCore( server, port ) {
 
 	this.NotifyModules = function( event ) {
 		
-		log.WriteLn( ' = ' + Array.join(arguments,',') );
+		log.WriteLn( ' > ' + Array.join(arguments,',') );
 		for each ( var m in _modules )
 			m[event] && m[event].apply(m, arguments);
 	}
@@ -222,7 +222,6 @@ function ClientCore( server, port ) {
 			
 			io.RemoveDescriptor(_socket);
 			_socket.Close();
-			io.RemoveTimeout(_connectionTimeoutId); // cancel the timeout
 			_this.NotifyModules( 'OnConnectionTimeout' );
 			_hasFinished = true;
 		} );
@@ -904,6 +903,14 @@ log.WriteLn(' ========================================================= END ====
 log.Close();
 
 Print('\nGracefully end.\n');
+
+
+
+
+
+
+
+
 /*
 
 links:
@@ -926,7 +933,10 @@ rfc: rfc2812.txt
 rfc: rfc2813.txt
 
 6.9 Characters on IRC
-	For chatting in channels, anything that can be translated to ASCII gets through. (ASCII is a standard way to express characters) Note however, that since the parts of the ASCII table may be country-specific, your ASCII-art may not turn out as well for others. Fancy fonts will only show up on your own computer. You can use character map (charmap.exe) in windows to view the ASCII table.
+	For chatting in channels, anything that can be translated to ASCII gets through. (ASCII is a standard way to express characters) Note however, 
+	that since the parts of the ASCII table may be country-specific, 
+	your ASCII-art may not turn out as well for others. Fancy fonts will only show up on your own computer. 
+	You can use character map (charmap.exe) in windows to view the ASCII table.
 
 	Channelnames: After the initial #, & or +, all characters except NUL (\0), BELL (\007), CR (\r), LF (\n) a space or a comma
 	Colons in channelnames are valid for ircu but may be reserved for other purposes on other nets.
@@ -935,7 +945,9 @@ rfc: rfc2813.txt
 	This is the same as saying that ’-’ and the characters ’0’ to ’9’ and ’A’ to ’}’ in the ASCII table are allowed.
 	The first character in a nick cannot be a ’-’ or a number.
 
-	The characters { } | ^ are considered the lower case equivalents of [ ] \ ~ respectively. This is said to be because of IRCs scandinavian origin, but while scandinavians will notice that Æ,Ø,Å is forced lowercase in channelnames, Å and Ä is not equivalent with each other or with any of { } | ^. This bear the mark of a backward-compatible ircu feature, and how non-american letters are treated on IRC may vary between nets.
+	The characters { } | ^ are considered the lower case equivalents of [ ] \ ~ respectively. This is said to be because of IRCs scandinavian origin, 
+	but while scandinavians will notice that Æ,Ø,Å is forced lowercase in channelnames, Å and Ä is not equivalent with each other or 
+	with any of { } | ^. This bear the mark of a backward-compatible ircu feature, and how non-american letters are treated on IRC may vary between nets.
 
 	A weird side-effect happens when trying to ban people with these characters in the name.
 	Trying to ban the nick “ac\dc”, *|*!*@* will work where *\*!*@* fails. *ac\dc*!*@* works just fine too.

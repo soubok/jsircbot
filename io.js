@@ -16,16 +16,16 @@ var io = new function() {
 
 	var _timeout = new function() {
 
-		var _min;
-		var _tlist = {};
+		var _min, _tlist = {};
+		
 		this.Add = function( time, func ) {
 
 			var when = IntervalNow() + time;
-			while( _tlist[when] ) when++; // avoid same time
+			while( _tlist[when] ) when++; // avoid same time because we use the time as timer id
 			_tlist[when] = func;
 			if ( when < _min )
 				_min = when;
-			return when;
+			return when; // timer id
 		}
 
 		this.Remove = function(when) {
@@ -41,7 +41,6 @@ var io = new function() {
 			for ( var w in _tlist )
 				if ( w < _min )
 					_min = w;
-	//		var t = _min == Number.POSITIVE_INFINITY ? undefined : _min - IntervalNow();
 			var t = _min - IntervalNow();
 			return t > defaultTimeout ? defaultTimeout : t;
 		}
