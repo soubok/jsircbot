@@ -352,14 +352,14 @@ function DefaultModule( nick, username, realname ) {
 			//  tr = Targets Restored. Your targets are kept for 2 minutes or until someone else from your IP logs on. 
 			//       This stops you from  refilling  your free targets by reconnection.	
 	
-			var oncafttrExpr = new RegExp('^on ([0-9]+) ca ([0-9]+)\\(([0-9]+)\\) ft ([0-9]+)\\(([0-9]+)\\) *(tr)?$'); // http://developer.mozilla.org/en/docs/Core_JavaScript_1.5_Guide:Writing_a_Regular_Expression_Pattern
+			// http://developer.mozilla.org/en/docs/Core_JavaScript_1.5_Guide:Writing_a_Regular_Expression_Pattern
+			var oncafttrExpr = new RegExp('^on ([0-9]+) ca ([0-9]+)\\(([0-9]+)\\) ft ([0-9]+)\\(([0-9]+)\\) *(tr)?$');
 
 			if ( message.substr(0,2) == 'on' ) {
 
 				var res = oncafttrExpr(message);
 				if ( res == null )
 					return;
-				//Print( res );
 //				this.RemoveMessageListener( 'NOTICE', oncafttrNotice );
 			}
 		}
@@ -403,9 +403,7 @@ function DefaultModule( nick, username, realname ) {
 }
 
 
-/////////////
-
-function ChanModule( _channel ) {
+function ChannelModule( _channel ) {
 
 	function ParseModes( modes, args, chanData ) {
 
@@ -466,8 +464,8 @@ function ChanModule( _channel ) {
 
 				setData( this.data.channel[channel], true );
 
-				this.Send( 'MODE '+_channel ); // request modes
-				this.Send( 'MODE '+_channel+' +b' ); // request banlist
+				this.Send( 'MODE '+channel ); // request modes
+				this.Send( 'MODE '+channel+' +b' ); // request banlist
 			} else {
 
 				setData( this.data.channel[channel].names[nick], true );
@@ -476,7 +474,7 @@ function ChanModule( _channel ) {
 			
 		RPL_BANLIST: function( from, command, to, channel, ban, banBy, time ) {
 
-			setData( this.data.channel[_channel].bans[ban], true );
+			setData( this.data.channel[channel].bans[ban], true );
 		},
 
 		PART: function( who, command, channel ) {
@@ -486,19 +484,21 @@ function ChanModule( _channel ) {
 
 			var nick = who.substring( 0, who.indexOf('!') ); // [TBD] try to auto extract this
 			if ( nick == getData(this.data.nick) )
-				delData( this.data.channel[_channel] );
+				delData( this.data.channel[channel] );
 			else
-				delData( this.data.channel[_channel].names[nick] );
+				delData( this.data.channel[channel].names[nick] );
 		},
 
 		QUIT: function( who, command ) {
-
+			
+			// (TBD) if multi-chan, remove this user an every chan
 			var nick = who.substring( 0, who.indexOf('!') );
 			delData( this.data.channel[_channel].names[nick] );
 		},
 		
 		NICK: function( who, command, newNick ) {
 
+			// (TBD) if multi-chan, rename this user an every chan
 			var nick = who.substring( 0, who.indexOf('!') );
 			if ( nick == getData( this.data.nick ) ) // do not manage bot nick change here!
 				return;
@@ -511,21 +511,21 @@ function ChanModule( _channel ) {
 
 			if ( channel != _channel )
 				return;
-			delData( this.data.channel[_channel].topic );
+			delData( this.data.channel[channel].topic );
 		},
 
 		TOPIC: function( from, command, channel, topic ) {
 
 			if ( channel != _channel )
 				return;
-			setData( this.data.channel[_channel].topic, topic );
+			setData( this.data.channel[channel].topic, topic );
 		},
 
 		RPL_TOPIC: function( from, command, to, channel, topic ) {
 
 			if ( channel != _channel )
 				return;
-			setData( this.data.channel[_channel].topic, topic );
+			setData( this.data.channel[channel].topic, topic );
 		},
 
 		RPL_CHANNELMODEIS: function( from, command, to, channel, modes /*, ...*/ ) {
@@ -536,7 +536,7 @@ function ChanModule( _channel ) {
 			var args = [];
 			for ( var i = 5; i < arguments.length; i++)
 				args[i-5] = arguments[i];
-			ParseModes( modes, args, this.data.channel[_channel] );
+			ParseModes( modes, args, this.data.channel[channel] );
 		},
 		
 		MODE: function( who, command, what, modes /*, ...*/ ) {
@@ -547,7 +547,7 @@ function ChanModule( _channel ) {
 			var args = [];
 			for ( var i = 4; i < arguments.length; i++)
 				args[i-4] = arguments[i];
-			ParseModes( modes, args, this.data.channel[_channel] );
+			ParseModes( modes, args, this.data.channel[channel] );
 		},
 
 		RPL_NAMREPLY: function( from, command, to, type, channel, list ) {
@@ -555,7 +555,7 @@ function ChanModule( _channel ) {
 			if ( channel != _channel ) // [TBD] use a kind of filter to avoid doing this (eg. register RPL_NAMREPLY with #chan as filter )
 				return;
 				
-			var chanData = this.data.channel[_channel];
+			var chanData = this.data.channel[channel];
 
 			if (type == '@')
 				setData( chanData.secret, true );
@@ -596,7 +596,6 @@ function ChanModule( _channel ) {
 	}
 }
 
-////////// CTCP module //////////
 
 function CTCPModule() {
 
@@ -751,7 +750,6 @@ function CTCPModule() {
 			}
 		});
 		
-// CTCP PING
 		this.CtcpPing = function( from, to, tag, data ) {
 			
 			var nick = from.substring( 0, from.indexOf('!') );
@@ -777,10 +775,8 @@ function CTCPModule() {
 	}
 }
 
-////////// DCCReceiver //////////
 
-
-function DCCReceiver( destinationPath ) {
+function DCCReceiverModule( destinationPath ) {
 
 	function IntegerToIp(number) {
 	
@@ -880,11 +876,12 @@ function LoadModulesFromPath(bot, path) {
 
 Print( 'Press ctrl-c to exit...', '\n' );
 
-var bot = new ClientCore( 'localhost', 80 );
+
+var bot = new ClientCore( 'euroserv.fr.quakenet.org', 6667 );
 bot.AddModule( new DefaultModule( 'jsircbot' ) ); 
 bot.AddModule( new CTCPModule() ); 
-bot.AddModule( new DCCReceiver( '.' ) );
-bot.AddModule( new ChanModule( '#jslibs' ) );
+bot.AddModule( new DCCReceiverModule( '.' ) );
+bot.AddModule( new ChannelModule( '#jslibs' ) );
 LoadModulesFromPath( bot, '.' );
 
 bot.Connect();
@@ -897,9 +894,33 @@ Print('\nGracefully end.\n');
 
 
 
+/* quakenet server list
+
+Denmark	jubiigames.dk.quakenet.org	Hosted by Jubii Games
+Finland	mediatraffic.fi.quakenet.org	Hosted by Mediatraffic Oy - http://www.mediatraffic.fi/
+France	euroserv.fr.quakenet.org	Hosted by Euroserv - http://www.euroserv.com
+Germany	splatterworld.de.quakenet.org	Hosted by Abovenet Germany/SplatterWorld
+Ireland	ign.ie.quakenet.org	Hosted by Esat - http://www.esat.net/
+Italy	ngi.it.quakenet.org	Hosted by NGI - http://www.ngi.it
+Netherlands	xs4all.nl.quakenet.org	Hosted by XS4ALL - http://www.xs4all.nl
+Norway	online.no.quakenet.org	Hosted by Online.no - http://www.online.no
+Norway	underworld.no.quakenet.org	Hosted by Underworld - http://www.underworld.no
+Sweden	port80.se.quakenet.org	Hosted by Port80 - http://www.port80.se
+Sweden	stockholm.se.quakenet.org	Hosted by Arrowhead - http://www.arrowhead.se
+Sweden	wineasy.se.quakenet.org	Hosted by Wineasy - http://www.wineasy.se
+United Kingdom	b0rk.uk.quakenet.org	Hosted by b0rkUK - http://www.b0rk.co.uk
+United Kingdom	blueyonder.uk.quakenet.org	Hosted by bygames - http://www.bygames.com
+United Kingdom	demon.uk.quakenet.org	Hosted by Demon - http://www.demon.net
+United Kingdom	freddyshouse.uk.quakenet.org	Hosted by FreddysHouse - http://www.freddyshouse.com
+United Kingdom	multiplay.uk.quakenet.org	Hosted by MultiplayUK - http://www.multiplay.co.uk/
+United States	gameservers.il.us.quakenet.org	Hosted by GameServers - http://www.gameservers.com
+United States	gameservers.nj.us.quakenet.org	Hosted by GameServers - http://www.gameservers.com
+United States	netfire.tx.us.quakenet.org	Hosted by Netfire - http://www.netfire.com
+United States	netfire.va.us.quakenet.org	Hosted by Netfire - http://www.netfire.com
+United States	servercentral.il.us.quakenet.org	Hosted by Server Central - http://www.servercentral.net
 
 
-
+*/
 
 
 /*
