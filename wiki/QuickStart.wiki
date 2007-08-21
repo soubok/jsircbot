@@ -1,9 +1,10 @@
 #labels Featured
+===Introduction===
 The aim of this page is to explain you how jsircbot works, an how to customize it.
 
 The first obvious thing you have to know is how does IRC works.
 
-Internet Relay Chat Client Protocol and Server Protocol
+Internet Relay Chat [http://www.irchelp.org/irchelp/rfc/rfc2812.txt Client Protocol] and [http://www.irchelp.org/irchelp/rfc/rfc2813.txt  and Server Protocol]
 
 jsircbot is nothing else that a non-interactive IRC client ( on the other hand mIRC is an interactive IRC client ).
 
