@@ -11,8 +11,8 @@ jsircbot is nothing else that a non-interactive IRC client ( on the other hand m
 === Overview ===
 jsircbot is split in two parts :
 
-    * the core : ClientCore?
-    * the modules : DefaultModule?, CTCPModule, DCCReceiver, ChanModule, ... 
+    * The core : manages low level operations (Socket connections, messages, ...)
+    * The modules : manage higher level operations (channel management, DCC requests, ...)
 
 === jsircbot core ==
 The core manages :
@@ -79,3 +79,15 @@ addDataListener( _module.data.channel['#jslibs'].topic, function(info) {
   _module.Send( 'PRIVMSG #jslibs :the topic has changed: ' + info );
 });
 }}}
+
+=== Default modules ===
+The current jsircbot distribution cames with some default modules
+
+ * DefaultModule : manages server handshake and login.
+    arguments: nick, username, realname
+ * ChannelModule : manages a specific IRC channel.
+    arguments: channelName
+ * CTCPModule : manages CTCP protocol codec
+    arguments: _none_
+ * DCCReceiverModule: manages incoming DCC file transfer
+    arguments: destinationPath
