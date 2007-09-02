@@ -17,7 +17,8 @@ function Ident( io, callback, timeout ) {
 
 	var identServerSocket = new Socket(); // create a server ( rendez-vous ) socket
 	io.AddDescriptor( identServerSocket ); // add the socket to the 'pollable' list
-	identServerSocket.Listen(113); // listen on port 113 (ident)
+	identServerSocket.Bind(113);
+	identServerSocket.Listen(); // listen on port 113 (ident)
 	
 	var listenTimeoutId = io.AddTimeout(timeout, function() { // create a timeout to prevent ...
 		identServerSocket.Close();
@@ -39,7 +40,7 @@ function Ident( io, callback, timeout ) {
 		identClient.readable = function(cs) { // ... when the client sent data to us
 
 			delete cs.readable; // stop being notified on incoming datas 
-			cs.Send(callback(cs.Recv())); // get the request, send the response
+			cs.Write(callback(cs.Read())); // get the request, send the response
 			cs.writable = function(cs) { // ... when we can write again on the socket ( for closing it )
 
 				io.RemoveTimeout( dataTimeoutId ); // everithing happens, so we can remove this timeout

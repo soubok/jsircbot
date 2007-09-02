@@ -13,13 +13,61 @@
  * ***** END LICENSE BLOCK ***** */
 
 LoadModule('jsstd'); 
-LoadModule('jsnspr');
+LoadModule('jsio');
 
 Exec('dataObject.js');
 Exec('io.js');
 Exec('ident.js');
 
 const CRLF = '\r\n';
+
+///////////////////////////////////////////////////////
+
+
+function Listener(lowerCaseNames) {
+	
+	var _list = {};
+
+	this.Add = function( name, func ) {
+		
+		lowerCaseNames && ( name = name.toLowerCase() );
+		(_list[name] || (_list[name]=[])).push(func);
+	}
+	
+	this.AddSet = function( set ) {
+		
+		for ( var [name, func] in Iterator(set) )
+			this.Add(name, func);
+	}
+	
+	this.Remove = function( name, func ) {
+	
+		lowerCaseNames && ( name = name.toLowerCase() );
+		var l = _list[name];
+		l.splice(l.indexOf(func), 1);
+		l.length || delete _list[name];
+	}
+
+	this.RemoveSet = function( set ) {
+	
+		for ( var [name, func] in Iterator(set) )
+			this.Remove(name, func);
+	}
+	
+	this.Fire = function( name ) {
+	
+		lowerCaseNames && ( name = name.toLowerCase() );
+		if ( name in _list )
+			for each ( var func in _list[name] )
+				func.apply(this, arguments);
+	}
+	
+	this.Clear = function() {
+
+		_list = {};
+	}
+}
+
 
 ///////////////////////////////////////////////////////
 
@@ -35,7 +83,7 @@ var log = new function() {
 		_file.Open( File.CREATE_FILE + File.WRONLY + File.APPEND );
 		_file.Write( t + ' : ' +data );
 		_file.Close();
-		Print(data);
+//		Print(data);
 	}
 	
 	this.WriteLn = function( data ) {
@@ -106,7 +154,7 @@ function ClientCore( server, port ) {
 	var _sender = new FloodControlSender( 10, 20000, function(buffer) { // allow 10 message each 20 seconds
 	
 		log.WriteLn( '<- '+buffer );
-		var unsentData = _socket.Send( buffer );
+		var unsentData = _socket.Write( buffer );
 		if ( unsentData.length != 0 )
 			throw "Case not handled yet.";
 		setData( _data.lastMessageTime, IntervalNow() );
@@ -124,21 +172,20 @@ function ClientCore( server, port ) {
 	
 	this.AddMessageListenerSet = function( funcSet ) {
 		
-		for ( var [command,func] in funcSet )
+		for ( var [command, func] in Iterator(funcSet) )
 			_this.AddMessageListener.call( this, command, func );
 	}
 	
 	this.RemoveMessageListener = function( command, func ) {
 	
 		var list = _listeners[command];
-		for ( var [i,item] in list ) // var [f,c]=item;
-			if ( item[0] == func )
-				list.splice( i, 1 );
+		list.splice(list.indexOf(func), 1);
+		list.length == 0 && delete _listeners[command];
 	}
 
 	this.RemoveMessageListenerSet = function( funcSet ) {
 	
-		for ( var [command,func] in funcSet )
+		for ( var [command, func] in Iterator(funcSet) )
 			_this.RemoveMessageListener( command, func );
 	}
 
@@ -183,8 +230,8 @@ function ClientCore( server, port ) {
 		io.RemoveDescriptor(_socket); // no more read/write notifications are needed
 		_socket.Close();
 		_this.NotifyModules( 'OnDisconnected' );
-		_this.NotifyModules( 'FinalizeModuleListeners' );
-		_this.NotifyModules( 'FinalizeModuleAPI' );
+		_this.NotifyModules( 'RemoveModuleListeners' );
+		_this.NotifyModules( 'RemoveModuleAPI' );
 		_hasFinished = true;
 	}
 
@@ -243,7 +290,7 @@ function ClientCore( server, port ) {
 			delete _socket.writable; // cancel writable notification
 			_socket.readable = function() {
 
-				var buf = _socket.Recv();
+				var buf = _socket.Read();
 				if ( buf.length == 0 ) { // remotely closed
 
 					log.WriteLn( '-> Remotely disconnected' );
@@ -284,7 +331,9 @@ function ClientCore( server, port ) {
 		mod.data = _data;
 		mod.api = _api;
 		_modules.push(mod);
-		mod.InitModule();
+		mod.AddModuleAPI && mod.AddModuleAPI();
+		mod.AddModuleListeners && mod.AddModuleListeners();
+		mod.InitModule && mod.InitModule();
 		return mod;
 	}
 }
@@ -384,6 +433,10 @@ function DefaultModule( nick, username, realname ) {
 		setData( this.data.userid, 'USERID' ); // for identd
 
 		this.api.privmsg = function( to, message ) {
+		
+			var hostpos = to.indexOf('!');
+			if ( hostpos != -1 )
+				to = to.substr( 0, hostpos );
 			
 			_module.Send( 'PRIVMSG '+to+' :'+message );
 		}
@@ -396,7 +449,7 @@ function DefaultModule( nick, username, realname ) {
 		this.AddMessageListenerSet( listenerSet ); // listeners table
 	}
 
-	this.FinalizeModuleListeners = function() {
+	this.RemoveModuleListeners = function() {
 
 		this.RemoveMessageListenerSet( listenerSet ); // listeners table
 	}
@@ -407,7 +460,7 @@ function ChannelModule( _channel ) {
 
 	function ParseModes( modes, args, chanData ) {
 
-		var simpleMode = { i:'inviteOnly', t:'topicByOp', p:'priv', s:'secret', m:'moderated', n:'noExternalMessages', r:'reop', C:'noCtcp', N:'noExternalNotice'  };
+		var simpleMode = { i:'inviteOnly', t:'topicByOp', p:'priv', s:'secret', m:'moderated', n:'noExternalMessages', r:'reop', C:'noCtcp', N:'noExternalNotice', c:'noColor'  };
 		var argPos = 0;
 		var pos = 0;
 		var set;
@@ -449,7 +502,7 @@ function ChannelModule( _channel ) {
 	var listenerSet = {
 
 		RPL_WELCOME: function () {
-
+		
 			this.Send( 'JOIN ' + _channel );
 		},
 
@@ -547,7 +600,7 @@ function ChannelModule( _channel ) {
 			var args = [];
 			for ( var i = 4; i < arguments.length; i++)
 				args[i-4] = arguments[i];
-			ParseModes( modes, args, this.data.channel[channel] );
+			ParseModes( modes, args, this.data.channel[_channel] );
 		},
 
 		RPL_NAMREPLY: function( from, command, to, type, channel, list ) {
@@ -564,7 +617,7 @@ function ChannelModule( _channel ) {
 				setData( chanData.priv, true );
 
 			var names = list.split(' ');
-			for ( var [,name] in names ) {
+			for each ( var name in names ) {
 			
 				var nameOnly;
 				switch( name[0] ) {
@@ -590,7 +643,7 @@ function ChannelModule( _channel ) {
 		this.AddMessageListenerSet( listenerSet ); // listeners table , context (this)
 	}
 
-	this.FinalizeModuleListeners = function() {
+	this.RemoveModuleListeners = function() {
 
 		this.RemoveMessageListenerSet( listenerSet ); // listeners table , context (this)
 	}
@@ -603,7 +656,7 @@ function CTCPModule() {
 		
 //		var tr={ '\0':'\0200', '\r':'\020r', '\n':'\020n', '\020':'\020\020' };
 		var out='';
-		for ( var [,c] in data )
+		for each ( var c in data )
 			switch (c) {
 				case '\0':
 					out+='\0200';
@@ -651,7 +704,7 @@ function CTCPModule() {
 	function ctcpLevelQuote(data) { // \\, \1 -> \\\\, \\a
 
 		var out='';
-		for ( var [,c] in data )
+		for each ( var c in data )
 			switch (c) {
 			case '\1':
 				out+='\\a';
@@ -704,8 +757,8 @@ function CTCPModule() {
 
 		function FireCtcpListener( from, to, tag, data ) {
 
-			for ( var [,l] in _ctclListenerList )
-				l.apply(this,arguments);
+			for each ( var l in _ctclListenerList )
+				l.apply(this, arguments);
 		}
 
 		this.api.CtcpQuery = function(who, tag, data) {
@@ -761,12 +814,12 @@ function CTCPModule() {
 	}
 
 
-	this.FinalizeModuleListeners = function() {
+	this.RemoveModuleListeners = function() {
 
 		this.api.RemoveCtcpListener( this.CtcpPing ); // listeners table , context (this)
 	}
 
-	this.FinalizeModuleAPI = function() {
+	this.RemoveModuleAPI = function() {
 	
 		delete this.api.AddCtcpListener;
 		delete this.api.RemoveCtcpListener;
@@ -820,7 +873,7 @@ function DCCReceiverModule( destinationPath ) {
 
 		dccSocket.readable = function(s) {
 			
-			var buf = s.Recv();
+			var buf = s.Read();
 			var len = buf.length;
 			if ( len == 0 ) {
 				Finalize();
@@ -849,15 +902,49 @@ function DCCReceiverModule( destinationPath ) {
 		this.api.AddCtcpListener( dccSendRequest );
 	}
 
-	this.FinalizeModuleListeners = function() {
+	this.RemoveModuleListeners = function() {
 		
 		this.api.RemoveCtcpListener( dccSendRequest );
 	}
 }
 
 
+function BotCmdModule( destinationPath ) {
+	
+	var _module = this;
+	var _listener = new Listener(true);
 
-function LoadModulesFromPath(bot, path) {
+	var messages = {
+		PRIVMSG:function( from, command, to, msg ) {
+						
+			if ( msg[0] != '!' ) // not a bot command
+				return;
+				
+			var cmdName, cmdData;
+			var sp = msg.indexOf(' ');
+			if ( sp == -1 ) {
+			
+				cmdName = msg.substr(1);
+				cmdData = undefined;
+			} else {
+			
+				cmdName = msg.substr(1, sp);
+				cmdData = msg.substr(sp + 1);
+			}
+			_listener.Fire( cmdName, cmdData, from, command, to, msg );
+		}
+	}
+	
+	this.AddModuleListeners = function() this.AddMessageListenerSet( messages );
+	this.RemoveModuleListeners = function() this.RemoveMessageListenerSet( messages );
+	this.AddModuleAPI = function() this.api.botCmd = _listener;
+	this.RemoveModuleAPI = function() delete this.api.botCmd;
+}
+
+
+
+
+function LoadModulesFromPath(bot, path, ext) {
 
 	function FileExtension(filename) {
 
@@ -867,30 +954,47 @@ function LoadModulesFromPath(bot, path) {
 
 	var entry, dir = new Directory(path, Directory.SKIP_BOTH);
 	for ( dir.Open(); ( entry = dir.Read() ); )
-		if ( FileExtension(entry) == 'jsmod' )
+		if ( FileExtension(entry) == ext ) {
+			
+			Print( 'Loading module '+ path+'/'+entry +' ...' );
 			bot.AddModule( new (Exec(path+'/'+entry)) );
+			Print( ' Done.\n' );
+		}
 }
 
 
 ////////// Start //////////
 
-Print( 'Press ctrl-c to exit...', '\n' );
+try {
+
+	Print( 'Press ctrl-c to exit...', '\n' );
 
 
-var bot = new ClientCore( 'euroserv.fr.quakenet.org', 6667 );
-bot.AddModule( new DefaultModule( 'jsircbot' ) ); 
-bot.AddModule( new CTCPModule() ); 
-bot.AddModule( new DCCReceiverModule( '.' ) );
-bot.AddModule( new ChannelModule( '#jslibs' ) );
-LoadModulesFromPath( bot, '.' );
+	var bot = new ClientCore( 'irc.freenode.net', 6667 );
+	bot.AddModule( new DefaultModule( 'TremVipBot' ) ); 
+	bot.AddModule( new CTCPModule() ); 
+	bot.AddModule( new DCCReceiverModule( '.' ) );
+	bot.AddModule( new ChannelModule( '#trem-vipsx' ) );
+	bot.AddModule( new BotCmdModule() );
+	
+	LoadModulesFromPath( bot, '.', 'jsmod' );
 
-bot.Connect();
-io.Process( function() { return bot.hasFinished() || endSignal } );
-io.Close();
+	bot.Connect();
+	io.Process( function() { return bot.hasFinished() || endSignal } );
+	io.Close();
 
-log.WriteLn(' ========================================================= END ========================================================= ');
+	log.WriteLn(' ========================================================= END ========================================================= ');
 
-Print('\nGracefully end.\n');
+	Print('\nGracefully end.\n');
+	
+} catch( ex if ex instanceof IoError ) {
+
+	Print( 'Error:'+ ex.text + ' ('+ex.os+')' );
+} catch(ex) {
+	
+	Print( ex, '\n' );
+	Print( 'Stack:\n', ex.stack, '\n' );
+}
 
 
 
