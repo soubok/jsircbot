@@ -8,6 +8,12 @@ function() {
 
 			var nick = from.substring( from.indexOf('!')+1 );
 
+			if ( msg.indexOf('!!raw') == 0 ) {
+				
+				var data = msg.substr(6);
+				_module.Send( data );
+			}
+			
 			if ( msg == '!!dump' ) {
 
 				//_module.Send( 'PRIVMSG '+nick+' :'+dumpData(_module.data) );

@@ -21,7 +21,8 @@ var io = new function() {
 		this.Add = function( time, func ) {
 
 			var when = IntervalNow() + time;
-			while( _tlist[when] ) when++; // avoid same time because we use the time as timer id
+			
+			while( when in _tlist ) when++; // avoid same time because we use the time as timer id
 			_tlist[when] = func;
 			if ( when < _min )
 				_min = when;
@@ -46,13 +47,14 @@ var io = new function() {
 		}
 
 		this.Process = function() {
-
+		
 			var now = IntervalNow();
 			if ( _min > now )
 				return;
-			for ( var [w,f] in _tlist )
+			for ( var w in _tlist )
 				if ( w <= now ) {
-					f();
+				
+					_tlist[w]();
 					delete _tlist[w];
 				}
 		}

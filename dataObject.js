@@ -16,63 +16,63 @@ LoadModule('jsobjex');
 
 function newDataNode(parent) {
 
-	return new objex(undefined,undefined,get,undefined,{listenerList:[],parent:parent});
+	return new ObjEx(undefined,undefined,get,undefined,{listenerList:[],parent:parent});
 }
 
-function get( what, obj, id, val, aux ) {
+function get( name, value, aux ) {
 	
-	return id in obj ? val : obj[id] = newDataNode(obj);
+	return (name in this) ? value : (this[name] = newDataNode(this));
 }
 
 function addDataListener( path, listener ) {
 
-	objex.Aux( path ).listenerList.push(listener);
+	ObjEx.Aux( path ).listenerList.push(listener);
 }
 
 function removeDataListener( path, listener ) {
 
-	var list = objex.Aux( path ).listenerList;
+	var list = ObjEx.Aux( path ).listenerList;
 	var pos = list.indexOf(listener);
 	pos != -1 && list.splice( pos, 1 );
 }
 
 function setData( path, data ) {
 	
-	var aux = objex.Aux(path);
+	var aux = ObjEx.Aux(path);
 	for each ( var listener in aux.listenerList )
 		listener('set', data);
 	aux.data = data;
 	
-//	while ( path = (aux=objex.Aux(path)).parent || undefined )
+//	while ( path = (aux=ObjEx.Aux(path)).parent || undefined )
 //		aux.listener && aux.listener('set (children)');
 
 // bubble to all parents
-//	var paux = objex.Aux(aux.parent);
+//	var paux = ObjEx.Aux(aux.parent);
 //	for ( var [i,l] in paux.listenerList )
 //		l('set', data);
 }
 
 function getData( path ) {
 
-	return objex.Aux(path).data || undefined; // "|| undefined" avoids strict warning
+	return ObjEx.Aux(path).data || undefined; // "|| undefined" avoids strict warning
 }
 
 function hasData( path ) {
 
-	return 'data' in objex.Aux(path);
+	return 'data' in ObjEx.Aux(path);
 }
 
 function moveData( path, newPath ) {
 	
 	setData( newPath, getData(path));
-	delete objex.Aux(path).data;
-	for ( var [k,v] in path )
+	delete ObjEx.Aux(path).data;
+	for ( var [k,v] in Iterator(path) )
 		moveData( v, newPath[k] );		
 }
 
 function delData( path ) { // delete datas but not listeners
 
-	var aux = objex.Aux(path);
+	var aux = ObjEx.Aux(path);
 	for each ( var listener in aux.listenerList )
 		listener('del');
 	delete aux.data;
@@ -84,7 +84,7 @@ function dumpData( path, tab ) {
 
 	tab = tab||'';
 	var out = '';
-	for ( var [name,child] in path ) {
+	for ( var [name,child] in Iterator(path) ) {
 		var data = getData(child);
 		out += tab+name+(( data != undefined ) ?'='+data : '')+'\n'+dumpData(child,tab+'  ');
 	}
