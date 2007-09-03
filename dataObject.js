@@ -66,8 +66,8 @@ function moveData( path, newPath ) {
 	
 	setData( newPath, getData(path));
 	delete ObjEx.Aux(path).data;
-	for ( var [k,v] in Iterator(path) )
-		moveData( v, newPath[k] );		
+	for ( var k in path )
+		moveData( path[k], newPath[k] );		
 }
 
 function delData( path ) { // delete datas but not listeners
@@ -84,9 +84,10 @@ function dumpData( path, tab ) {
 
 	tab = tab||'';
 	var out = '';
-	for ( var [name,child] in Iterator(path) ) {
-		var data = getData(child);
-		out += tab+name+(( data != undefined ) ?'='+data : '')+'\n'+dumpData(child,tab+'  ');
+	for ( var name in path ) {
+	
+		var data = getData( path[name] );
+		out += tab + name + (( data != undefined ) ?'=' + data : '') + '\n' + dumpData(path[name], tab + '  ');
 	}
 	return out;
 }

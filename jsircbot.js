@@ -14,6 +14,7 @@
 
 LoadModule('jsstd'); 
 LoadModule('jsio');
+LoadModule('jsobjex');
 
 Exec('dataObject.js');
 Exec('io.js');
@@ -23,7 +24,7 @@ const CRLF = '\r\n';
 
 ///////////////////////////////////////////////////////
 
-
+/*
 function Listener(lowerCaseNames) {
 	
 	var _list = {};
@@ -67,7 +68,26 @@ function Listener(lowerCaseNames) {
 		_list = {};
 	}
 }
+*/
 
+///////////////////////////////////////////////////////
+
+
+///////////////////////////////////////////////////////
+
+function Listener() {
+	
+	var _list;
+	this.Clear = function() _list = [];
+	this.AddSet = function( set ) _list.push(set);
+	this.RemoveSet = function( set ) splice(_list.indexOf(set), 1);
+	this.Fire = function( name ) {
+	
+		for each ( var set in _list )
+			name in set && set[name].apply(null, arguments);
+	}
+	this.Clear();
+}
 
 ///////////////////////////////////////////////////////
 
@@ -139,89 +159,45 @@ function DirectSender( rawSender ) {
 
 ///////////////////////////////////////////////////////
 
+function Failed(text) { log.WriteLn(error); throw new Error(text) }
+
+///////////////////////////////////////////////////////
+
+
 function ClientCore( server, port ) {
 
 	var _this = this;
 	var _socket;
 	var _receiveBuffer = '';
-	var _listeners = {};
 	var _modules = [];
 	var _data = newDataNode();
-	var _api = {};
+	var _messageListener = new Listener();
+	var _api = new ObjEx( undefined,undefined,undefined, function(name, value) this[name] ? Failed('API Already defined') : value );
 	var _hasFinished;
 	var _numericCommand = Exec('NumericCommand.js');
 	
-	var _sender = new FloodControlSender( 10, 20000, function(buffer) { // allow 10 message each 20 seconds
+	var _sender = new FloodControlSender( 5, 10000, function(buffer) { // allow 10 message each 20 seconds
 	
 		log.WriteLn( '<- '+buffer );
 		var unsentData = _socket.Write( buffer );
 		if ( unsentData.length != 0 )
-			throw "Case not handled yet.";
+			Failed('Case not handled yet.');
 		setData( _data.lastMessageTime, IntervalNow() );
 	});
 
-	this.Send = function( message, bypassAntiFlood ) {
-
-		_sender.Send( message+CRLF, bypassAntiFlood );
-	}
-
-	this.AddMessageListener = function( command, func ) {
-		
-		(_listeners[command] || (_listeners[command]=[])).push([func,this]);
-	}
-	
-	this.AddMessageListenerSet = function( funcSet ) {
-		
-		for ( var [command, func] in Iterator(funcSet) )
-			_this.AddMessageListener.call( this, command, func );
-	}
-	
-	this.RemoveMessageListener = function( command, func ) {
-	
-		var list = _listeners[command];
-		list.splice(list.indexOf(func), 1);
-		list.length == 0 && delete _listeners[command];
-	}
-
-	this.RemoveMessageListenerSet = function( funcSet ) {
-	
-		for ( var [command, func] in Iterator(funcSet) )
-			_this.RemoveMessageListener( command, func );
-	}
-
-	this.FireMessageListener = function( command, arg ) {
-
-		if ( command in _listeners )
-			for each ( var item in _listeners[command] ) // var [func,context]=item;
-				item[0].apply(item[1],arg);
-	}
+	this.Send = function( message, bypassAntiFlood ) _sender.Send( message+CRLF, bypassAntiFlood );
+	this.AddMessageListenerSet = function( set ) _messageListener.AddSet(set);
+	this.RemoveMessageListenerSet = function( set ) _messageListener.RemoveSet(set);
+	this.FireMessageListener = function( command ) _messageListener.Fire.apply(null, arguments);
 
 	this.NotifyModules = function( event ) {
 		
 		log.WriteLn( ' > ' + Array.join(arguments,' , ') );
 		for each ( var m in _modules )
-			m[event] && m[event].apply(m, arguments);
+			m[event] && m[event].apply( null, arguments);
 	}
 	
-	this.DispatchMessage = function( message ) {
-		
-		var prefix = message.indexOf( ':' );
-		var trailing = message.indexOf( ':', 1 );
-		var args = message.substring( prefix?0:1, trailing>0?trailing-1:message.length ).split(' ');
-		if (prefix)
-			args.unshift( undefined );
-		if ( trailing>0 )
-			args.push( message.substring( trailing+1 ) );
-		if ( !isNaN( args[1] ) )
-			args[1] = _numericCommand[Number(args[1])];
-		log.WriteLn( '-> ' + args );
-		_this.FireMessageListener( args[1], args );
-	}
-
-	this.hasFinished = function() {
-
-		return _hasFinished;
-	}
+	this.hasFinished = function() _hasFinished;
 	
 	this.Finish = function() {
 	
@@ -323,8 +299,6 @@ function ClientCore( server, port ) {
 		
 	this.AddModule = function( mod ) {
 	
-		mod.AddMessageListener = this.AddMessageListener;
-		mod.RemoveMessageListener = this.RemoveMessageListener;
 		mod.AddMessageListenerSet = this.AddMessageListenerSet;
 		mod.RemoveMessageListenerSet = this.RemoveMessageListenerSet;
 		mod.Send = this.Send;
@@ -344,6 +318,8 @@ function ClientCore( server, port ) {
 
 function DefaultModule( nick, username, realname ) {
 	
+	var _mod = this;
+	
 // [TBD] autodetect max message length ( with a self sent mesage )
 // [TBD] autodetect flood limit
 
@@ -351,14 +327,14 @@ function DefaultModule( nick, username, realname ) {
 
 		RPL_WELCOME: function( from, command, to ) {
 
-			setData( this.data.nick, to );
-			this.Send( 'USERHOST ' + to );
+			setData( _mod.data.nick, to );
+			_mod.Send( 'USERHOST ' + to );
 		},
 
 		RPL_USERHOST: function( from, command, to, host ) {
 			
 			var [,hostinfo] = host.split('=');
-			setData( this.data.userhost, hostinfo.substr(1) ); // hostinfo[0] = '+' or '-' : AWAY message set
+			setData( _mod.data.userhost, hostinfo.substr(1) ); // hostinfo[0] = '+' or '-' : AWAY message set
 		},
 		
 /* same info in RPL_USERHOST
@@ -366,29 +342,37 @@ function DefaultModule( nick, username, realname ) {
 			
 			var nick = who.substring( 0, who.indexOf('!') ); // [TBD] try to auto extract this
 
-			if ( nick == getData(this.data.nick) ) { // self
+			if ( nick == getData(_mod.data.nick) ) { // self
 				
-				setData( this.data.fullnick, who );
-				this.RemoveMessageListener( 'MODE', firstModeMessage );
+				setData( _mod.data.fullnick, who );
+				_mod.RemoveMessageListener( 'MODE', firstModeMessage );
 			}
 		}
-		this.AddMessageListener( 'MODE', firstModeMessage );
+		_mod.AddMessageListener( 'MODE', firstModeMessage );
 */
 
+		ERR_NICKCOLLISION: function() {
+			
+			delData( _mod.data.nick );
+		},
+		
 		ERR_ERRONEUSNICKNAME: function() { // Erroneous nickname
 		  
+			delData( _mod.data.nick );
 		  // ...try to find server nick policy
 		},
 
 		ERR_NICKNAMEINUSE: function() {
 		
 			var tmpNick = 'tmp'+Math.random().toString(16).substr(2); // ...try a random nick, then, when ready, try a better nick
-			this.Send( 'NICK '+tmpNick );
+			_mod.Send( 'NICK '+tmpNick );
+			setData( _mod.data.nick, tmpNick );
 		},
 		
 		PING: function( prefix, command, arg ) {
 
-			this.Send( 'PONG '+arg );
+			_mod.Send( 'PONG '+arg );
+			setData( _mod.data.lastPingTime, IntervalNow() );
 		},
 
 		NOTICE: function( from, command, to, message ) {
@@ -409,49 +393,65 @@ function DefaultModule( nick, username, realname ) {
 				var res = oncafttrExpr(message);
 				if ( res == null )
 					return;
-//				this.RemoveMessageListener( 'NOTICE', oncafttrNotice );
+//				_mod.RemoveMessageListener( 'NOTICE', oncafttrNotice );
 			}
 		}
 	};
 	
 	this.OnConnected = function() {
 		
-		var data = this.data;
-		Ident( io, function(identRequest) { return( identRequest + ' : '+getData(data.userid)+' : '+getData(data.opsys)+' : '+nick+CRLF ) }, 2000 ); // let 2 seconds to the server to make the IDENT request
-		this.Send( 'USER '+getData(data.username)+' '+getData(data.hostname)+' '+getData(data.server)+' :'+getData(data.realname) );
-		this.Send( 'NICK '+nick );
+		var data = _mod.data;
+		Ident( io, function(identRequest) identRequest + ' : '+getData(data.userid)+' : '+getData(data.opsys)+' : '+nick+CRLF, 2000 ); // let 2 seconds to the server to make the IDENT request
+		_mod.Send( 'USER '+getData(data.username)+' '+getData(data.hostname)+' '+getData(data.server)+' :'+getData(data.realname) );
+		_mod.Send( 'NICK '+nick );
 	} 
 
 	this.InitModule = function() {
+
+		setData( _mod.data.hostname, '127.0.0.1' ); // try something else
+		setData( _mod.data.username, username||('user_'+nick) );
+		setData( _mod.data.realname, realname||('name_'+nick) );
+		setData( _mod.data.opsys, 'UNIX' ); // for identd
+		setData( _mod.data.userid, 'USERID' ); // for identd
+	}
+
+	this.AddModuleAPI = function() {
 		
-		var _module = this;
+		
+		_mod.api.Nick = function( nick ) {
 
-		setData( this.data.hostname, '127.0.0.1' ); // try something else
-		setData( this.data.username, username||'no_user_name' );
-		setData( this.data.realname, realname||'no real name' );
-		setData( this.data.opsys, 'UNIX' ); // for identd
-		setData( this.data.userid, 'USERID' ); // for identd
-
-		this.api.privmsg = function( to, message ) {
+			_mod.Send( 'NICK '+nick );
+			setData( _mod.data.nick, nick );
+		}
+		
+		_mod.api.privmsg = function( to, message ) {
 		
 			var hostpos = to.indexOf('!');
 			if ( hostpos != -1 )
 				to = to.substr( 0, hostpos );
-			
 			_module.Send( 'PRIVMSG '+to+' :'+message );
 		}
 
-		this.api.Quit = function(quitMessage) {
+		_mod.api.Quit = function(quitMessage) {
 
 			_module.Send( 'QUIT :'+quitMessage, true ); // true = force the message to be post ASAP
 		}
-		
-		this.AddMessageListenerSet( listenerSet ); // listeners table
 	}
 
+	this.RemoveModuleAPI = function() {
+		
+		delete _mod.api.privmsg;
+		delete _mod.api.Quit;
+	}
+
+	this.AddModuleListeners = function() {
+
+		_mod.AddMessageListenerSet( listenerSet ); // listeners table
+	}
+	
 	this.RemoveModuleListeners = function() {
 
-		this.RemoveMessageListenerSet( listenerSet ); // listeners table
+		_mod.RemoveMessageListenerSet( listenerSet ); // listeners table
 	}
 }
 
@@ -460,7 +460,7 @@ function ChannelModule( _channel ) {
 
 	function ParseModes( modes, args, chanData ) {
 
-		var simpleMode = { i:'inviteOnly', t:'topicByOp', p:'priv', s:'secret', m:'moderated', n:'noExternalMessages', r:'reop', C:'noCtcp', N:'noExternalNotice', c:'noColor'  };
+		var simpleMode = { i:'inviteOnly', t:'topicByOp', p:'private', s:'secret', m:'moderated', n:'noExternalMessages', r:'reop', C:'noCtcp', N:'noExternalNotice', c:'noColor' };
 		var argPos = 0;
 		var pos = 0;
 		var set;
@@ -503,7 +503,7 @@ function ChannelModule( _channel ) {
 
 		RPL_WELCOME: function () {
 		
-			this.Send( 'JOIN ' + _channel );
+			_mod.Send( 'JOIN ' + _channel );
 		},
 
 		JOIN: function( who, command, channel ) { // :cdd_etf_bot!~cdd_etf_b@nost.net JOIN #soubok
@@ -513,21 +513,21 @@ function ChannelModule( _channel ) {
 
 			var nick = who.substring( 0, who.indexOf('!') ); // [TBD] try to auto extract this
 
-			if ( nick == getData(this.data.nick) ) { // self
+			if ( nick == getData(_mod.data.nick) ) { // self
 
-				setData( this.data.channel[channel], true );
+				setData( _mod.data.channel[channel], true );
 
-				this.Send( 'MODE '+channel ); // request modes
-				this.Send( 'MODE '+channel+' +b' ); // request banlist
+				_mod.Send( 'MODE '+channel ); // request modes
+				_mod.Send( 'MODE '+channel+' +b' ); // request banlist
 			} else {
 
-				setData( this.data.channel[channel].names[nick], true );
+				setData( _mod.data.channel[channel].names[nick], true );
 			}
 		},
 			
 		RPL_BANLIST: function( from, command, to, channel, ban, banBy, time ) {
 
-			setData( this.data.channel[channel].bans[ban], true );
+			setData( _mod.data.channel[channel].bans[ban], true );
 		},
 
 		PART: function( who, command, channel ) {
@@ -536,49 +536,49 @@ function ChannelModule( _channel ) {
 				return;
 
 			var nick = who.substring( 0, who.indexOf('!') ); // [TBD] try to auto extract this
-			if ( nick == getData(this.data.nick) )
-				delData( this.data.channel[channel] );
+			if ( nick == getData(_mod.data.nick) )
+				delData( _mod.data.channel[channel] );
 			else
-				delData( this.data.channel[channel].names[nick] );
+				delData( _mod.data.channel[channel].names[nick] );
 		},
 
 		QUIT: function( who, command ) {
 			
 			// (TBD) if multi-chan, remove this user an every chan
 			var nick = who.substring( 0, who.indexOf('!') );
-			delData( this.data.channel[_channel].names[nick] );
+			delData( _mod.data.channel[_channel].names[nick] );
 		},
 		
 		NICK: function( who, command, newNick ) {
 
 			// (TBD) if multi-chan, rename this user an every chan
 			var nick = who.substring( 0, who.indexOf('!') );
-			if ( nick == getData( this.data.nick ) ) // do not manage bot nick change here!
+			if ( nick == getData( _mod.data.nick ) ) // do not manage bot nick change here!
 				return;
 
-	//		renameData( this.data.channel[_channel].names, nick,newNick );
-			moveData( this.data.channel[_channel].names[nick], this.data.channel[_channel].names[newNick] );
+	//		renameData( _mod.data.channel[_channel].names, nick,newNick );
+			moveData( _mod.data.channel[_channel].names[nick], _mod.data.channel[_channel].names[newNick] );
 		},
 
 		RPL_NOTOPIC: function( channel ) {
 
 			if ( channel != _channel )
 				return;
-			delData( this.data.channel[channel].topic );
+			delData( _mod.data.channel[channel].topic );
 		},
 
 		TOPIC: function( from, command, channel, topic ) {
 
 			if ( channel != _channel )
 				return;
-			setData( this.data.channel[channel].topic, topic );
+			setData( _mod.data.channel[channel].topic, topic );
 		},
 
 		RPL_TOPIC: function( from, command, to, channel, topic ) {
 
 			if ( channel != _channel )
 				return;
-			setData( this.data.channel[channel].topic, topic );
+			setData( _mod.data.channel[channel].topic, topic );
 		},
 
 		RPL_CHANNELMODEIS: function( from, command, to, channel, modes /*, ...*/ ) {
@@ -589,7 +589,7 @@ function ChannelModule( _channel ) {
 			var args = [];
 			for ( var i = 5; i < arguments.length; i++)
 				args[i-5] = arguments[i];
-			ParseModes( modes, args, this.data.channel[channel] );
+			ParseModes( modes, args, _mod.data.channel[channel] );
 		},
 		
 		MODE: function( who, command, what, modes /*, ...*/ ) {
@@ -600,7 +600,7 @@ function ChannelModule( _channel ) {
 			var args = [];
 			for ( var i = 4; i < arguments.length; i++)
 				args[i-4] = arguments[i];
-			ParseModes( modes, args, this.data.channel[_channel] );
+			ParseModes( modes, args, _mod.data.channel[_channel] );
 		},
 
 		RPL_NAMREPLY: function( from, command, to, type, channel, list ) {
@@ -608,7 +608,7 @@ function ChannelModule( _channel ) {
 			if ( channel != _channel ) // [TBD] use a kind of filter to avoid doing this (eg. register RPL_NAMREPLY with #chan as filter )
 				return;
 				
-			var chanData = this.data.channel[channel];
+			var chanData = _mod.data.channel[channel];
 
 			if (type == '@')
 				setData( chanData.secret, true );
@@ -638,19 +638,14 @@ function ChannelModule( _channel ) {
 		}
 	};
 
-	this.InitModule = function() {
-
-		this.AddMessageListenerSet( listenerSet ); // listeners table , context (this)
-	}
-
-	this.RemoveModuleListeners = function() {
-
-		this.RemoveMessageListenerSet( listenerSet ); // listeners table , context (this)
-	}
+	this.AddModuleListeners = function() _mod.AddMessageListenerSet( listenerSet ); // listeners table , context (this)
+	this.RemoveModuleListeners = function() _mod.RemoveMessageListenerSet( listenerSet ); // listeners table , context (this)
 }
 
 
 function CTCPModule() {
+
+	var _module = this;
 
 	function lowLevelCtcpQuote(data) { // NUL, NL, CR, QUOTE -> QUOTE 0, QUOTE n, QUOTE r, QUOTE QUOTE
 		
@@ -738,53 +733,37 @@ function CTCPModule() {
 	}
 	
 
-	this.InitModule = function() {
-		
-		var _module = this;
+	var _ctclListenerList=[];
 
-		var _ctclListenerList=[];
-		
-		this.api.AddCtcpListener = function(func) {
+	function FireCtcpListener( from, to, tag, data ) {
 
-			_ctclListenerList.push(func);
-		}
-		
-		this.api.RemoveCtcpListener = function(func) {
+		for each ( var l in _ctclListenerList )
+			l.apply(null, arguments);
+	}
 
-			var pos = _ctclListenerList.indexOf(func)
-			pos != -1 && _ctclListenerList.splice( pos, 1 );
-		}
+	function DispatchCtcpMessage( from, to, ctcpMessage ) {
 
-		function FireCtcpListener( from, to, tag, data ) {
+		var pos = ctcpMessage.indexOf(' ');
+		var tag, data;
+		if ( pos == -1 )
+			tag = ctcpMessage;
+		else {
+			tag = ctcpMessage.substring( 0, pos );
+			data = ctcpMessage.substring( pos+1 );
+		}
+		FireCtcpListener( from, to, tag, data );
+	}
 
-			for each ( var l in _ctclListenerList )
-				l.apply(this, arguments);
-		}
+	this.CtcpPing = function( from, to, tag, data ) {
 
-		this.api.CtcpQuery = function(who, tag, data) {
-			
-			_module.Send( 'PRIVMSG '+who+' :'+lowLevelCtcpDequote( '\1'+ctcpLevelQuote(tag+' '+data)+'\1' ) );
-		}
-		
-		this.api.CtcpResponse = function(who, tag, data) {
-			
-			_module.Send( 'NOTICE '+who+' :'+lowLevelCtcpDequote( '\1'+ctcpLevelQuote(tag+' '+data)+'\1' ) );
-		}
-		
-		function DispatchCtcpMessage( from, to, ctcpMessage ) {
-		
-			var pos = ctcpMessage.indexOf(' ');
-			var tag, data;
-			if ( pos == -1 )
-				tag = ctcpMessage;
-			else {
-				tag = ctcpMessage.substring( 0, pos );
-				data = ctcpMessage.substring( pos+1 );
-			}
-			FireCtcpListener( from, to, tag, data );
-		}
-		
-		this.AddMessageListener( 'PRIVMSG', function( from, command, to, msg ) { // ctcp responses
+		var nick = from.substring( 0, from.indexOf('!') );
+		if ( tag == 'PING' )
+			_module.api.CtcpResponse( nick, tag, data );
+	}
+
+	var messages = {
+
+		PRIVMSG:function( from, command, to, msg ) { // ctcp responses
 
 			var even = 0;
 			while (true) {
@@ -801,45 +780,60 @@ function CTCPModule() {
 				} else 
 					break;
 			}
-		});
+		}
+	}
+
+	this.AddModuleListeners = function() {
 		
-		this.CtcpPing = function( from, to, tag, data ) {
-			
-			var nick = from.substring( 0, from.indexOf('!') );
-			if ( tag == 'PING' )
-				_module.api.CtcpResponse( nick, tag, data );
+		_mod.AddMessageListenerSet( messages );
+		_mod.api.AddCtcpListener( _mod.CtcpPing );
+	}
+	
+	this.RemoveModuleListeners = function() {
+		
+		_mod.api.RemoveCtcpListener( _mod.CtcpPing ); // listeners table , context (this)
+		_mod.RemoveMessageListenerSet( messages );
+	}
+	
+	this.AddModuleAPI = function() {
+	
+		_mod.api.AddCtcpListener = function(func) {
+
+			_ctclListenerList.push(func);
 		}
 		
-		this.api.AddCtcpListener( this.CtcpPing );
+		_mod.api.RemoveCtcpListener = function(func) {
+
+			var pos = _ctclListenerList.indexOf(func)
+			pos != -1 && _ctclListenerList.splice( pos, 1 );
+		}
+
+		_mod.api.CtcpQuery = function(who, tag, data) {
+			
+			_module.Send( 'PRIVMSG '+who+' :'+lowLevelCtcpDequote( '\1'+ctcpLevelQuote(tag+' '+data)+'\1' ) );
+		}
+		
+		_mod.api.CtcpResponse = function(who, tag, data) {
+			
+			_module.Send( 'NOTICE '+who+' :'+lowLevelCtcpDequote( '\1'+ctcpLevelQuote(tag+' '+data)+'\1' ) );
+		}
 	}
-
-
-	this.RemoveModuleListeners = function() {
-
-		this.api.RemoveCtcpListener( this.CtcpPing ); // listeners table , context (this)
-	}
-
-	this.RemoveModuleAPI = function() {
 	
-		delete this.api.AddCtcpListener;
-		delete this.api.RemoveCtcpListener;
-		delete this.api.CtcpQuery;
-		delete this.api.CtcpResponse;
+	this.RemoveModuleAPI = function() {
+
+		delete _mod.api.AddCtcpListener;
+		delete _mod.api.RemoveCtcpListener;
+		delete _mod.api.CtcpQuery;
+		delete _mod.api.CtcpResponse;
 	}
 }
 
 
 function DCCReceiverModule( destinationPath ) {
 
-	function IntegerToIp(number) {
-	
-		return (number>>24 & 255)+'.'+(number>>16 & 255)+'.'+(number>>8 & 255)+'.'+(number & 255);
-	}
-	
-	function NumberToUint32NetworkOrderString(number) {
-		
-		return String.fromCharCode(number>>24 & 255)+String.fromCharCode(number>>16 & 255)+String.fromCharCode(number>>8 & 255)+String.fromCharCode(number & 255);
-	}
+	function IntegerToIp(number) (number>>24 & 255)+'.'+(number>>16 & 255)+'.'+(number>>8 & 255)+'.'+(number & 255);
+
+	function NumberToUint32NetworkOrderString(number) String.fromCharCode(number>>24 & 255)+String.fromCharCode(number>>16 & 255)+String.fromCharCode(number>>8 & 255)+String.fromCharCode(number & 255);
 	
 	function DCCReceive( ip, port, fileName, timeout ) { // receiver is a client socket / sender is the server
 		
@@ -897,14 +891,14 @@ function DCCReceiverModule( destinationPath ) {
 		DCCReceive( IntegerToIp(address), port, argument, 2000 );
 	}	
 
-	this.InitModule = function() {
+	this.AddModuleListeners = function() {
 
-		this.api.AddCtcpListener( dccSendRequest );
+		_mod.api.AddCtcpListener( dccSendRequest );
 	}
 
 	this.RemoveModuleListeners = function() {
 		
-		this.api.RemoveCtcpListener( dccSendRequest );
+		_mod.api.RemoveCtcpListener( dccSendRequest );
 	}
 }
 
@@ -912,7 +906,7 @@ function DCCReceiverModule( destinationPath ) {
 function BotCmdModule( destinationPath ) {
 	
 	var _module = this;
-	var _listener = new Listener(true);
+	var _listener = new Listener();
 
 	var messages = {
 		PRIVMSG:function( from, command, to, msg ) {
@@ -931,7 +925,7 @@ function BotCmdModule( destinationPath ) {
 				cmdName = msg.substr(1, sp);
 				cmdData = msg.substr(sp + 1);
 			}
-			_listener.Fire( cmdName, cmdData, from, command, to, msg );
+			_listener.Fire( cmdName.toLowerCase(), cmdData, from, command, to, msg );
 		}
 	}
 	
@@ -942,6 +936,79 @@ function BotCmdModule( destinationPath ) {
 }
 
 
+
+function HttpClientModule( destinationPath ) {
+
+	function parseUri(source) { // parseUri 1.2; MIT License By Steven Levithan <http://stevenlevithan.com>
+		var o = parseUri.options, value = o.parser[o.strictMode ? "strict" : "loose"].exec(source);
+
+		for (var i = 0, uri = {}; i < 14; i++) uri[o.key[i]] = value[i] || "";
+		uri[o.q.name] = {};
+		uri[o.key[12]].replace(o.q.parser, function ($0, $1, $2) { if ($1) uri[o.q.name][$1] = $2 });
+		return uri;
+	};
+
+	parseUri.options = {
+		strictMode: false,
+		key: ["source","protocol","authority","userInfo","user","password","host","port","relative","path","directory","file","query","anchor"],
+		q: {
+			name: "queryKey",
+			parser: /(?:^|&)([^&=]*)=?([^&]*)/g
+		},
+		parser: {
+			strict: /^(?:([^:\/?#]+):)?(?:\/\/((?:(([^:@]*):?([^:@]*))?@)?([^:\/?#]*)(?::(\d*))?))?((((?:[^?#\/]*\/)*)([^?#]*))(?:\?([^#]*))?(?:#(.*))?)/,
+			loose: /^(?:(?![^:@]+:[^:@\/]*@)([^:\/?#.]+):)?(?:\/\/)?((?:(([^:@]*):?([^:@]*))?@)?([^:\/?#]*)(?::(\d*))?)(((\/(?:[^?#](?![^?#\/]*\.[^?#\/.]+(?:[?#]|$)))*\/?)?([^?#\/]*))(?:\?([^#]*))?(?:#(.*))?)/
+		}
+	};
+
+
+	this.AddModuleAPI = function() {
+		
+		_mod.api.HttpPost = function(url, data, timeout, callback) {
+			
+			var ud = parseUri(url);
+			
+			var httpSocket = new Socket();
+			httpSocket.Connect( ud.host, id.port );
+			io.AddDescriptor( httpSocket );
+			
+			var timeoutId = io.AddTimeout( timeout, Finalize );
+
+			function Finalize() {
+
+				io.RemoveTimeout(timeoutId);
+				httpSocket.Close();
+				io.RemoveDescriptor( httpSocket );
+			}
+
+			var responseBuffer = new Buffer();
+			
+			httpSocket.writable = function(s) {
+				
+				s.Write(data);
+				delete s.writable;
+			}
+
+			httpSocket.readable = function(s) {
+				
+				var chunk = s.Read();
+				if ( chunk.length == 0 ) {
+					
+					Finalize();
+					callback( buffer.Read() );
+				} else {
+				
+					responseBuffer.Write( s.Read() );
+				}
+			}
+		}
+	}
+	
+	this.RemoveModuleAPI = function() {
+		
+		delete _mod.api.HttpPost;
+	}
+}
 
 
 function LoadModulesFromPath(bot, path, ext) {
@@ -975,6 +1042,7 @@ try {
 	bot.AddModule( new CTCPModule() ); 
 	bot.AddModule( new DCCReceiverModule( '.' ) );
 	bot.AddModule( new ChannelModule( '#trem-vipsx' ) );
+	bot.AddModule( new HttpClientModule() );
 	bot.AddModule( new BotCmdModule() );
 	
 	LoadModulesFromPath( bot, '.', 'jsmod' );
@@ -998,39 +1066,7 @@ try {
 
 
 
-/* quakenet server list
-
-Denmark	jubiigames.dk.quakenet.org	Hosted by Jubii Games
-Finland	mediatraffic.fi.quakenet.org	Hosted by Mediatraffic Oy - http://www.mediatraffic.fi/
-France	euroserv.fr.quakenet.org	Hosted by Euroserv - http://www.euroserv.com
-Germany	splatterworld.de.quakenet.org	Hosted by Abovenet Germany/SplatterWorld
-Ireland	ign.ie.quakenet.org	Hosted by Esat - http://www.esat.net/
-Italy	ngi.it.quakenet.org	Hosted by NGI - http://www.ngi.it
-Netherlands	xs4all.nl.quakenet.org	Hosted by XS4ALL - http://www.xs4all.nl
-Norway	online.no.quakenet.org	Hosted by Online.no - http://www.online.no
-Norway	underworld.no.quakenet.org	Hosted by Underworld - http://www.underworld.no
-Sweden	port80.se.quakenet.org	Hosted by Port80 - http://www.port80.se
-Sweden	stockholm.se.quakenet.org	Hosted by Arrowhead - http://www.arrowhead.se
-Sweden	wineasy.se.quakenet.org	Hosted by Wineasy - http://www.wineasy.se
-United Kingdom	b0rk.uk.quakenet.org	Hosted by b0rkUK - http://www.b0rk.co.uk
-United Kingdom	blueyonder.uk.quakenet.org	Hosted by bygames - http://www.bygames.com
-United Kingdom	demon.uk.quakenet.org	Hosted by Demon - http://www.demon.net
-United Kingdom	freddyshouse.uk.quakenet.org	Hosted by FreddysHouse - http://www.freddyshouse.com
-United Kingdom	multiplay.uk.quakenet.org	Hosted by MultiplayUK - http://www.multiplay.co.uk/
-United States	gameservers.il.us.quakenet.org	Hosted by GameServers - http://www.gameservers.com
-United States	gameservers.nj.us.quakenet.org	Hosted by GameServers - http://www.gameservers.com
-United States	netfire.tx.us.quakenet.org	Hosted by Netfire - http://www.netfire.com
-United States	netfire.va.us.quakenet.org	Hosted by Netfire - http://www.netfire.com
-United States	servercentral.il.us.quakenet.org	Hosted by Server Central - http://www.servercentral.net
-
-
-*/
-
-
 /*
-
-links:
-=====
 
 http://www.irchelp.org/irchelp/misc/ccosmos.html
 
@@ -1041,12 +1077,6 @@ CTCP Protocol (Client-To-Client Protocol)
   http://www.irchelp.org/irchelp/rfc/ctcpspec.html
   http://mathieu-lemoine.developpez.com/tutoriels/irc/ctcp/
 
-
-infos:
-=====
-
-rfc: rfc2812.txt
-rfc: rfc2813.txt
 
 6.9 Characters on IRC
 	For chatting in channels, anything that can be translated to ASCII gets through. (ASCII is a standard way to express characters) Note however, 
@@ -1068,85 +1098,41 @@ rfc: rfc2813.txt
 	A weird side-effect happens when trying to ban people with these characters in the name.
 	Trying to ban the nick “ac\dc”, *|*!*@* will work where *\*!*@* fails. *ac\dc*!*@* works just fine too.
 
-
-
-
 notes:
-=====
-
-// user mode message: <nickname> *( ( "+" / "-" ) *( "i" / "w" / "o" / "O" / "r" ) )
-// channel mode message: <channel> *( ( "-" / "+" ) *<modes> *<modeparams> )
-
-:cdd_etf_bot!~cdd_etf_b@host.com MODE cdd_etf_bot +i
-:soubok!~chatzilla@host.com MODE #soubok +vo soubok cdd_etf_bot
-:soubok!~chatzilla@host.com MODE #soubok -v soubok
-:soubok!~chatzilla@host.com MODE #soubok -o+v cdd_etf_bot soubok
-:soubok!~chatzilla@host.com MODE #soubok +k pass
-:soubok!~chatzilla@host.com MODE #soubok -k pass
-:soubok!~chatzilla@host.com MODE #soubok +tk pass
-:soubok!~chatzilla@host.com MODE #soubok +u
-:soubok!~chatzilla@host.com MODE #soubok -v soubok
-:soubok!~chatzilla@host.com MODE #soubok -v cdd_etf_bot
-:soubok!~chatzilla@host.com MODE #soubok +v soubok
-:soubok!~chatzilla@host.com MODE #soubok +tv soubok
-:soubok!~chatzilla@host.com MODE #soubok +kv password soubok
-
-:soubok!~chatzilla@host.com MODE #soubok +b aa!bb@cc
-:soubok!~chatzilla@host.com MODE #soubok +l 1337
-:soubok!~chatzilla@host.com MODE #soubok -l
 
 
-quakenet +r flag: you must be authed to join (+r)
+	// user mode message: <nickname> *( ( "+" / "-" ) *( "i" / "w" / "o" / "O" / "r" ) )
+	// channel mode message: <channel> *( ( "-" / "+" ) *<modes> *<modeparams> )
 
-  353    RPL_NAMREPLY "( "=" / "*" / "@" ) <channel> :[ "@" / "+" ] <nick> *( " " [ "@" / "+" ] <nick> )
-        - "@" is used for secret channels, "*" for private channels, and "=" for others (public channels).
+	:cdd_etf_bot!~cdd_etf_b@host.com MODE cdd_etf_bot +i
+	:soubok!~chatzilla@host.com MODE #soubok +vo soubok cdd_etf_bot
+	:soubok!~chatzilla@host.com MODE #soubok -v soubok
+	:soubok!~chatzilla@host.com MODE #soubok -o+v cdd_etf_bot soubok
+	:soubok!~chatzilla@host.com MODE #soubok +k pass
+	:soubok!~chatzilla@host.com MODE #soubok -k pass
+	:soubok!~chatzilla@host.com MODE #soubok +tk pass
+	:soubok!~chatzilla@host.com MODE #soubok +u
+	:soubok!~chatzilla@host.com MODE #soubok -v soubok
+	:soubok!~chatzilla@host.com MODE #soubok -v cdd_etf_bot
+	:soubok!~chatzilla@host.com MODE #soubok +v soubok
+	:soubok!~chatzilla@host.com MODE #soubok +tv soubok
+	:soubok!~chatzilla@host.com MODE #soubok +kv password soubok
 
-:soubok!soubok@soubok.users.quakenet.org PART #soubok
-
-modes infos/servers: http://www.alien.net.au/irc/chanmodes.html
-
-this.test getter = function() { echo('getter') }
-this.test setter = function() { echo('setter') }
-
-http://www.irchelp.org/irchelp/rfc/rfc2811.txt
-http://www.croczilla.com/~alex/reference/javascript_ref/object.html
-http://www.js-examples.com/javascript/core_js15/obj.php
-CTCP: http://www.irchelp.org/irchelp/rfc/ctcpspec.html
+	:soubok!~chatzilla@host.com MODE #soubok +b aa!bb@cc
+	:soubok!~chatzilla@host.com MODE #soubok +l 1337
+	:soubok!~chatzilla@host.com MODE #soubok -l
 
 
+	quakenet +r flag: you must be authed to join (+r)
 
+	  353    RPL_NAMREPLY "( "=" / "*" / "@" ) <channel> :[ "@" / "+" ] <nick> *( " " [ "@" / "+" ] <nick> )
+			  - "@" is used for secret channels, "*" for private channels, and "=" for others (public channels).
 
-MODE soubok :+i
-PING :LAGTIMER
-:euroserv.fr.quakenet.org PONG euroserv.fr.quakenet.org :LAGTIMER
-JOIN #soubok 
-:soubok!~chatzilla@host.com JOIN #soubok
-:euroserv.fr.quakenet.org 353 soubok = #soubok :@soubok
-:euroserv.fr.quakenet.org 366 soubok #soubok :End of /NAMES list.
-USERHOST soubok
-:euroserv.fr.quakenet.org 302 soubok :soubok=+~chatzilla@host.com
-MODE #soubok
-:euroserv.fr.quakenet.org 324 soubok #soubok +tnCN 
-:euroserv.fr.quakenet.org 329 soubok #soubok 1108995458
-MODE #soubok +b
-:euroserv.fr.quakenet.org 368 soubok #soubok :End of Channel Ban List
+	modes infos/servers: http://www.alien.net.au/irc/chanmodes.html
 
-WATCH:
-
-o = {p:1}
-o.watch("p",
-   function (id,oldval,newval) {
-      document.writeln("o." + id + " changed from "
-         + oldval + " to " + newval)
-      return newval
-   })
-
-o.p = 2
-o.p = 3
-delete o.p
-o.p = 4
-
-o.unwatch('p')
-o.p = 5 
+	http://www.irchelp.org/irchelp/rfc/rfc2811.txt
+	http://www.croczilla.com/~alex/reference/javascript_ref/object.html
+	http://www.js-examples.com/javascript/core_js15/obj.php
+	CTCP: http://www.irchelp.org/irchelp/rfc/ctcpspec.html
 
 */
