@@ -24,6 +24,16 @@ const CRLF = '\r\n';
 
 ///////////////////////////////////////////////////////
 
+function DPrint() {
+	
+	for ( var i = 0; i < arguments.length; i++ )
+		Print( '{'+arguments[i]+'} ' );
+	Print( '\n' );
+}
+
+
+///////////////////////////////////////////////////////
+
 /*
 function Listener(lowerCaseNames) {
 	
@@ -80,7 +90,7 @@ function Listener() {
 	var _list;
 	this.Clear = function() _list = [];
 	this.AddSet = function( set ) _list.push(set);
-	this.RemoveSet = function( set ) splice(_list.indexOf(set), 1);
+	this.RemoveSet = function( set ) _list.splice(_list.indexOf(set), 1);
 	this.Fire = function( name ) {
 	
 		for each ( var set in _list )
@@ -101,7 +111,7 @@ var log = new function() {
 		
 		var t = IntervalNow() - _time0;
 		_file.Open( File.CREATE_FILE + File.WRONLY + File.APPEND );
-		_file.Write( t + ' : ' +data );
+		_file.Write( '{' + t + '}' +data );
 		_file.Close();
 //		Print(data);
 	}
@@ -178,7 +188,7 @@ function ClientCore( server, port ) {
 	
 	var _sender = new FloodControlSender( 5, 10000, function(buffer) { // allow 10 message each 20 seconds
 	
-		log.WriteLn( '<- '+buffer );
+		log.WriteLn( '<-'+buffer );
 		var unsentData = _socket.Write( buffer );
 		if ( unsentData.length != 0 )
 			Failed('Case not handled yet.');
@@ -188,11 +198,11 @@ function ClientCore( server, port ) {
 	this.Send = function( message, bypassAntiFlood ) _sender.Send( message+CRLF, bypassAntiFlood );
 	this.AddMessageListenerSet = function( set ) _messageListener.AddSet(set);
 	this.RemoveMessageListenerSet = function( set ) _messageListener.RemoveSet(set);
-	this.FireMessageListener = function( command ) _messageListener.Fire.apply(null, arguments);
+	this.FireMessageListener = function() _messageListener.Fire.apply(null, arguments);
 
 	this.NotifyModules = function( event ) {
 		
-		log.WriteLn( ' > ' + Array.join(arguments,' , ') );
+//		log.WriteLn( ' > ' + Array.join(arguments,' , ') );
 		for each ( var m in _modules )
 			m[event] && m[event].apply( null, arguments);
 	}
@@ -269,7 +279,7 @@ function ClientCore( server, port ) {
 				var buf = _socket.Read();
 				if ( buf.length == 0 ) { // remotely closed
 
-					log.WriteLn( '-> Remotely disconnected' );
+//					log.WriteLn( '-> Remotely disconnected' );
 					_this.NotifyModules( 'OnDisconnecting' );
 					_this.Finish();
 					return;
@@ -280,17 +290,24 @@ function ClientCore( server, port ) {
 				for ( var eol; (eol=_receiveBuffer.indexOf(CRLF)) != -1; _receiveBuffer = _receiveBuffer.substring( eol+2 ) ) { // +2 for CRLF ('\r\n');
 
 					var message = _receiveBuffer.substring( 0, eol );
+					
+					log.WriteLn('->'+message);
+					
 					var prefix = message.indexOf( ':' );
 					var trailing = message.indexOf( ':', 1 );
-					var args = message.substring( prefix?0:1, trailing>0?trailing-1:message.length ).split(' ');
-					if (prefix)
+					var args = message.substring( prefix ? 0 : 1, (trailing > 0) ? trailing-1 : message.length ).split(' ');
+					if ( prefix )
 						args.unshift( undefined );
-					if ( trailing>0 )
-						args.push( message.substring( trailing+1 ) );
+					if ( trailing > 0 )
+						args.push( message.substring( trailing + 1 ) );
 					if ( !isNaN( args[1] ) )
 						args[1] = _numericCommand[Number(args[1])];
-					log.WriteLn( '-> ' + args );
-					_this.FireMessageListener( args[1], args );
+//					log.WriteLn( '-> ' + args );
+
+					args.splice(1, 0, args.shift());
+					
+//					DPrint( 'FireMessageListener:'+ args.toSource() );
+					_this.FireMessageListener.apply( null, args );
 				}
 			}
 			_this.NotifyModules( 'OnConnected' );
@@ -325,13 +342,13 @@ function DefaultModule( nick, username, realname ) {
 
 	var listenerSet = {
 
-		RPL_WELCOME: function( from, command, to ) {
+		RPL_WELCOME: function( command, from, to ) {
 
 			setData( _mod.data.nick, to );
 			_mod.Send( 'USERHOST ' + to );
 		},
 
-		RPL_USERHOST: function( from, command, to, host ) {
+		RPL_USERHOST: function( command, from, to, host ) {
 			
 			var [,hostinfo] = host.split('=');
 			setData( _mod.data.userhost, hostinfo.substr(1) ); // hostinfo[0] = '+' or '-' : AWAY message set
@@ -368,14 +385,18 @@ function DefaultModule( nick, username, realname ) {
 			_mod.Send( 'NICK '+tmpNick );
 			setData( _mod.data.nick, tmpNick );
 		},
+
+		NICK:function( command, who, nick ) {
+			setData( _mod.data.nick, nick );
+		},
 		
-		PING: function( prefix, command, arg ) {
+		PING: function( command, prefix, arg ) {
 
 			_mod.Send( 'PONG '+arg );
 			setData( _mod.data.lastPingTime, IntervalNow() );
 		},
 
-		NOTICE: function( from, command, to, message ) {
+		NOTICE: function( command, from, to, message ) {
 
 			// irc.clockworkorange.co.uk- on 1 ca 1(2) ft 10(10) tr
 			// where:
@@ -417,11 +438,9 @@ function DefaultModule( nick, username, realname ) {
 
 	this.AddModuleAPI = function() {
 		
-		
 		_mod.api.Nick = function( nick ) {
 
 			_mod.Send( 'NICK '+nick );
-			setData( _mod.data.nick, nick );
 		}
 		
 		_mod.api.privmsg = function( to, message ) {
@@ -429,12 +448,12 @@ function DefaultModule( nick, username, realname ) {
 			var hostpos = to.indexOf('!');
 			if ( hostpos != -1 )
 				to = to.substr( 0, hostpos );
-			_module.Send( 'PRIVMSG '+to+' :'+message );
+			_mod.Send( 'PRIVMSG '+to+' :'+message );
 		}
 
 		_mod.api.Quit = function(quitMessage) {
 
-			_module.Send( 'QUIT :'+quitMessage, true ); // true = force the message to be post ASAP
+			_mod.Send( 'QUIT :'+quitMessage, true ); // true = force the message to be post ASAP
 		}
 	}
 
@@ -457,6 +476,8 @@ function DefaultModule( nick, username, realname ) {
 
 
 function ChannelModule( _channel ) {
+	
+	var _mod = this;
 
 	function ParseModes( modes, args, chanData ) {
 
@@ -506,7 +527,7 @@ function ChannelModule( _channel ) {
 			_mod.Send( 'JOIN ' + _channel );
 		},
 
-		JOIN: function( who, command, channel ) { // :cdd_etf_bot!~cdd_etf_b@nost.net JOIN #soubok
+		JOIN: function( command, who, channel ) { // :cdd_etf_bot!~cdd_etf_b@nost.net JOIN #soubok
 
 			if ( channel != _channel )
 				return;
@@ -525,12 +546,12 @@ function ChannelModule( _channel ) {
 			}
 		},
 			
-		RPL_BANLIST: function( from, command, to, channel, ban, banBy, time ) {
+		RPL_BANLIST: function( command, from, to, channel, ban, banBy, time ) {
 
 			setData( _mod.data.channel[channel].bans[ban], true );
 		},
 
-		PART: function( who, command, channel ) {
+		PART: function( command, who, channel ) {
 
 			if ( channel != _channel )
 				return;
@@ -542,14 +563,14 @@ function ChannelModule( _channel ) {
 				delData( _mod.data.channel[channel].names[nick] );
 		},
 
-		QUIT: function( who, command ) {
+		QUIT: function( command, who ) {
 			
 			// (TBD) if multi-chan, remove this user an every chan
 			var nick = who.substring( 0, who.indexOf('!') );
 			delData( _mod.data.channel[_channel].names[nick] );
 		},
 		
-		NICK: function( who, command, newNick ) {
+		NICK: function( command, who, newNick ) {
 
 			// (TBD) if multi-chan, rename this user an every chan
 			var nick = who.substring( 0, who.indexOf('!') );
@@ -560,28 +581,28 @@ function ChannelModule( _channel ) {
 			moveData( _mod.data.channel[_channel].names[nick], _mod.data.channel[_channel].names[newNick] );
 		},
 
-		RPL_NOTOPIC: function( channel ) {
+		RPL_NOTOPIC: function( command, channel ) {
 
 			if ( channel != _channel )
 				return;
 			delData( _mod.data.channel[channel].topic );
 		},
 
-		TOPIC: function( from, command, channel, topic ) {
+		TOPIC: function( command, from, channel, topic ) {
 
 			if ( channel != _channel )
 				return;
 			setData( _mod.data.channel[channel].topic, topic );
 		},
 
-		RPL_TOPIC: function( from, command, to, channel, topic ) {
+		RPL_TOPIC: function( command, from, to, channel, topic ) {
 
 			if ( channel != _channel )
 				return;
 			setData( _mod.data.channel[channel].topic, topic );
 		},
 
-		RPL_CHANNELMODEIS: function( from, command, to, channel, modes /*, ...*/ ) {
+		RPL_CHANNELMODEIS: function( command, from, to, channel, modes /*, ...*/ ) {
 
 			if ( channel != _channel ) // can be a user mode OR a mod for another channel
 				return;
@@ -592,7 +613,7 @@ function ChannelModule( _channel ) {
 			ParseModes( modes, args, _mod.data.channel[channel] );
 		},
 		
-		MODE: function( who, command, what, modes /*, ...*/ ) {
+		MODE: function( command, who, what, modes /*, ...*/ ) {
 
 			if ( what != _channel ) // can be a user mode OR a mod for another channel
 				return;
@@ -603,7 +624,7 @@ function ChannelModule( _channel ) {
 			ParseModes( modes, args, _mod.data.channel[_channel] );
 		},
 
-		RPL_NAMREPLY: function( from, command, to, type, channel, list ) {
+		RPL_NAMREPLY: function( command, from, to, type, channel, list ) {
 
 			if ( channel != _channel ) // [TBD] use a kind of filter to avoid doing this (eg. register RPL_NAMREPLY with #chan as filter )
 				return;
@@ -645,7 +666,7 @@ function ChannelModule( _channel ) {
 
 function CTCPModule() {
 
-	var _module = this;
+	var _mod = this;
 
 	function lowLevelCtcpQuote(data) { // NUL, NL, CR, QUOTE -> QUOTE 0, QUOTE n, QUOTE r, QUOTE QUOTE
 		
@@ -754,16 +775,16 @@ function CTCPModule() {
 		FireCtcpListener( from, to, tag, data );
 	}
 
-	this.CtcpPing = function( from, to, tag, data ) {
+	_mod.CtcpPing = function( from, to, tag, data ) {
 
 		var nick = from.substring( 0, from.indexOf('!') );
 		if ( tag == 'PING' )
-			_module.api.CtcpResponse( nick, tag, data );
+			_mod.api.CtcpResponse( nick, tag, data );
 	}
 
 	var messages = {
 
-		PRIVMSG:function( from, command, to, msg ) { // ctcp responses
+		PRIVMSG:function( command, from, to, msg ) { // ctcp responses
 
 			var even = 0;
 			while (true) {
@@ -810,12 +831,12 @@ function CTCPModule() {
 
 		_mod.api.CtcpQuery = function(who, tag, data) {
 			
-			_module.Send( 'PRIVMSG '+who+' :'+lowLevelCtcpDequote( '\1'+ctcpLevelQuote(tag+' '+data)+'\1' ) );
+			_mod.Send( 'PRIVMSG '+who+' :'+lowLevelCtcpDequote( '\1'+ctcpLevelQuote(tag+' '+data)+'\1' ) );
 		}
 		
 		_mod.api.CtcpResponse = function(who, tag, data) {
 			
-			_module.Send( 'NOTICE '+who+' :'+lowLevelCtcpDequote( '\1'+ctcpLevelQuote(tag+' '+data)+'\1' ) );
+			_mod.Send( 'NOTICE '+who+' :'+lowLevelCtcpDequote( '\1'+ctcpLevelQuote(tag+' '+data)+'\1' ) );
 		}
 	}
 	
@@ -830,6 +851,8 @@ function CTCPModule() {
 
 
 function DCCReceiverModule( destinationPath ) {
+	
+	var _mod = this;
 
 	function IntegerToIp(number) (number>>24 & 255)+'.'+(number>>16 & 255)+'.'+(number>>8 & 255)+'.'+(number & 255);
 
@@ -905,11 +928,11 @@ function DCCReceiverModule( destinationPath ) {
 
 function BotCmdModule( destinationPath ) {
 	
-	var _module = this;
+	var _mod = this;
 	var _listener = new Listener();
 
 	var messages = {
-		PRIVMSG:function( from, command, to, msg ) {
+		PRIVMSG:function( command, from, to, msg ) {
 						
 			if ( msg[0] != '!' ) // not a bot command
 				return;
@@ -922,22 +945,27 @@ function BotCmdModule( destinationPath ) {
 				cmdData = undefined;
 			} else {
 			
-				cmdName = msg.substr(1, sp);
-				cmdData = msg.substr(sp + 1);
+				cmdName = msg.substr(1, sp-1);
+				cmdData = msg.substr(sp+1);
 			}
-			_listener.Fire( cmdName.toLowerCase(), cmdData, from, command, to, msg );
+
+			DPrint( '***', msg, cmdName, cmdData  );
+
+			_listener.Fire( cmdName.toLowerCase(), cmdData, command, from, to, msg );
 		}
 	}
 	
-	this.AddModuleListeners = function() this.AddMessageListenerSet( messages );
-	this.RemoveModuleListeners = function() this.RemoveMessageListenerSet( messages );
-	this.AddModuleAPI = function() this.api.botCmd = _listener;
-	this.RemoveModuleAPI = function() delete this.api.botCmd;
+	this.AddModuleListeners = function() _mod.AddMessageListenerSet( messages );
+	this.RemoveModuleListeners = function() _mod.RemoveMessageListenerSet( messages );
+	this.AddModuleAPI = function() _mod.api.botCmd = _listener;
+	this.RemoveModuleAPI = function() delete _mod.api.botCmd;
 }
 
 
 
 function HttpClientModule( destinationPath ) {
+	
+	var _mod = this;
 
 	function parseUri(source) { // parseUri 1.2; MIT License By Steven Levithan <http://stevenlevithan.com>
 		var o = parseUri.options, value = o.parser[o.strictMode ? "strict" : "loose"].exec(source);
@@ -968,10 +996,25 @@ function HttpClientModule( destinationPath ) {
 			
 			var ud = parseUri(url);
 			
+			var headers = (data ? 'POST ' : 'GET ') + ud.path + ' HTTP/1.0' + CRLF;
+			if ( data ) {
+				
+				var body = '';
+				var c = 0;
+				for ( var [k,v] in Iterator(data) )
+					body += ( c++?'&':'') + encodeURIComponent(k) + '=' + encodeURIComponent(v);
+				headers += 'Content-Type: application/x-www-form-urlencoded' + CRLF;
+				headers += 'Content-Length: ' + body.length + CRLF;
+			}
+
+			headers += 'Host: ' + ud.host + CRLF;
+			headers += 'Connection: Close' + CRLF;
+			headers += CRLF;
+
+
 			var httpSocket = new Socket();
-			httpSocket.Connect( ud.host, id.port );
+			httpSocket.Connect( ud.host, ud.port || 80 );
 			io.AddDescriptor( httpSocket );
-			
 			var timeoutId = io.AddTimeout( timeout, Finalize );
 
 			function Finalize() {
@@ -985,20 +1028,33 @@ function HttpClientModule( destinationPath ) {
 			
 			httpSocket.writable = function(s) {
 				
-				s.Write(data);
+				DPrint( 'sending', headers + body );
+				s.Write(headers);
+				s.Write(body);
 				delete s.writable;
 			}
 
 			httpSocket.readable = function(s) {
 				
 				var chunk = s.Read();
+				DPrint( 'receiving', chunk );
+				log.WriteLn(chunk)
 				if ( chunk.length == 0 ) {
 					
 					Finalize();
-					callback( buffer.Read() );
+					
+					var status = responseBuffer.ReadUntil(CRLF).split(' ');
+					var headers = {};
+					for each ( var h in responseBuffer.ReadUntil(CRLF+CRLF).split(CRLF) ) {
+						
+						var [k, v] = h.split(': '); 
+						headers[k] = v;
+					}
+					
+					callback( { version:status[0], code:status[1], reason:status[2], headers:headers, body:responseBuffer.Read() } );
 				} else {
 				
-					responseBuffer.Write( s.Read() );
+					responseBuffer.Write( chunk );
 				}
 			}
 		}
