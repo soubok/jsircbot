@@ -24,6 +24,7 @@ const CRLF = '\r\n';
 
 ///////////////////////////////////////////////////////
 
+
 function DPrint() {
 	
 	for ( var i = 0; i < arguments.length; i++ )
@@ -92,8 +93,8 @@ function Listener() {
 	this.AddSet = function( set ) _list.push(set);
 	this.RemoveSet = function( set ) _list.splice(_list.indexOf(set), 1);
 	this.Fire = function( name ) {
-	
-		for each ( var set in _list )
+
+		for each ( var set in Array.concat(_list) )
 			name in set && set[name].apply(null, arguments);
 	}
 	this.Clear();
@@ -169,7 +170,7 @@ function DirectSender( rawSender ) {
 
 ///////////////////////////////////////////////////////
 
-function Failed(text) { log.WriteLn(error); throw new Error(text) }
+function Failed(text) { log.WriteLn(text); throw new Error(text) }
 
 ///////////////////////////////////////////////////////
 
@@ -311,7 +312,6 @@ function ClientCore( server, port ) {
 
 					args.splice(1, 0, args.shift());
 					
-//					DPrint( 'FireMessageListener:'+ args.toSource() );
 					_this.FireMessageListener.apply( null, args );
 				}
 			}
@@ -344,17 +344,19 @@ function ClientCore( server, port ) {
 			mod.RemoveModuleAPI && mod.RemoveModuleAPI();
 			mod.RemoveModuleListeners && mod.RemoveModuleListeners();
 			mod.DestroyModule && mod.DestroyModule();
-			delete mod.api;
 			delete mod.data;
+			delete mod.api;
 		}
 	}
 
 	this.ReloadModule = function( mod ) {
-		
-		this.RemoveModule(mod);
+
 		mod.Make || Failed('Unable to reload the module.');
-		this.RemoveModule(mod.Make());
+		this.RemoveModule(mod);
+		this.AddModule(mod.Make());
 	}
+	
+	Seal(this);
 }
 
 
@@ -362,6 +364,8 @@ function ClientCore( server, port ) {
 
 
 function DefaultModule( nick, username, realname ) {
+	
+	this.name = arguments.callee.name;
 	
 	var _mod = this;
 	
@@ -504,6 +508,8 @@ function DefaultModule( nick, username, realname ) {
 
 
 function ChannelModule( _channel ) {
+	
+	this.name = arguments.callee.name;
 	
 	var _mod = this;
 
@@ -694,6 +700,8 @@ function ChannelModule( _channel ) {
 
 function CTCPModule() {
 
+	this.name = arguments.callee.name;
+	
 	var _mod = this;
 
 	function lowLevelCtcpQuote(data) { // NUL, NL, CR, QUOTE -> QUOTE 0, QUOTE n, QUOTE r, QUOTE QUOTE
@@ -880,6 +888,8 @@ function CTCPModule() {
 
 function DCCReceiverModule( destinationPath ) {
 	
+	this.name = arguments.callee.name;
+	
 	var _mod = this;
 
 	function IntegerToIp(number) (number>>24 & 255)+'.'+(number>>16 & 255)+'.'+(number>>8 & 255)+'.'+(number & 255);
@@ -956,6 +966,7 @@ function DCCReceiverModule( destinationPath ) {
 
 function BotCmdModule( destinationPath ) {
 	
+	this.name = arguments.callee.name;
 	var _mod = this;
 	var _listener = new Listener();
 
@@ -976,9 +987,7 @@ function BotCmdModule( destinationPath ) {
 				cmdName = msg.substr(1, sp-1);
 				cmdData = msg.substr(sp+1);
 			}
-
-			DPrint( '***', msg, cmdName, cmdData  );
-
+			
 			_listener.Fire( cmdName.toLowerCase(), cmdData, command, from, to, msg );
 		}
 	}
@@ -993,6 +1002,7 @@ function BotCmdModule( destinationPath ) {
 
 function HttpClientModule( destinationPath ) {
 	
+	this.name = arguments.callee.name;
 	var _mod = this;
 
 	function parseUri(source) { // parseUri 1.2; MIT License By Steven Levithan. http://blog.stevenlevithan.com/archives/parseuri
@@ -1026,7 +1036,7 @@ function HttpClientModule( destinationPath ) {
 		
 		var headers = '';
 		for ( var k in list )
-			headers += k + ': ' + list[v] + CRLF;
+			headers += k + ': ' + list[k] + CRLF;
 		return headers;
 	}
 	
@@ -1081,10 +1091,6 @@ function HttpClientModule( destinationPath ) {
 			httpSocket.readable = function(s) {
 				
 				var chunk = s.Read();
-
-				DPrint( 'receiving', chunk );
-				log.WriteLn(chunk)
-
 				if ( chunk.length ) {
 
 					responseBuffer.Write( chunk );
@@ -1101,7 +1107,7 @@ function HttpClientModule( destinationPath ) {
 							var [k, v] = h.split(': '); 
 							headers[k] = v;
 						}
-						responseCallback( { httpVersion:httpVersion, statusCode:statusCode, reasonPhrase:reasonPhrase, headers:headers, body:responseBuffer.Read() } );
+						responseCallback(statusCode, reasonPhrase, headers, responseBuffer.Read());
 					} catch(ex if ex == ERR) {
 						
 						log.WriteLn( 'Error while parsing HTTP response' );
@@ -1126,7 +1132,12 @@ function LoadModulesFromPath(core, path, ext) {
 		return  pt == -1 ? undefined : filename.substr(++pt);
 	}
 	
-	function ModuleMaker(path) function() new (Exec(path));
+	function ModuleMaker(path) function Make() {
+	
+		var mod = new (Exec(path));
+		mod.Make = Make;
+		return mod;
+	}
 	
 	var entry, dir = new Directory(path, Directory.SKIP_BOTH);
 	for ( dir.Open(); (entry = dir.Read()); )
@@ -1136,10 +1147,7 @@ function LoadModulesFromPath(core, path, ext) {
 
 			try {
 			
-				var make = ModuleMaker( path + '/' +entry ); // returns a function that creates the module
-				var mod = make(); // create the module
-				mod.Make = make;
-				core.AddModule(mod);
+				core.AddModule(ModuleMaker( path + '/' +entry )());
 				Print( 'Done.\n' );
 			} catch(ex) {
 
