@@ -173,6 +173,11 @@ function Failed(text) { log.WriteLn(error); throw new Error(text) }
 
 ///////////////////////////////////////////////////////
 
+function API() {
+
+	return new ObjEx( undefined,undefined,undefined, function(name, value) this[name] ? Failed('API Already defined') : value );
+}
+///////////////////////////////////////////////////////
 
 function ClientCore( server, port ) {
 
@@ -182,7 +187,7 @@ function ClientCore( server, port ) {
 	var _modules = [];
 	var _data = newDataNode();
 	var _messageListener = new Listener();
-	var _api = new ObjEx( undefined,undefined,undefined, function(name, value) this[name] ? Failed('API Already defined') : value );
+	var _api = new API();
 	var _hasFinished;
 	var _numericCommand = Exec('NumericCommand.js');
 	
@@ -326,6 +331,29 @@ function ClientCore( server, port ) {
 		mod.AddModuleListeners && mod.AddModuleListeners();
 		mod.InitModule && mod.InitModule();
 		return mod;
+	}
+	
+	this.RemoveModule = function( mod ) {
+		
+		var pos = _modules.indexOf(mod);
+		if ( pos != -1 ) {
+		
+			mod = _modules[pos];
+			_modules.splice(pos, 1);
+
+			mod.RemoveModuleAPI && mod.RemoveModuleAPI();
+			mod.RemoveModuleListeners && mod.RemoveModuleListeners();
+			mod.DestroyModule && mod.DestroyModule();
+			delete mod.api;
+			delete mod.data;
+		}
+	}
+
+	this.ReloadModule = function( mod ) {
+		
+		this.RemoveModule(mod);
+		mod.Make || Failed('Unable to reload the module.');
+		this.RemoveModule(mod.Make());
 	}
 }
 
@@ -967,7 +995,7 @@ function HttpClientModule( destinationPath ) {
 	
 	var _mod = this;
 
-	function parseUri(source) { // parseUri 1.2; MIT License By Steven Levithan <http://stevenlevithan.com>
+	function parseUri(source) { // parseUri 1.2; MIT License By Steven Levithan. http://blog.stevenlevithan.com/archives/parseuri
 		var o = parseUri.options, value = o.parser[o.strictMode ? "strict" : "loose"].exec(source);
 
 		for (var i = 0, uri = {}; i < 14; i++) uri[o.key[i]] = value[i] || "";
@@ -988,30 +1016,48 @@ function HttpClientModule( destinationPath ) {
 			loose: /^(?:(?![^:@]+:[^:@\/]*@)([^:\/?#.]+):)?(?:\/\/)?((?:(([^:@]*):?([^:@]*))?@)?([^:\/?#]*)(?::(\d*))?)(((\/(?:[^?#](?![^?#\/]*\.[^?#\/.]+(?:[?#]|$)))*\/?)?([^?#\/]*))(?:\?([^#]*))?(?:#(.*))?)/
 		}
 	};
+	
+	function MakeStatusLine( method, path, version ) {
+		
+		return method + ' ' + path + ' ' + (version||'HTTP/1.0');
+	}
+	
+	function MakeHeaders( list ) {
+		
+		var headers = '';
+		for ( var k in list )
+			headers += k + ': ' + list[v] + CRLF;
+		return headers;
+	}
+	
+	function FormEncode( list ) {
+		
+		var data = '';
+		for ( var k in list )
+			data += ( data.length?'&':'') + encodeURIComponent(k) + '=' + encodeURIComponent(list[k]);
+		return data;
+	}
+	
+	function ERR() { throw ERR }
+	function CHK( v ) v || ERR();
 
+	function Switch(i) arguments[++i];
 
 	this.AddModuleAPI = function() {
 		
-		_mod.api.HttpPost = function(url, data, timeout, callback) {
+		_mod.api.HttpPost = function(url, data, timeout, responseCallback) {
 			
 			var ud = parseUri(url);
-			
-			var headers = (data ? 'POST ' : 'GET ') + ud.path + ' HTTP/1.0' + CRLF;
+			var headers = { Host:ud.host, Connection:'Close' };
+			var statusLine = MakeStatusLine( data ? 'POST' : 'GET', ud.path );
+			var body = '';
 			if ( data ) {
 				
-				var body = '';
-				var c = 0;
-				for ( var [k,v] in Iterator(data) )
-					body += ( c++?'&':'') + encodeURIComponent(k) + '=' + encodeURIComponent(v);
-				headers += 'Content-Type: application/x-www-form-urlencoded' + CRLF;
-				headers += 'Content-Length: ' + body.length + CRLF;
+				body = FormEncode(data);
+				headers['Content-Length'] = body.length;
+				headers['Content-Type'] = 'application/x-www-form-urlencoded';
 			}
-
-			headers += 'Host: ' + ud.host + CRLF;
-			headers += 'Connection: Close' + CRLF;
-			headers += CRLF;
-
-
+			
 			var httpSocket = new Socket();
 			httpSocket.Connect( ud.host, ud.port || 80 );
 			io.AddDescriptor( httpSocket );
@@ -1024,37 +1070,42 @@ function HttpClientModule( destinationPath ) {
 				io.RemoveDescriptor( httpSocket );
 			}
 
-			var responseBuffer = new Buffer();
-			
 			httpSocket.writable = function(s) {
 				
-				DPrint( 'sending', headers + body );
-				s.Write(headers);
-				s.Write(body);
+				s.Write(statusLine + CRLF + MakeHeaders(headers) + CRLF + body);
 				delete s.writable;
 			}
+
+			var responseBuffer = new Buffer();
 
 			httpSocket.readable = function(s) {
 				
 				var chunk = s.Read();
+
 				DPrint( 'receiving', chunk );
 				log.WriteLn(chunk)
-				if ( chunk.length == 0 ) {
-					
-					Finalize();
-					
-					var status = responseBuffer.ReadUntil(CRLF).split(' ');
-					var headers = {};
-					for each ( var h in responseBuffer.ReadUntil(CRLF+CRLF).split(CRLF) ) {
-						
-						var [k, v] = h.split(': '); 
-						headers[k] = v;
-					}
-					
-					callback( { version:status[0], code:status[1], reason:status[2], headers:headers, body:responseBuffer.Read() } );
-				} else {
-				
+
+				if ( chunk.length ) {
+
 					responseBuffer.Write( chunk );
+				} else {
+					
+					delete s.readable;
+					Finalize();
+					try {
+
+						var [httpVersion,statusCode,reasonPhrase] = CHK(responseBuffer.ReadUntil(CRLF)).split(' ');
+						var headers = {};
+						for each ( var h in CHK(responseBuffer.ReadUntil(CRLF+CRLF)).split(CRLF) ) {
+
+							var [k, v] = h.split(': '); 
+							headers[k] = v;
+						}
+						responseCallback( { httpVersion:httpVersion, statusCode:statusCode, reasonPhrase:reasonPhrase, headers:headers, body:responseBuffer.Read() } );
+					} catch(ex if ex == ERR) {
+						
+						log.WriteLn( 'Error while parsing HTTP response' );
+					}
 				}
 			}
 		}
@@ -1067,21 +1118,33 @@ function HttpClientModule( destinationPath ) {
 }
 
 
-function LoadModulesFromPath(bot, path, ext) {
+function LoadModulesFromPath(core, path, ext) {
 
 	function FileExtension(filename) {
 
 		var pt = filename.lastIndexOf('.');
 		return  pt == -1 ? undefined : filename.substr(++pt);
 	}
-
+	
+	function ModuleMaker(path) function() new (Exec(path));
+	
 	var entry, dir = new Directory(path, Directory.SKIP_BOTH);
-	for ( dir.Open(); ( entry = dir.Read() ); )
+	for ( dir.Open(); (entry = dir.Read()); )
 		if ( FileExtension(entry) == ext ) {
 			
 			Print( 'Loading module '+ path+'/'+entry +' ...' );
-			bot.AddModule( new (Exec(path+'/'+entry)) );
-			Print( ' Done.\n' );
+
+			try {
+			
+				var make = ModuleMaker( path + '/' +entry ); // returns a function that creates the module
+				var mod = make(); // create the module
+				mod.Make = make;
+				core.AddModule(mod);
+				Print( 'Done.\n' );
+			} catch(ex) {
+
+				Print( 'Failed. ('+ex+')\n' );
+			}
 		}
 }
 
@@ -1092,19 +1155,18 @@ try {
 
 	Print( 'Press ctrl-c to exit...', '\n' );
 
-
-	var bot = new ClientCore( 'irc.freenode.net', 6667 );
-	bot.AddModule( new DefaultModule( 'TremVipBot' ) ); 
-	bot.AddModule( new CTCPModule() ); 
-	bot.AddModule( new DCCReceiverModule( '.' ) );
-	bot.AddModule( new ChannelModule( '#trem-vipsx' ) );
-	bot.AddModule( new HttpClientModule() );
-	bot.AddModule( new BotCmdModule() );
+	var core = new ClientCore( 'irc.freenode.net', 6667 );
+	core.AddModule( new DefaultModule( 'TremVipBot' ) ); 
+	core.AddModule( new CTCPModule() ); 
+	core.AddModule( new DCCReceiverModule( '.' ) );
+	core.AddModule( new ChannelModule( '#trem-vipsx' ) );
+	core.AddModule( new HttpClientModule() );
+	core.AddModule( new BotCmdModule() );
 	
-	LoadModulesFromPath( bot, '.', 'jsmod' );
+	LoadModulesFromPath( core, '.', 'jsmod' );
 
-	bot.Connect();
-	io.Process( function() { return bot.hasFinished() || endSignal } );
+	core.Connect();
+	io.Process( function() { return core.hasFinished() || endSignal } );
 	io.Close();
 
 	log.WriteLn(' ========================================================= END ========================================================= ');

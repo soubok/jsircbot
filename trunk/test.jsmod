@@ -26,6 +26,12 @@ function() {
 			var data = { q:'tremulous' };
 			_mod.api.HttpPost( 'http://www.google.com/', data, 1000, function(response) DPrint(response) );
 		}
+
+		reload:function( cmdName, cmdData, from, command, to, msg ) {
+		
+//			_mod.api.ReloadModule
+		}
+
 	}
 
 	this.AddModuleListeners = function() _mod.api.botCmd.AddSet( _botCmd );
