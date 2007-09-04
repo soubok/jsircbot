@@ -1,4 +1,6 @@
-function() {
+(function testModule() {
+	
+	this.name = arguments.callee.name;
 
 	var _mod = this;
 	
@@ -10,12 +12,15 @@ function() {
 		},
 		flood:function( cmdName, cmdData, from, command, to, msg ) {
 		
+			var nick = from.substr( 0, from.indexOf('!') );
+		
 			for ( var i = 0; i<100; i++ )
 			  _mod.Send( 'PRIVMSG '+nick+' :XxxxxxxxXxxxxxxxXxxxxxxxXxxxx '+i );
 		},
 		dump:function( cmdName, cmdData, from, command, to, msg ) {
 			
 			Print(dumpData(_mod.data), '\n');
+			
 		},
 		quit:function() {
 			
@@ -25,11 +30,19 @@ function() {
 		
 			var data = { q:'tremulous' };
 			_mod.api.HttpPost( 'http://www.google.com/', data, 1000, function(response) DPrint(response) );
-		}
-
+		},
+		unload:function( cmdName, cmdData, from, command, to, msg ) {
+		
+			core.RemoveModule(_mod);
+		},
 		reload:function( cmdName, cmdData, from, command, to, msg ) {
 		
-//			_mod.api.ReloadModule
+			core.ReloadModule(_mod); // after this, the current code will die
+//			_mod.api.privmsg( to, 'Done.');
+		},
+		date:function( cmdName, cmdData, from, command, to, msg ) {
+		
+			_mod.api.privmsg( to, new Date() );
 		}
 
 	}
@@ -44,4 +57,4 @@ function() {
 		});
 */
 
-}
+})
