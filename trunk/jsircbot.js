@@ -163,7 +163,7 @@ function SocketConnection() {
 		}
 
 		_socket.writable = function(s) {
-
+		
 			delete s.writable;
 			io.RemoveTimeout(_connectionTimeout);
 			OnConnected();
@@ -185,11 +185,11 @@ function SocketConnection() {
 		}
 		
 		io.AddDescriptor(_socket);
-		io.AddTimeout( 3000, ConnectionFailed );
+		_connectionTimeout = io.AddTimeout( 3000, ConnectionFailed );
 
 		try {		
+			_socket.Connect( host, port );
 			
-			_socket.Connect( server, port );
 		} catch(ex) {
 			
 			ConnectionFailed();
@@ -227,13 +227,13 @@ function ClientCore( server, port ) {
 	var _messageListener = new Listener();
 	var _moduleListener = new Listener();
 	var _api = new API();
-	var _hasFinished;
+	var _hasFinished = false;
 	var _numericCommand = Exec('NumericCommand.js');
 	
-	function RawSend(data) {
+	function RawSend(buf) {
 
-		log.WriteLn( '<-'+buffer );
-		if ( _connection.Write( buffer ).length != 0 )
+		log.WriteLn( '<-' + buf );
+		if ( _connection.Write(buf).length != 0 )
 			Failed('Unable to send more data.');
 		setData( _data.lastMessageTime, IntervalNow() );
 	}	
@@ -289,7 +289,7 @@ function ClientCore( server, port ) {
 		}
 		
 		function OnClose() {
-		
+			
 			_moduleListener.Fire('OnDisconnected');
 			_moduleListener.Fire('RemoveModuleListeners');
 			_moduleListener.Fire('RemoveModuleAPI');
@@ -302,7 +302,6 @@ function ClientCore( server, port ) {
 
 		_connection.Connect( server, port, OnConnected, OnData, OnClose, OnFailed );
 		_moduleListener.Fire('OnConnecting');
-		_hasFinished = false;
 	}
 		
 	this.AddModule = function( mod ) {
@@ -899,8 +898,8 @@ function DCCReceiverModule( destinationPath ) {
 		
 		function Finalize() {
 			
-			delete s.readable;
-			delete s.writable;
+			delete dccSocket.readable;
+			delete dccSocket.writable;
 			io.RemoveTimeout(timeoutId);
 			dccSocket.Close();
 			io.RemoveDescriptor( dccSocket );
@@ -1147,14 +1146,14 @@ try {
 	core.AddModule( new DefaultModule( 'TremVipBot' ) ); 
 	core.AddModule( new CTCPModule() ); 
 	core.AddModule( new DCCReceiverModule( '.' ) );
-	core.AddModule( new ChannelModule( '#trem-vipsx' ) );
+	core.AddModule( new ChannelModule( '#jsircbot' ) );
 	core.AddModule( new HttpClientModule() );
 	core.AddModule( new BotCmdModule() );
 	
 	LoadModulesFromPath( core, '.', 'jsmod' );
 
 	core.Connect();
-	io.Process( function() { return core.hasFinished() || endSignal } );
+	io.Process( function() core.hasFinished() || endSignal );
 	io.Close();
 
 	log.WriteLn(' ========================================================= END ========================================================= ');
