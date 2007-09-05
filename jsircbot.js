@@ -1052,7 +1052,7 @@ function HttpClientModule( destinationPath ) {
 			}
 			
 			var httpSocket = new Socket();
-			httpSocket.Connect( ud.host, ud.port || 80 );
+			httpSocket.nonblocking = true;
 			io.AddDescriptor( httpSocket );
 			var timeoutId = io.AddTimeout( timeout, Finalize );
 
@@ -1061,6 +1061,7 @@ function HttpClientModule( destinationPath ) {
 				io.RemoveTimeout(timeoutId);
 				httpSocket.Close();
 				io.RemoveDescriptor( httpSocket );
+				responseCallback();
 			}
 
 			httpSocket.writable = function(s) {
@@ -1094,6 +1095,7 @@ function HttpClientModule( destinationPath ) {
 					} catch(ex if ex == ERR) {
 						
 						log.WriteLn( 'Error while parsing HTTP response' );
+						responseCallback();
 					}
 				}
 			}
@@ -1135,7 +1137,7 @@ function LoadModulesFromPath(core, path, ext) {
 				Print( 'Done.\n' );
 			} catch(ex) {
 
-				Print( 'Failed. ('+ex+')\n' );
+				Print( 'Failed. ('+ex.toSource()+')\n' );
 			}
 		}
 }
