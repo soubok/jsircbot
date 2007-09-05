@@ -24,7 +24,6 @@ const CRLF = '\r\n';
 
 ///////////////////////////////////////////////////////
 
-
 function DPrint() {
 	
 	for ( var i = 0; i < arguments.length; i++ )
@@ -32,64 +31,11 @@ function DPrint() {
 	Print( '\n' );
 }
 
-
-///////////////////////////////////////////////////////
-
-/*
-function Listener(lowerCaseNames) {
-	
-	var _list = {};
-
-	this.Add = function( name, func ) {
-		
-		lowerCaseNames && ( name = name.toLowerCase() );
-		(_list[name] || (_list[name]=[])).push(func);
-	}
-	
-	this.AddSet = function( set ) {
-		
-		for ( var [name, func] in Iterator(set) )
-			this.Add(name, func);
-	}
-	
-	this.Remove = function( name, func ) {
-	
-		lowerCaseNames && ( name = name.toLowerCase() );
-		var l = _list[name];
-		l.splice(l.indexOf(func), 1);
-		l.length || delete _list[name];
-	}
-
-	this.RemoveSet = function( set ) {
-	
-		for ( var [name, func] in Iterator(set) )
-			this.Remove(name, func);
-	}
-	
-	this.Fire = function( name ) {
-	
-		lowerCaseNames && ( name = name.toLowerCase() );
-		if ( name in _list )
-			for each ( var func in _list[name] )
-				func.apply(this, arguments);
-	}
-	
-	this.Clear = function() {
-
-		_list = {};
-	}
-}
-*/
-
-///////////////////////////////////////////////////////
-
-
 ///////////////////////////////////////////////////////
 
 function Listener() {
 	
-	var _list;
-	this.Clear = function() _list = [];
+	var _list = [];
 	this.AddSet = function( set ) _list.push(set);
 	this.RemoveSet = function( set ) _list.splice(_list.indexOf(set), 1);
 	this.Fire = function( name ) {
@@ -97,7 +43,6 @@ function Listener() {
 		for each ( var set in Array.concat(_list) )
 			name in set && set[name].apply(null, arguments);
 	}
-	this.Clear();
 }
 
 ///////////////////////////////////////////////////////
@@ -114,7 +59,6 @@ var log = new function() {
 		_file.Open( File.CREATE_FILE + File.WRONLY + File.APPEND );
 		_file.Write( '{' + t + '}' +data );
 		_file.Close();
-//		Print(data);
 	}
 	
 	this.WriteLn = function( data ) {
@@ -125,52 +69,62 @@ var log = new function() {
 
 ///////////////////////////////////////////////////////
 
-function FloodControlSender( max, time, rawSender ) {
+function MakeFloodSafeMessageSender( maxMessage, maxData, time, rawSender ) {
 
-	var _count = max;
-	var _time = IntervalNow();
-	var _queue = [];
+	var _count = maxMessage;
+	var _bytes = maxData;
+	var _messageQueue = [];
+	var _timeoutId;
 	
 	function Process() {
 	
 		var buffer = '';
-		for ( ; _count > 0 && _queue.length > 0 ; _count-- )
-			buffer += _queue.shift();
-		if ( buffer.length > 0 )
-			rawSender(buffer);
-	}
-	
-	function timeout() {
-
-		_count = max;
-		Process(); // process unsent datas
-		io.AddTimeout( time, timeout );
-	}
-	
-	io.AddTimeout( time, timeout );
+		while ( _count > 0 && _bytes > 0 && _messageQueue.length > 0 ) { // && (buffer + (_messageQueue[0]||'').length < maxData ???
+			
+			var msg = _messageQueue.shift();
+			buffer += msg;
+			_bytes -= msg.length;
+			_count--;
+		}
 		
-	this.Send = function( line, bypassAntiFlood ) {
+		buffer.length && rawSender(buffer);
+		
+		if ( !_timeoutId ) // do not reset the timeout
+			_timeoutId = io.AddTimeout( time, Timeout );
+	}
+	
+	function Timeout() {
+	
+		_timeoutId = undefined;
+		_count = maxMessage;
+		_bytes = maxData;
+		_messageQueue.length && Process(); // process if needed. else no more timeout
+	}
+	
+	return function( message, bypassAntiFlood ) {
 		
 		if ( bypassAntiFlood ) {
 		
 			_count--;
-			rawSender(line);
+			_bytes -= message.length - 2;
+			rawSender(message + CRLF);
 		} else {
 		
-			line != undefined && _queue.push(line);
+			message && _messageQueue.push(message + CRLF);
 			Process();
 		}
 	}
 }
 
-function DirectSender( rawSender ) {
-	
-	this.Send = rawSender;
-}
-
 ///////////////////////////////////////////////////////
 
 function Failed(text) { log.WriteLn(text); throw new Error(text) }
+
+function ERR() { throw ERR }
+
+function CHK( v ) v || ERR();
+
+function Switch(i) arguments[++i];
 
 ///////////////////////////////////////////////////////
 
@@ -178,148 +132,182 @@ function API() {
 
 	return new ObjEx( undefined,undefined,undefined, function(name, value) this[name] ? Failed('API Already defined') : value );
 }
+
 ///////////////////////////////////////////////////////
 
-function ClientCore( server, port ) {
-
-	var _this = this;
-	var _socket;
-	var _receiveBuffer = '';
-	var _modules = [];
-	var _data = newDataNode();
-	var _messageListener = new Listener();
-	var _api = new API();
-	var _hasFinished;
-	var _numericCommand = Exec('NumericCommand.js');
-	
-	var _sender = new FloodControlSender( 5, 10000, function(buffer) { // allow 10 message each 20 seconds
-	
-		log.WriteLn( '<-'+buffer );
-		var unsentData = _socket.Write( buffer );
-		if ( unsentData.length != 0 )
-			Failed('Case not handled yet.');
-		setData( _data.lastMessageTime, IntervalNow() );
-	});
-
-	this.Send = function( message, bypassAntiFlood ) _sender.Send( message+CRLF, bypassAntiFlood );
-	this.AddMessageListenerSet = function( set ) _messageListener.AddSet(set);
-	this.RemoveMessageListenerSet = function( set ) _messageListener.RemoveSet(set);
-	this.FireMessageListener = function() _messageListener.Fire.apply(null, arguments);
-
-	this.NotifyModules = function( event ) {
-		
-//		log.WriteLn( ' > ' + Array.join(arguments,' , ') );
-		for each ( var m in _modules )
-			m[event] && m[event].apply( null, arguments);
-	}
-	
-	this.hasFinished = function() _hasFinished;
-	
-	this.Finish = function() {
-	
-		delete _socket.readable;
-		delete _socket.writable;
-		io.RemoveDescriptor(_socket); // no more read/write notifications are needed
-		_socket.Close();
-		_this.NotifyModules( 'OnDisconnected' );
-		_this.NotifyModules( 'RemoveModuleListeners' );
-		_this.NotifyModules( 'RemoveModuleAPI' );
-		_hasFinished = true;
-	}
-
-	this.Disconnect = function() { // make a Gracefully disconnect
-
-		_this.NotifyModules( 'OnDisconnecting' );
-		delete _socket.writable;
-		_socket.Shutdown(); // both
-		var timeoutId;
-		function Close() {
-
-			io.RemoveTimeout(timeoutId); // cancel the timeout
-			_this.Finish();
-		}
-		_socket.readable = Close;
-		timeoutId = io.AddTimeout( 1000, Close ); // force disconnect after the timeout
-	}
-
+function ProxyHttpConnection() {
 	this.Connect = function() {
+	}
+	this.Disconnect = function() {
+	}
+	this.Write = function() {
+	}
+}
 
-		_hasFinished = false;
+function SocketConnection() {
 
-		setData( _data.server, server );
-		setData( _data.port, port );
-		setData( _data.connectTime, IntervalNow() );
+	var _socket = new Socket(Socket.TCP);
+	_socket.nonblocking = true;
+	_socket.noDelay = true;
 
-		_socket = new Socket();
-		io.AddDescriptor(_socket);
+	this.Connect = function( host, port, OnConnected, OnData, OnClose, OnFailed ) {
 
-		var _connectionTimeoutId = io.AddTimeout( 5000, function() {
-			
-			io.RemoveDescriptor(_socket);
-			_socket.Close();
-			_this.NotifyModules( 'OnConnectionTimeout' );
-			_hasFinished = true;
-		} );
+		var _connectionTimeout;
 		
-		_this.NotifyModules( 'OnConnecting', server, port );
+		function ConnectionFailed() {
+			
+			io.RemoveTimeout(_connectionTimeout);
+			io.RemoveDescriptor(_socket)
+			_socket.Close();
+			OnFailed();
+		}
+
+		_socket.writable = function(s) {
+
+			delete s.writable;
+			io.RemoveTimeout(_connectionTimeout);
+			OnConnected();
+		}
+		
+		_socket.readable = function(s) {
+			
+			var buf = s.Read();
+			if ( buf.length == 0 ) {
+				
+				delete s.readable;
+				io.RemoveDescriptor(s);
+				s.Close();
+				OnClose();
+			}	else {
+			
+				OnData( buf );
+			}
+		}
+		
+		io.AddDescriptor(_socket);
+		io.AddTimeout( 3000, ConnectionFailed );
+
 		try {		
 			
 			_socket.Connect( server, port );
 		} catch(ex) {
 			
-			io.RemoveDescriptor(_socket);
-			io.RemoveTimeout(_connectionTimeoutId); // cancel the timeout
-			_this.NotifyModules( 'OnConnectionFailed' );
+			ConnectionFailed();
+		}
+	}
+	
+	this.Disconnect = function() {
+
+		delete _socket.writable;
+		_socket.Shutdown(); // both
+		var shutdownTimeout;
+		function Close() {
+
+			io.RemoveTimeout(shutdownTimeout); // cancel the timeout
+			io.RemoveDescriptor(_socket); // no more read/write notifications are needed
+			_socket.Close();
+			OnClose();
+		}
+		_socket.readable = Close;
+		shutdownTimeout = io.AddTimeout( 1000, Close ); // force disconnect after the timeout
+	}
+	
+	this.Write = function(data) _socket.Write(data);
+}
+
+///////////////////////////////////////////////////////
+
+function ClientCore( server, port ) {
+
+	var _this = this;
+	var _connection = new SocketConnection();
+	var _receiveBuffer = '';
+	var _modules = [];
+	var _data = newDataNode();
+	var _messageListener = new Listener();
+	var _moduleListener = new Listener();
+	var _api = new API();
+	var _hasFinished;
+	var _numericCommand = Exec('NumericCommand.js');
+	
+	function RawSend(data) {
+
+		log.WriteLn( '<-'+buffer );
+		if ( _connection.Write( buffer ).length != 0 )
+			Failed('Unable to send more data.');
+		setData( _data.lastMessageTime, IntervalNow() );
+	}	
+
+	this.Send = MakeFloodSafeMessageSender( 5, 1456, 10000, RawSend ); // MakeFloodSafeMessageSender returns a function // policy: in 10 seconds, we can send 5 messages OR 1456 bytes
+
+	this.AddMessageListenerSet = _messageListener.AddSet;
+
+	this.RemoveMessageListenerSet = _messageListener.RemoveSet;
+
+	this.FireMessageListener = _messageListener.Fire;
+
+	this.hasFinished = function() _hasFinished;
+	
+	this.Disconnect = function() _connection.Disconnect(); // make a Gracefully disconnect
+
+	this.Connect = function() {
+		
+		function OnFailed() {
+		
+			_moduleListener.Fire('OnConnectionFailed');
 			_hasFinished = true;
 		}
 		
-		_socket.writable = function() { // connection accepted
-			
-			io.RemoveTimeout(_connectionTimeoutId); // cancel the timeout
+		function OnConnected() {
 
-			setData( _data.sockName, _socket.sockName );
-			setData( _data.peerName, _socket.peerName );
-			delete _socket.writable; // cancel writable notification
-			_socket.readable = function() {
-
-				var buf = _socket.Read();
-				if ( buf.length == 0 ) { // remotely closed
-
-//					log.WriteLn( '-> Remotely disconnected' );
-					_this.NotifyModules( 'OnDisconnecting' );
-					_this.Finish();
-					return;
-				}
-
-				_receiveBuffer += buf;
-
-				for ( var eol; (eol=_receiveBuffer.indexOf(CRLF)) != -1; _receiveBuffer = _receiveBuffer.substring( eol+2 ) ) { // +2 for CRLF ('\r\n');
-
-					var message = _receiveBuffer.substring( 0, eol );
-					
-					log.WriteLn('->'+message);
-					
-					var prefix = message.indexOf( ':' );
-					var trailing = message.indexOf( ':', 1 );
-					var args = message.substring( prefix ? 0 : 1, (trailing > 0) ? trailing-1 : message.length ).split(' ');
-					if ( prefix )
-						args.unshift( undefined );
-					if ( trailing > 0 )
-						args.push( message.substring( trailing + 1 ) );
-					if ( !isNaN( args[1] ) )
-						args[1] = _numericCommand[Number(args[1])];
-//					log.WriteLn( '-> ' + args );
-
-					args.splice(1, 0, args.shift());
-					
-					_this.FireMessageListener.apply( null, args );
-				}
-			}
-			_this.NotifyModules( 'OnConnected' );
+			_moduleListener.Fire('OnConnected');
 		}
+		
+		function OnData(buf) {
+
+			_receiveBuffer += buf;
+
+			for ( var eol; (eol=_receiveBuffer.indexOf(CRLF)) != -1; _receiveBuffer = _receiveBuffer.substring( eol+2 ) ) { // +2 for CRLF ('\r\n');
+
+				var message = _receiveBuffer.substring( 0, eol );
+				
+				log.WriteLn('->'+message);
+
+				var prefix = message.indexOf( ':' );
+				var trailing = message.indexOf( ':', 1 );
+				var args = message.substring( prefix ? 0 : 1, (trailing > 0) ? trailing-1 : message.length ).split(' ');
+				if ( prefix )
+					args.unshift( undefined );
+				if ( trailing > 0 )
+					args.push( message.substring( trailing + 1 ) );
+				if ( !isNaN( args[1] ) )
+					args[1] = _numericCommand[Number(args[1])];
+
+				args.splice(1, 0, args.shift());
+				_this.FireMessageListener.apply( null, args );
+			}
+		}
+		
+		function OnClose() {
+		
+			_moduleListener.Fire('OnDisconnected');
+			_moduleListener.Fire('RemoveModuleListeners');
+			_moduleListener.Fire('RemoveModuleAPI');
+			_hasFinished = true;
+		}
+		
+		setData( _data.server, server );
+		setData( _data.port, port );
+		setData( _data.connectTime, IntervalNow() );
+
+		_connection.Connect( server, port, OnConnected, OnData, OnClose, OnFailed );
+		_moduleListener.Fire('OnConnecting');
+		_hasFinished = false;
 	}
 		
 	this.AddModule = function( mod ) {
+	
+		_moduleListener.AddSet(mod);
 	
 		mod.AddMessageListenerSet = this.AddMessageListenerSet;
 		mod.RemoveMessageListenerSet = this.RemoveMessageListenerSet;
@@ -338,12 +326,11 @@ function ClientCore( server, port ) {
 		var pos = _modules.indexOf(mod);
 		if ( pos != -1 ) {
 		
-			mod = _modules[pos];
 			_modules.splice(pos, 1);
-
 			mod.RemoveModuleAPI && mod.RemoveModuleAPI();
 			mod.RemoveModuleListeners && mod.RemoveModuleListeners();
 			mod.DestroyModule && mod.DestroyModule();
+			_moduleListener.RemoveSet(mod);
 			delete mod.data;
 			delete mod.api;
 		}
@@ -419,6 +406,7 @@ function DefaultModule( nick, username, realname ) {
 		},
 
 		NICK:function( command, who, nick ) {
+		
 			setData( _mod.data.nick, nick );
 		},
 		
@@ -495,15 +483,8 @@ function DefaultModule( nick, username, realname ) {
 		delete _mod.api.Quit;
 	}
 
-	this.AddModuleListeners = function() {
-
-		_mod.AddMessageListenerSet( listenerSet ); // listeners table
-	}
-	
-	this.RemoveModuleListeners = function() {
-
-		_mod.RemoveMessageListenerSet( listenerSet ); // listeners table
-	}
+	this.AddModuleListeners = function() _mod.AddMessageListenerSet( listenerSet );
+	this.RemoveModuleListeners = function() _mod.RemoveMessageListenerSet( listenerSet );
 }
 
 
@@ -904,7 +885,7 @@ function DCCReceiverModule( destinationPath ) {
 		try {
 			
 			file.Open( File.CREATE_FILE + File.WRONLY );
-		} catch ( ex if ex instanceof NSPRError ) {
+		} catch ( ex if ex instanceof IoError ) {
 			
 			Print('Unable to create '+fileName+' in '+destinationPath, '\n'); // non-fatal error
 			return; // abort
@@ -918,6 +899,8 @@ function DCCReceiverModule( destinationPath ) {
 		
 		function Finalize() {
 			
+			delete s.readable;
+			delete s.writable;
 			io.RemoveTimeout(timeoutId);
 			dccSocket.Close();
 			io.RemoveDescriptor( dccSocket );
@@ -931,14 +914,16 @@ function DCCReceiverModule( destinationPath ) {
 			var buf = s.Read();
 			var len = buf.length;
 			if ( len == 0 ) {
+				
 				Finalize();
-				return;
+			} else {
+			
+				totalReceived += len;
+				s.Write( NumberToUint32NetworkOrderString(totalReceived) ); // ack.
+				file.Write( buf );
+				io.RemoveTimeout(timeoutId);
+				timeoutId = io.AddTimeout( timeout, Finalize );
 			}
-			totalReceived += len;
-			s.Send( NumberToUint32NetworkOrderString(totalReceived) ); // ack.
-			file.Write( buf );
-			io.RemoveTimeout(timeoutId);
-			timeoutId = io.AddTimeout( timeout, Finalize );
 		}
 	}
 	
@@ -1044,15 +1029,10 @@ function HttpClientModule( destinationPath ) {
 		
 		var data = '';
 		for ( var k in list )
-			data += ( data.length?'&':'') + encodeURIComponent(k) + '=' + encodeURIComponent(list[k]);
-		return data;
+			data += encodeURIComponent(k) + '=' + encodeURIComponent(list[k]);
+		return data.substr(1);
 	}
 	
-	function ERR() { throw ERR }
-	function CHK( v ) v || ERR();
-
-	function Switch(i) arguments[++i];
-
 	this.AddModuleAPI = function() {
 		
 		_mod.api.HttpPost = function(url, data, timeout, responseCallback) {
