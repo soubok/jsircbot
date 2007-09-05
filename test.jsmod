@@ -1,23 +1,14 @@
 (function testModule() {
 	
-	this.name = arguments.callee.name;
-
 	var _mod = this;
 	
 	var _botCmd = {
 
-		raw:function( cmdName, cmdData, from, command, to, msg ) {
+		raw:function( cmdName, cmdData, command, from, to, msg ) {
 		
 			_mod.Send( cmdData );
 		},
-		flood:function( cmdName, cmdData, from, command, to, msg ) {
-		
-			var nick = from.substr( 0, from.indexOf('!') );
-		
-			for ( var i = 0; i<100; i++ )
-			  _mod.Send( 'PRIVMSG '+nick+' :XxxxxxxxXxxxxxxxXxxxxxxxXxxxx '+i );
-		},
-		dump:function( cmdName, cmdData, from, command, to, msg ) {
+		dump:function( cmdName, cmdData, command, from, to, msg ) {
 			
 			Print(dumpData(_mod.data), '\n');
 			
@@ -26,23 +17,28 @@
 			
 			_mod.api.Quit('bye...');
 		},
-		http:function() {
-		
-			var data = { q:'tremulous' };
-			_mod.api.HttpPost( 'http://www.google.com/', data, 1000, function(response) DPrint(response) );
+		reload:function( cmdName, cmdData, command, from, to, msg ) {
+			
+			_mod.api.privmsg( to, 'Reloading ' + (cmdData||'') );
+			if ( cmdData == undefined )
+				core.ReloadModule(_mod); // after this, the current code will die
+			else
+				core.ReloadModuleByName(cmdData);
+
 		},
-		unload:function( cmdName, cmdData, from, command, to, msg ) {
+		test:function( cmdName, cmdData, command, from, to, msg ) {
 		
-			core.RemoveModule(_mod);
-		},
-		reload:function( cmdName, cmdData, from, command, to, msg ) {
-		
-			core.ReloadModule(_mod); // after this, the current code will die
-//			_mod.api.privmsg( to, 'Done.');
-		},
-		date:function( cmdName, cmdData, from, command, to, msg ) {
-		
-			_mod.api.privmsg( to, new Date() );
+			DPrint( Array.slice(arguments).toSource() )
+			
+			var nick = from.split('!',1);
+			var replyTo = to[0] == '#' ? to : nick;
+			
+			
+
+//			for ( var i = 0; i<100; i++ ) _mod.api.privmsg( nick, 'XxxxxxxxXxxxxxxxXxxxxxxxXxxxx '+i );
+			_mod.api.privmsg( to, core.ModuleList() );
+//			_mod.api.privmsg( replyTo, new Date() );
+//			_mod.api.privmsg( to, Array.slice(arguments).toSource() );
 		}
 
 	}

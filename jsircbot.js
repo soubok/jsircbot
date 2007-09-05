@@ -40,7 +40,7 @@ function Listener() {
 	this.RemoveSet = function( set ) _list.splice(_list.indexOf(set), 1);
 	this.Fire = function( name ) {
 
-		for each ( var set in Array.concat(_list) )
+		for each ( var set in _list.slice() )
 			name in set && set[name].apply(null, arguments);
 	}
 }
@@ -113,6 +113,7 @@ function MakeFloodSafeMessageSender( maxMessage, maxData, time, rawSender ) {
 			message && _messageQueue.push(message + CRLF);
 			Process();
 		}
+		return _messageQueue.length;
 	}
 }
 
@@ -306,8 +307,8 @@ function ClientCore( server, port ) {
 		
 	this.AddModule = function( mod ) {
 	
+		mod.name = mod.constructor.name;
 		_moduleListener.AddSet(mod);
-	
 		mod.AddMessageListenerSet = this.AddMessageListenerSet;
 		mod.RemoveMessageListenerSet = this.RemoveMessageListenerSet;
 		mod.Send = this.Send;
@@ -342,6 +343,15 @@ function ClientCore( server, port ) {
 		this.AddModule(mod.Make());
 	}
 	
+	this.ReloadModuleByName = function( name ) {
+		
+		for each ( mod in _modules.slice() ) // slice() to prevent dead-loop
+			if ( mod.name == name )
+				this.ReloadModule( mod );
+	}
+	
+	this.ModuleList = function() [ m.name for each ( m in _modules ) ]
+
 	Seal(this);
 }
 
@@ -350,8 +360,6 @@ function ClientCore( server, port ) {
 
 
 function DefaultModule( nick, username, realname ) {
-	
-	this.name = arguments.callee.name;
 	
 	var _mod = this;
 	
@@ -488,8 +496,6 @@ function DefaultModule( nick, username, realname ) {
 
 
 function ChannelModule( _channel ) {
-	
-	this.name = arguments.callee.name;
 	
 	var _mod = this;
 
@@ -680,8 +686,6 @@ function ChannelModule( _channel ) {
 
 function CTCPModule() {
 
-	this.name = arguments.callee.name;
-	
 	var _mod = this;
 
 	function lowLevelCtcpQuote(data) { // NUL, NL, CR, QUOTE -> QUOTE 0, QUOTE n, QUOTE r, QUOTE QUOTE
@@ -866,9 +870,7 @@ function CTCPModule() {
 }
 
 
-function DCCReceiverModule( destinationPath ) {
-	
-	this.name = arguments.callee.name;
+function DCCReceiverModule( destinationPath ) { // http://en.wikipedia.org/wiki/Direct_Client-to-Client
 	
 	var _mod = this;
 
@@ -880,17 +882,26 @@ function DCCReceiverModule( destinationPath ) {
 		
 		var dccSocket = new Socket();
 		var file = new File( destinationPath +'/' + fileName);
+
+		try {
+
+			dccSocket.Connect( ip, port );
+		} catch ( ex if ex instanceof IoError ) {
+		
+			log.WriteLn( 'Failed to connect for DCC' );
+			return;
+		}
 		
 		try {
 			
 			file.Open( File.CREATE_FILE + File.WRONLY );
 		} catch ( ex if ex instanceof IoError ) {
 			
-			Print('Unable to create '+fileName+' in '+destinationPath, '\n'); // non-fatal error
-			return; // abort
+			log.WriteLn( 'Failed to create the file '+fileName+' in '+destinationPath );
+			dccSocket.Close();						
+			return;
 		}
-		
-		dccSocket.Connect( ip, port );
+
 		io.AddDescriptor( dccSocket );
 
 		var totalReceived = 0;
@@ -927,7 +938,9 @@ function DCCReceiverModule( destinationPath ) {
 	}
 	
 	function dccSendRequest(from,to,tag,data) {
-			
+// DCC SEND 3x3x3-onehanded-sub30.wmv 1390888565 1026 1022750
+// DCC SEND ns_veil0007.bmp 199 0 2359350 266
+
 		if ( tag != 'DCC' )
 			return;
 		var [type,argument,address,port,size] = data.split(' ');
@@ -936,21 +949,13 @@ function DCCReceiverModule( destinationPath ) {
 		DCCReceive( IntegerToIp(address), port, argument, 2000 );
 	}	
 
-	this.AddModuleListeners = function() {
-
-		_mod.api.AddCtcpListener( dccSendRequest );
-	}
-
-	this.RemoveModuleListeners = function() {
-		
-		_mod.api.RemoveCtcpListener( dccSendRequest );
-	}
+	this.AddModuleListeners = function() _mod.api.AddCtcpListener( dccSendRequest );
+	this.RemoveModuleListeners = function()	_mod.api.RemoveCtcpListener( dccSendRequest );
 }
 
 
 function BotCmdModule( destinationPath ) {
 	
-	this.name = arguments.callee.name;
 	var _mod = this;
 	var _listener = new Listener();
 
@@ -986,7 +991,6 @@ function BotCmdModule( destinationPath ) {
 
 function HttpClientModule( destinationPath ) {
 	
-	this.name = arguments.callee.name;
 	var _mod = this;
 
 	function parseUri(source) { // parseUri 1.2; MIT License By Steven Levithan. http://blog.stevenlevithan.com/archives/parseuri
@@ -1101,6 +1105,7 @@ function HttpClientModule( destinationPath ) {
 		delete _mod.api.HttpPost;
 	}
 }
+
 
 
 function LoadModulesFromPath(core, path, ext) {
