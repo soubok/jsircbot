@@ -58,6 +58,8 @@
 				case 'b' :
 						setData( chanData.bans[args[argPos++]], set );
 					break;
+				case ' ' :
+					break;
 				default:
 					setData( chanData[simpleMode[c]], set );
 			}
@@ -140,25 +142,14 @@
 
 		RPL_CHANNELMODEIS: function( command, from, to, channel, modes /*, ...*/ ) {
 
-/*
-			var args = [];
-			for ( var i = 5; i < arguments.length; i++)
-				args[i-5] = arguments[i];
-			ParseModes( modes, args, _mod.data.channel[channel] );
-*/
+//			DPrint(Array.slice(arguments).toSource())
 			ParseModes( modes, Array.slice(arguments,5), _mod.data.channel[channel] );
 		},
 		
 		MODE: function( command, who, what, modes /*, ...*/ ) {
-
+				
 			if ( what[0] != '#' ) // can be a user mode OR a mod for another channel
 				return;
-/*
-			var args = [];
-			for ( var i = 4; i < arguments.length; i++)
-				args[i-4] = arguments[i];
-			ParseModes( modes, args, _mod.data.channel[what] );
-*/
 			ParseModes( modes, Array.slice(arguments,4), _mod.data.channel[what] );
 		},
 
@@ -173,11 +164,13 @@
 				setData( chanData.priv, true );
 
 			var names = list.split(' ');
+			
 			for each ( var name in names ) {
+				
+				if ( !name ) continue;
 			
 				var nameOnly;
 				switch( name[0] ) {
-
 					case '+':
 						nameOnly = name.substring(1);
 						setData( chanData.names[nameOnly].voice, true );
