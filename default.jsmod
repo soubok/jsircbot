@@ -1,0 +1,154 @@
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: GNU GPL 2.0
+ *
+ * The contents of this file are subject to the
+ * GNU General Public License Version 2.0; you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ * http://www.gnu.org/licenses/gpl.html
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ * ***** END LICENSE BLOCK ***** */
+
+
+(function DefaultModule() {
+	
+	var _mod = this;
+
+	var nick = getData(data.defaultModule.nick );
+	var username = getData(data.defaultModule.username );
+	var realname = getData(data.defaultModule.realname );
+	
+// [TBD] autodetect max message length ( with a self sent mesage )
+// [TBD] autodetect flood limit
+
+	var listenerSet = {
+
+		RPL_WELCOME: function( command, from, to ) {
+
+			setData( _mod.data.nick, to );
+			_mod.Send( 'USERHOST ' + to );
+		},
+
+		RPL_USERHOST: function( command, from, to, host ) {
+			
+			var [,hostinfo] = host.split('=');
+			setData( _mod.data.userhost, hostinfo.substr(1) ); // hostinfo[0] = '+' or '-' : AWAY message set
+		},
+		
+/* same info in RPL_USERHOST
+		function firstModeMessage( who, command, what, modes ) {
+			
+			var nick = who.substring( 0, who.indexOf('!') ); // [TBD] try to auto extract this
+
+			if ( nick == getData(_mod.data.nick) ) { // self
+				
+				setData( _mod.data.fullnick, who );
+				_mod.RemoveMessageListener( 'MODE', firstModeMessage );
+			}
+		}
+		_mod.AddMessageListener( 'MODE', firstModeMessage );
+*/
+
+		ERR_NICKCOLLISION: function() {
+			
+			delData( _mod.data.nick );
+		},
+		
+		ERR_ERRONEUSNICKNAME: function() { // Erroneous nickname
+		  
+			delData( _mod.data.nick );
+		  // ...try to find server nick policy
+		},
+
+		ERR_NICKNAMEINUSE: function() {
+		
+			var tmpNick = 'tmp'+Math.random().toString(16).substr(2); // ...try a random nick, then, when ready, try a better nick
+			_mod.Send( 'NICK '+tmpNick );
+			setData( _mod.data.nick, tmpNick );
+		},
+
+		NICK:function( command, who, nick ) {
+		
+			setData( _mod.data.nick, nick );
+		},
+		
+		PING: function( command, prefix, arg ) {
+
+			_mod.Send( 'PONG '+arg );
+			setData( _mod.data.lastPingTime, IntervalNow() );
+		},
+
+		NOTICE: function( command, from, to, message ) {
+
+			// irc.clockworkorange.co.uk- on 1 ca 1(2) ft 10(10) tr
+			// where:
+			//  on = Number of globally connected clients including yourself from your IP-number.
+			//  ca = Connect Attempts, You have tried once, after 2 sequential connects you get throttled.
+			//  ft = Free Targets. This is how many different people you may contact at once, also see 3.10
+			//  tr = Targets Restored. Your targets are kept for 2 minutes or until someone else from your IP logs on. 
+			//       This stops you from  refilling  your free targets by reconnection.	
+	
+			// http://developer.mozilla.org/en/docs/Core_JavaScript_1.5_Guide:Writing_a_Regular_Expression_Pattern
+			var oncafttrExpr = new RegExp('^on ([0-9]+) ca ([0-9]+)\\(([0-9]+)\\) ft ([0-9]+)\\(([0-9]+)\\) *(tr)?$');
+
+			if ( message.substr(0,2) == 'on' ) {
+
+				var res = oncafttrExpr(message);
+				if ( res == null )
+					return;
+//				_mod.RemoveMessageListener( 'NOTICE', oncafttrNotice );
+			}
+		}
+	};
+	
+	this.OnConnected = function() {
+		
+		var data = _mod.data;
+		Ident( io, function(identRequest) identRequest + ' : '+getData(data.userid)+' : '+getData(data.opsys)+' : '+nick+CRLF, 2000 ); // let 2 seconds to the server to make the IDENT request
+		_mod.Send( 'USER '+getData(data.username)+' '+getData(data.hostname)+' '+getData(data.server)+' :'+getData(data.realname) );
+		_mod.Send( 'NICK '+nick );
+	} 
+
+	this.InitModule = function() {
+
+		setData( _mod.data.hostname, '127.0.0.1' ); // try something else
+		setData( _mod.data.username, username||('user_'+nick) );
+		setData( _mod.data.realname, realname||('name_'+nick) );
+		setData( _mod.data.opsys, 'UNIX' ); // for identd
+		setData( _mod.data.userid, 'USERID' ); // for identd
+	}
+
+	this.AddModuleAPI = function() {
+		
+		_mod.api.Nick = function( nick ) {
+
+			_mod.Send( 'NICK '+nick );
+		}
+		
+		_mod.api.privmsg = function( to, message ) {
+		
+			var hostpos = to.indexOf('!');
+			if ( hostpos != -1 )
+				to = to.substr( 0, hostpos );
+			_mod.Send( 'PRIVMSG '+to+' :'+message );
+		}
+
+		_mod.api.Quit = function(quitMessage) {
+
+			_mod.Send( 'QUIT :'+quitMessage, true ); // true = force the message to be post ASAP
+		}
+	}
+
+	this.RemoveModuleAPI = function() {
+		
+		delete _mod.api.privmsg;
+		delete _mod.api.Quit;
+	}
+
+	this.AddModuleListeners = function() _mod.AddMessageListenerSet( listenerSet );
+	this.RemoveModuleListeners = function() _mod.RemoveMessageListenerSet( listenerSet );
+})
+

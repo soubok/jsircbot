@@ -1,0 +1,199 @@
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: GNU GPL 2.0
+ *
+ * The contents of this file are subject to the
+ * GNU General Public License Version 2.0; you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ * http://www.gnu.org/licenses/gpl.html
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ * ***** END LICENSE BLOCK ***** */
+
+
+(function CTCPModule() {
+
+	var _mod = this;
+
+	function lowLevelCtcpQuote(data) { // NUL, NL, CR, QUOTE -> QUOTE 0, QUOTE n, QUOTE r, QUOTE QUOTE
+		
+//		var tr={ '\0':'\0200', '\r':'\020r', '\n':'\020n', '\020':'\020\020' };
+		var out='';
+		for each ( var c in data )
+			switch (c) {
+				case '\0':
+					out+='\0200';
+					break;
+				case '\r':
+					out+='\020r';
+					break;
+				case '\n':
+					out+='\020n';
+					break;
+				case '\020':
+					out+='\020\020';
+					break;
+				default:
+					out+=c;
+			}
+		return out;		
+	}
+
+	function lowLevelCtcpDequote(data) {
+
+		var out='';
+		var len=data.length;
+		for ( var i=0; i<len; i++ )
+			if ( data[i]=='\020' )
+				switch (data[++i]) {
+				case '0':
+					out+='\0';
+					break;
+				case 'r':
+					out+='\r';
+					break;
+				case 'n':
+					out+='\n';
+					break;
+				case '\020':
+					out+='\020';
+					break;
+				}
+			else
+				out+=data[i];
+		return out;		
+	}
+
+	function ctcpLevelQuote(data) { // \\, \1 -> \\\\, \\a
+
+		var out='';
+		for each ( var c in data )
+			switch (c) {
+			case '\1':
+				out+='\\a';
+				break;
+			case '\\':
+				out+='\\\\';
+				break;
+			default:
+				out+=c;
+			}
+		return out;
+	}
+
+	function ctcpLevelDequote(data) {
+
+		var out='';
+		var len=data.length;
+		for ( var i=0; i<len; i++ )
+			if ( data[i]=='\\' )
+				switch (data[++i]) {
+				case '\\':
+					out+='\\';
+					break;
+				case 'a':
+					out+='\1';
+					break;
+				}
+			else
+				out+=data[i];
+		return out;		
+	}
+	
+
+	var _ctclListenerList=[];
+
+	function FireCtcpListener( from, to, tag, data ) {
+
+		for each ( var l in _ctclListenerList )
+			l.apply(null, arguments);
+	}
+
+	function DispatchCtcpMessage( from, to, ctcpMessage ) {
+
+		var pos = ctcpMessage.indexOf(' ');
+		var tag, data;
+		if ( pos == -1 )
+			tag = ctcpMessage;
+		else {
+			tag = ctcpMessage.substring( 0, pos );
+			data = ctcpMessage.substring( pos+1 );
+		}
+		FireCtcpListener( from, to, tag, data );
+	}
+
+	_mod.CtcpPing = function( from, to, tag, data ) {
+
+		var nick = from.substring( 0, from.indexOf('!') );
+		if ( tag == 'PING' )
+			_mod.api.CtcpResponse( nick, tag, data );
+	}
+
+	var messages = {
+
+		PRIVMSG:function( command, from, to, msg ) { // ctcp responses
+
+			var even = 0;
+			while (true) {
+				var odd = msg.indexOf('\1',even);
+				if ( odd != -1 ) {
+					odd++;
+					var even = msg.indexOf('\1',odd);
+					if ( even != -1 ) { // ok, we've got a first ctcp message
+
+						DispatchCtcpMessage( from, to, msg.substring( odd, even ) );
+						even++;
+					} else 
+						break;
+				} else 
+					break;
+			}
+		}
+	}
+
+	this.AddModuleListeners = function() {
+		
+		_mod.AddMessageListenerSet( messages );
+		_mod.api.AddCtcpListener( _mod.CtcpPing );
+	}
+	
+	this.RemoveModuleListeners = function() {
+		
+		_mod.api.RemoveCtcpListener( _mod.CtcpPing ); // listeners table , context (this)
+		_mod.RemoveMessageListenerSet( messages );
+	}
+	
+	this.AddModuleAPI = function() {
+	
+		_mod.api.AddCtcpListener = function(func) {
+
+			_ctclListenerList.push(func);
+		}
+		
+		_mod.api.RemoveCtcpListener = function(func) {
+
+			var pos = _ctclListenerList.indexOf(func)
+			pos != -1 && _ctclListenerList.splice( pos, 1 );
+		}
+
+		_mod.api.CtcpQuery = function(who, tag, data) {
+			
+			_mod.Send( 'PRIVMSG '+who+' :'+lowLevelCtcpDequote( '\1'+ctcpLevelQuote(tag+' '+data)+'\1' ) );
+		}
+		
+		_mod.api.CtcpResponse = function(who, tag, data) {
+			
+			_mod.Send( 'NOTICE '+who+' :'+lowLevelCtcpDequote( '\1'+ctcpLevelQuote(tag+' '+data)+'\1' ) );
+		}
+	}
+	
+	this.RemoveModuleAPI = function() {
+
+		delete _mod.api.AddCtcpListener;
+		delete _mod.api.RemoveCtcpListener;
+		delete _mod.api.CtcpQuery;
+		delete _mod.api.CtcpResponse;
+	}
+})
