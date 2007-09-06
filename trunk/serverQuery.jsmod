@@ -1,55 +1,19 @@
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: GNU GPL 2.0
+ *
+ * The contents of this file are subject to the
+ * GNU General Public License Version 2.0; you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ * http://www.gnu.org/licenses/gpl.html
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ * ***** END LICENSE BLOCK ***** */
+
+
 (function tremulousServerStatus() {
-	
-	function GetServerList( callback ) {
-	
-		var ms = new Socket( Socket.UDP );
-		ms.nonblocking = true;
-		ms.Connect( 'master.tremulous.net', 30710 );
-		
-		var timeout;
-		
-		ms.writable = function() {
-
-			delete ms.writable;
-			ms.Write('\xFF\xFF\xFF\xFFgetservers 69');
-		}
-		
-		ms.readable = function() {
-			
-			delete ms.readable;
-			var buffer = new Buffer(ms.Read(8192));
-			ms.Close();
-			
-			io.RemoveTimeout(timeout);
-			
-			io.RemoveDescriptor(ms);
-			var responseHdr = '\xFF\xFF\xFF\xFFgetserversResponse\\';
-			if ( buffer.Read(responseHdr.length) != responseHdr )
-				throw 'Invalid server response';
-		
-			var serverList = [];
-		
-			var p = new Pack(buffer);
-			while ( buffer.length >= 7 ) {
-
-				var ip = p.ReadInt(1, false) + '.' + p.ReadInt(1, false) + '.' + p.ReadInt(1, false) + '.' + p.ReadInt(1, false);
-				var port = p.ReadInt(2, false, true);
-				if ( !buffer.Match('\\') )
-					throw 'Protocol error';
-				serverList.push([ip,port]);
-			}
-			
-			callback(serverList);
-		}
-
-		io.AddDescriptor(ms);
-		timeout = io.AddTimeout( 5000, function() {
-			ms.Close();
-			io.AddDescriptor(ms);
-			callback();
-		});
-	}	
-	
 	
 	var _mod = this;
 	
@@ -60,15 +24,28 @@
 			var nick = from.split('!',1);
 			var replyTo = to[0] == '#' ? to : nick;
 
-			GetServerList( function( serverList ) {
-				
-				if ( serverList )
-					_mod.api.privmsg( replyTo, 'got '+serverList.length+' tremulous servers' );
-				else
+			UDPGet( 'master.tremulous.net', 30710, '\xFF\xFF\xFF\xFFgetservers 69', 5000, function(response) {
+			
+				if ( !response ) {
 					_mod.api.privmsg( replyTo, 'failed' );
-			})
-		}
+				} else {
 
+					var serverList = [];
+					var buffer = new Buffer(response);
+					buffer.Match('\xFF\xFF\xFF\xFFgetserversResponse\\') || throw 'Invalid server response';
+					var p = new Pack(buffer);
+					while ( buffer.length >= 7 ) {
+
+						var ip = p.ReadInt(1, false) + '.' + p.ReadInt(1, false) + '.' + p.ReadInt(1, false) + '.' + p.ReadInt(1, false);
+						var port = p.ReadInt(2, false, true);
+						buffer.Match('\\') || throw 'Protocol error';
+						serverList.push([ip,port]);
+					}
+
+					_mod.api.privmsg( replyTo, 'got '+serverList.length+' tremulous servers' );
+				}
+			});
+		}
 	}
 
 	this.AddModuleListeners = function() _mod.api.botCmd.AddSet( _botCmd );

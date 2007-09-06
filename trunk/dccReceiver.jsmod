@@ -1,0 +1,100 @@
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: GNU GPL 2.0
+ *
+ * The contents of this file are subject to the
+ * GNU General Public License Version 2.0; you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ * http://www.gnu.org/licenses/gpl.html
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ * ***** END LICENSE BLOCK ***** */
+
+
+(function DCCReceiverModule() { // http://en.wikipedia.org/wiki/Direct_Client-to-Client
+	
+	var _mod = this;
+	
+	var destinationPath = getData(data.DCCReceiverModule.destinationPath );
+	
+
+	function IntegerToIp(number) (number>>24 & 255)+'.'+(number>>16 & 255)+'.'+(number>>8 & 255)+'.'+(number & 255);
+
+	function NumberToUint32NetworkOrderString(number) String.fromCharCode(number>>24 & 255)+String.fromCharCode(number>>16 & 255)+String.fromCharCode(number>>8 & 255)+String.fromCharCode(number & 255);
+	
+	function DCCReceive( ip, port, fileName, timeout ) { // receiver is a client socket / sender is the server
+		
+		var dccSocket = new Socket();
+		var file = new File( destinationPath +'/' + fileName);
+
+		try {
+
+			dccSocket.Connect( ip, port );
+		} catch ( ex if ex instanceof IoError ) {
+		
+			log.WriteLn( 'Failed to connect for DCC' );
+			return;
+		}
+		
+		try {
+			
+			file.Open( File.CREATE_FILE + File.WRONLY );
+		} catch ( ex if ex instanceof IoError ) {
+			
+			log.WriteLn( 'Failed to create the file '+fileName+' in '+destinationPath );
+			dccSocket.Close();						
+			return;
+		}
+
+		io.AddDescriptor( dccSocket );
+
+		var totalReceived = 0;
+		var timeoutId;
+		
+		function Finalize() {
+			
+			delete dccSocket.readable;
+			delete dccSocket.writable;
+			io.RemoveTimeout(timeoutId);
+			dccSocket.Close();
+			io.RemoveDescriptor( dccSocket );
+			file.Close();
+		}
+
+		timeoutId = io.AddTimeout( timeout, Finalize );
+
+		dccSocket.readable = function(s) {
+			
+			var buf = s.Read();
+			var len = buf.length;
+			if ( len == 0 ) {
+				
+				Finalize();
+			} else {
+			
+				totalReceived += len;
+				s.Write( NumberToUint32NetworkOrderString(totalReceived) ); // ack.
+				file.Write( buf );
+				io.RemoveTimeout(timeoutId);
+				timeoutId = io.AddTimeout( timeout, Finalize );
+			}
+		}
+	}
+	
+	function dccSendRequest(from,to,tag,data) {
+// DCC SEND 3x3x3-onehanded-sub30.wmv 1390888565 1026 1022750
+// DCC SEND ns_veil0007.bmp 199 0 2359350 266
+
+		if ( tag != 'DCC' )
+			return;
+		var [type,argument,address,port,size] = data.split(' ');
+		if ( type != 'SEND' )
+			return;
+		DCCReceive( IntegerToIp(address), port, argument, 2000 );
+	}	
+
+	this.AddModuleListeners = function() _mod.api.AddCtcpListener( dccSendRequest );
+	this.RemoveModuleListeners = function()	_mod.api.RemoveCtcpListener( dccSendRequest );
+})

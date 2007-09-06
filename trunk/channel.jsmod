@@ -1,0 +1,193 @@
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: GNU GPL 2.0
+ *
+ * The contents of this file are subject to the
+ * GNU General Public License Version 2.0; you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ * http://www.gnu.org/licenses/gpl.html
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ * ***** END LICENSE BLOCK ***** */
+
+(function ChannelModule() {
+	
+	var _mod = this;
+
+	var chanList = getData(data.defaultChannelList);
+
+	function ParseModes( modes, args, chanData ) {
+
+		var simpleMode = { i:'inviteOnly', t:'topicByOp', p:'private', s:'secret', m:'moderated', n:'noExternalMessages', r:'reop', C:'noCtcp', N:'noExternalNotice', c:'noColor' };
+		var argPos = 0;
+		var pos = 0;
+		var set;
+		var c;
+		while ( (c = modes.charAt(pos)) != '' ) {
+
+			switch(c) {
+				case '+' :
+					set = true;
+					break;
+				case '-' :
+					set = false;
+					break;
+				case 'k' :
+					setData( chanData.key, args[argPos++] );
+					break;
+				case 'o' :
+					setData( chanData.names[args[argPos++]].operator, set );
+					break;
+				case 'v' :
+					setData( chanData.names[args[argPos++]].voice, set );
+					break;
+				case 'l' :
+					if ( set )
+						setData( chanData.userLimit, args[argPos++] );
+					else
+						delData( chanData.userLimit );
+					break;
+				case 'b' :
+						setData( chanData.bans[args[argPos++]], set );
+					break;
+				default:
+					setData( chanData[simpleMode[c]], set );
+			}
+			pos++;
+		}		
+	}
+	
+	var listenerSet = {
+
+		RPL_WELCOME: function () {
+			
+			for each ( var channel in chanList )
+				_mod.Send( 'JOIN ' + channel );
+		},
+
+		JOIN: function( command, who, channel ) { // :cdd_etf_bot!~cdd_etf_b@nost.net JOIN #soubok
+
+			var nick = who.substring( 0, who.indexOf('!') ); // [TBD] try to auto extract this
+
+			if ( nick == getData(_mod.data.nick) ) { // self
+
+				setData( _mod.data.channel[channel], true );
+
+				_mod.Send( 'MODE '+channel ); // request modes
+				_mod.Send( 'MODE '+channel+' +b' ); // request banlist
+			} else {
+
+				setData( _mod.data.channel[channel].names[nick], true );
+			}
+		},
+			
+		RPL_BANLIST: function( command, from, to, channel, ban, banBy, time ) {
+
+			setData( _mod.data.channel[channel].bans[ban], true );
+		},
+
+		PART: function( command, who, channel ) {
+
+			var nick = who.substring( 0, who.indexOf('!') ); // [TBD] try to auto extract this
+			if ( nick == getData(_mod.data.nick) )
+				delData( _mod.data.channel[channel] );
+			else
+				delData( _mod.data.channel[channel].names[nick] );
+		},
+
+		QUIT: function( command, who ) {
+
+			var nick = from.split('!',1);
+			for each ( var chan in _mod.data.channel )
+				if ( nick in chan.names )
+					delData( chan.names[nick] );
+		},
+		
+		NICK: function( command, who, newNick ) {
+
+			var nick = from.split('!',1);
+
+//			if ( nick == getData( _mod.data.nick ) ) // do not manage bot nick change here!
+//				return;
+
+			for each ( var chan in _mod.data.channel )
+				if ( nick in chan.names )
+					moveData( chan.names[nick], chan.names[newNick] );
+		},
+
+		RPL_NOTOPIC: function( command, channel ) {
+
+			delData( _mod.data.channel[channel].topic );
+		},
+
+		TOPIC: function( command, from, channel, topic ) {
+
+			setData( _mod.data.channel[channel].topic, topic );
+		},
+
+		RPL_TOPIC: function( command, from, to, channel, topic ) {
+
+			setData( _mod.data.channel[channel].topic, topic );
+		},
+
+		RPL_CHANNELMODEIS: function( command, from, to, channel, modes /*, ...*/ ) {
+
+/*
+			var args = [];
+			for ( var i = 5; i < arguments.length; i++)
+				args[i-5] = arguments[i];
+			ParseModes( modes, args, _mod.data.channel[channel] );
+*/
+			ParseModes( modes, Array.slice(arguments,5), _mod.data.channel[channel] );
+		},
+		
+		MODE: function( command, who, what, modes /*, ...*/ ) {
+
+			if ( what[0] != '#' ) // can be a user mode OR a mod for another channel
+				return;
+/*
+			var args = [];
+			for ( var i = 4; i < arguments.length; i++)
+				args[i-4] = arguments[i];
+			ParseModes( modes, args, _mod.data.channel[what] );
+*/
+			ParseModes( modes, Array.slice(arguments,4), _mod.data.channel[what] );
+		},
+
+		RPL_NAMREPLY: function( command, from, to, type, channel, list ) {
+
+			var chanData = _mod.data.channel[channel];
+
+			if (type == '@')
+				setData( chanData.secret, true );
+
+			if (type == '*')
+				setData( chanData.priv, true );
+
+			var names = list.split(' ');
+			for each ( var name in names ) {
+			
+				var nameOnly;
+				switch( name[0] ) {
+
+					case '+':
+						nameOnly = name.substring(1);
+						setData( chanData.names[nameOnly].voice, true );
+						break;
+					case '@':
+						nameOnly = name.substring(1);
+						setData( chanData.names[nameOnly].operator, true );
+						break;
+					default:
+						nameOnly = name;
+				}
+				setData( chanData.names[nameOnly], true );
+			}
+		}
+	};
+
+	this.AddModuleListeners = function() _mod.AddMessageListenerSet( listenerSet ); // listeners table , context (this)
+	this.RemoveModuleListeners = function() _mod.RemoveMessageListenerSet( listenerSet ); // listeners table , context (this)
+})
