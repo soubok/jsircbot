@@ -126,7 +126,7 @@ function ClientCore( Configurator ) {
 		setData( _data.lastMessageTime, IntervalNow() );
 	}	
 
-	this.Send = MakeFloodSafeMessageSender( getData(data.antiflood.maxMessage), getData(data.antiflood.maxBytes), getData(data.antiflood.interval), RawDataSender );
+	this.Send = MakeFloodSafeMessageSender( getData(_data.antiflood.maxMessage), getData(_data.antiflood.maxBytes), getData(_data.antiflood.interval), RawDataSender );
 	this.AddMessageListenerSet = _messageListener.AddSet;
 	this.RemoveMessageListenerSet = _messageListener.RemoveSet;
 	this.hasFinished = function() _hasFinished;
@@ -172,6 +172,7 @@ function ClientCore( Configurator ) {
 				args.splice(1, 0, args.shift()); // move the command name to the first place.
 				_messageListener.Fire.apply( null, args );
 			}
+		}
 
 /*
 		function OnData(buf) {
@@ -199,11 +200,9 @@ function ClientCore( Configurator ) {
 			}
 		}
 */		
-		setData( _data.server, server );
-		setData( _data.port, port );
 		setData( _data.connectTime, IntervalNow() );
 
-		_connection.Connect( server, port, OnConnected, OnData, OnDisconnected, OnFailed );
+		_connection.Connect( getData(_data.server), getData(_data.port), OnConnected, OnData, OnDisconnected, OnFailed );
 		_moduleListener.Fire('OnConnecting');
 	}
 		
@@ -251,7 +250,7 @@ function ClientCore( Configurator ) {
 				this.ReloadModule( mod );
 	}
 	
-	this.ModuleList = function() [ m.name for each ( m in _modules ) ]
+	this.ModuleList = function() [ m.name for each ( m in _modules ) ];
 
 	Seal(this);
 }
@@ -278,9 +277,9 @@ try {
 		setData(data.antiflood.interval, 10000 );
 
 	// configure nick, user, ...
-		setData(data.defaultModule.nick, 'TremVipBot' );
-		setData(data.defaultModule.username, 'user_TremVipBot' );
-		setData(data.defaultModule.realname, 'real_TremVipBot' );
+		setData(data.nick, 'TremVipBot' );
+		setData(data.username, 'user_TremVipBot' );
+		setData(data.realname, 'real_TremVipBot' );
 
 	// configure DCCReceiver module
 		setData(data.DCCReceiverModule.destinationPath, '.' );
@@ -305,7 +304,7 @@ try {
 	Print( 'IoError: '+ ex.text + ' ('+ex.os+')' );
 } catch(ex) {
 	
-	Print( ex );
+	Print( ex.toSource() );
 }
 
 

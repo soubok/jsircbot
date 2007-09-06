@@ -32,13 +32,13 @@
 
 					var serverList = [];
 					var buffer = new Buffer(response);
-					buffer.Match('\xFF\xFF\xFF\xFFgetserversResponse\\') || throw 'Invalid server response';
+					buffer.Match('\xFF\xFF\xFF\xFFgetserversResponse\\') || Failed('Invalid server response');
 					var p = new Pack(buffer);
 					while ( buffer.length >= 7 ) {
 
 						var ip = p.ReadInt(1, false) + '.' + p.ReadInt(1, false) + '.' + p.ReadInt(1, false) + '.' + p.ReadInt(1, false);
 						var port = p.ReadInt(2, false, true);
-						buffer.Match('\\') || throw 'Protocol error';
+						buffer.Match('\\') || Failed('Protocol error');
 						serverList.push([ip,port]);
 					}
 

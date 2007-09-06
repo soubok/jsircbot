@@ -96,7 +96,7 @@ var io = new function() {
 
 function UDPGet( host, port, data, timeout, OnResponse ) {
 
-	var timeout;
+	var timeoutId;
 	var time = IntervalNow();
 	var ms = new Socket( Socket.UDP );
 	ms.nonblocking = true;
@@ -113,13 +113,13 @@ function UDPGet( host, port, data, timeout, OnResponse ) {
 		delete ms.readable;
 		var data = ms.Read(8192);
 		ms.Close();
-		io.RemoveTimeout(timeout);
+		io.RemoveTimeout(timeoutId);
 		io.RemoveDescriptor(ms);
 		OnResponse && OnResponse(data, IntervalNow() - time);
 	}
 
 	io.AddDescriptor(ms);
-	timeout = io.AddTimeout( timeout, function() {
+	timeoutId = io.AddTimeout( timeout, function() {
 
 		ms.Close();
 		io.AddDescriptor(ms);
@@ -133,7 +133,7 @@ function UDPGet( host, port, data, timeout, OnResponse ) {
 
 function TCPGet( host, port, data, timeout, OnResponse ) {
 
-	var timeout;
+	var timeoutId;
 	var time = IntervalNow();
 	var socket = new Socket( Socket.UDP );
 	socket.nonblocking = true;
@@ -154,14 +154,14 @@ function TCPGet( host, port, data, timeout, OnResponse ) {
 		else {
 		
 			socket.Close();
-			io.RemoveTimeout(timeout);
+			io.RemoveTimeout(timeoutId);
 			io.RemoveDescriptor(socket);
 			OnResponse && OnResponse(buffer.Read(), IntervalNow() - time);
 		}
 	}
 
 	io.AddDescriptor(socket);
-	timeout = io.AddTimeout( timeout, function() {
+	timeoutId = io.AddTimeout( timeout, function() {
 
 		socket.Close();
 		io.AddDescriptor(socket);
@@ -257,7 +257,7 @@ function SocketConnection() {
 	_socket.nonblocking = true;
 	_socket.noDelay = true;
 
-	this.Connect = function( host, port, OnConnected, OnData, OnClose, OnFailed ) {
+	this.Connect = function( host, port, OnConnected, OnData, OnDisconnected, OnFailed ) {
 
 		var _connectionTimeout;
 		

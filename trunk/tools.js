@@ -122,9 +122,11 @@ function SetOnceObject() {
 	return new ObjEx( undefined,undefined,undefined, function(name, value) this[name] ? Failed('API Already defined') : value );
 }
 
-
-function StringEnd( str, end ) str.lastIndexOf(end) == str.length - end.length;
-
+function StringEnd( str, end ) {
+	
+	var pos = str.lastIndexOf(end);
+	return (pos != -1 && pos  == str.length - end.length);
+}
 
 function FileExtension(filename) {
 
