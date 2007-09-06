@@ -105,7 +105,7 @@
 
 		QUIT: function( command, who ) {
 
-			var nick = from.split('!',1);
+			var nick = who.split('!',1);
 			for each ( var chan in _mod.data.channel )
 				if ( nick in chan.names )
 					delData( chan.names[nick] );
