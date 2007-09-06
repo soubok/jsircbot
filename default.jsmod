@@ -17,9 +17,8 @@
 	
 	var _mod = this;
 
-	var nick = getData(data.defaultModule.nick );
-	var username = getData(data.defaultModule.username );
-	var realname = getData(data.defaultModule.realname );
+	var destinationPath;
+	
 	
 // [TBD] autodetect max message length ( with a self sent mesage )
 // [TBD] autodetect flood limit
@@ -107,16 +106,16 @@
 	this.OnConnected = function() {
 		
 		var data = _mod.data;
-		Ident( io, function(identRequest) identRequest + ' : '+getData(data.userid)+' : '+getData(data.opsys)+' : '+nick+CRLF, 2000 ); // let 2 seconds to the server to make the IDENT request
+		Ident( io, function(identRequest) identRequest + ' : '+getData(data.userid)+' : '+getData(data.opsys)+' : '+getData(data.nick)+CRLF, 2000 ); // let 2 seconds to the server to make the IDENT request
 		_mod.Send( 'USER '+getData(data.username)+' '+getData(data.hostname)+' '+getData(data.server)+' :'+getData(data.realname) );
-		_mod.Send( 'NICK '+nick );
+		_mod.Send( 'NICK '+getData(data.nick) );
 	} 
 
 	this.InitModule = function() {
 
 		setData( _mod.data.hostname, '127.0.0.1' ); // try something else
-		setData( _mod.data.username, username||('user_'+nick) );
-		setData( _mod.data.realname, realname||('name_'+nick) );
+//		setData( _mod.data.username, username||('user_'+nick) );
+//		setData( _mod.data.realname, realname||('name_'+nick) );
 		setData( _mod.data.opsys, 'UNIX' ); // for identd
 		setData( _mod.data.userid, 'USERID' ); // for identd
 	}

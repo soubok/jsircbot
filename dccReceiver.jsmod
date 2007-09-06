@@ -17,8 +17,12 @@
 	
 	var _mod = this;
 	
-	var destinationPath = getData(data.DCCReceiverModule.destinationPath );
+	var destinationPath;
 	
+	this.InitModule = function() {
+	
+		destinationPath = getData(_mod.data.DCCReceiverModule.destinationPath );
+	}
 
 	function IntegerToIp(number) (number>>24 & 255)+'.'+(number>>16 & 255)+'.'+(number>>8 & 255)+'.'+(number & 255);
 

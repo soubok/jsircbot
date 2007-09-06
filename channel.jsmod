@@ -16,7 +16,13 @@
 	
 	var _mod = this;
 
-	var chanList = getData(data.defaultChannelList);
+
+	var chanList;
+	
+	this.InitModule = function() {
+	
+		chanList = getData(_mod.data.defaultChannelList);
+	}
 
 	function ParseModes( modes, args, chanData ) {
 
@@ -107,7 +113,7 @@
 		
 		NICK: function( command, who, newNick ) {
 
-			var nick = from.split('!',1);
+			var nick = who.split('!',1);
 
 //			if ( nick == getData( _mod.data.nick ) ) // do not manage bot nick change here!
 //				return;
