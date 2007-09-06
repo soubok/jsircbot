@@ -27,14 +27,15 @@
 
 		RPL_WELCOME: function( command, from, to ) {
 
+			setData( _mod.data.serverHost, from );
+
 			setData( _mod.data.nick, to );
 			_mod.Send( 'USERHOST ' + to );
 		},
 
 		RPL_USERHOST: function( command, from, to, host ) {
 			
-			var [,hostinfo] = host.split('=');
-			setData( _mod.data.userhost, hostinfo.substr(1) ); // hostinfo[0] = '+' or '-' : AWAY message set
+			setData( _mod.data.userhost, host.substr(host.indexOf('=')+1) ); // hostinfo[0] = '+' or '-' : AWAY message set
 		},
 		
 /* same info in RPL_USERHOST

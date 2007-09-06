@@ -41,6 +41,22 @@
 				core.ReloadModuleByName(cmdData);
 
 		},
+		
+		eval:function( cmdName, cmdData, command, from, to, msg ) {
+			
+			if( from != 'soubok!i=soubok@koe67-1-82-231-70-117.fbx.proxad.net' )
+				return;
+			
+			var nick = from.split('!',1);
+			var replyTo = to[0] == '#' ? to : nick;
+
+			try {
+				_mod.api.privmsg( replyTo, eval(cmdData) );
+			} catch(ex) {
+				_mod.api.privmsg( replyTo, ex );
+			}
+		},
+		
 		test:function( cmdName, cmdData, command, from, to, msg ) {
 		
 			DPrint( Array.slice(arguments).toSource() )

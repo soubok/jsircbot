@@ -134,8 +134,6 @@ function ClientCore( Configurator ) {
 
 	this.Connect = function() {
 		
-//		var _receiveBuffer = '';
-		
 		var _receiveBuffer = new Buffer();
 		
 		function OnConnected() {
@@ -174,32 +172,6 @@ function ClientCore( Configurator ) {
 			}
 		}
 
-/*
-		function OnData(buf) {
-
-			_receiveBuffer += buf;
-
-			for ( var eol; (eol=_receiveBuffer.indexOf(CRLF)) != -1; _receiveBuffer = _receiveBuffer.substring( eol+2 ) ) { // +2 for CRLF ('\r\n');
-
-				var message = _receiveBuffer.substring( 0, eol );
-				
-				log.WriteLn('->'+message);
-
-				var prefix = message.indexOf( ':' );
-				var trailing = message.indexOf( ':', 1 );
-				var args = message.substring( prefix ? 0 : 1, (trailing > 0) ? trailing-1 : message.length ).split(' ');
-				if ( prefix )
-					args.unshift( undefined );
-				if ( trailing > 0 )
-					args.push( message.substring( trailing + 1 ) );
-				if ( !isNaN( args[1] ) )
-					args[1] = _numericCommand[Number(args[1])];
-
-				args.splice(1, 0, args.shift());
-				_core.FireMessageListener.apply( null, args );
-			}
-		}
-*/		
 		setData( _data.connectTime, IntervalNow() );
 
 		_connection.Connect( getData(_data.server), getData(_data.port), OnConnected, OnData, OnDisconnected, OnFailed );
@@ -228,8 +200,8 @@ function ClientCore( Configurator ) {
 		if ( pos == -1 )
 			return;
 		_modules.splice(pos, 1);
-		mod.RemoveModuleAPI && mod.RemoveModuleAPI();
 		mod.RemoveModuleListeners && mod.RemoveModuleListeners();
+		mod.RemoveModuleAPI && mod.RemoveModuleAPI();
 		mod.DestroyModule && mod.DestroyModule();
 		_moduleListener.RemoveSet(mod);
 		delete mod.data;
@@ -269,7 +241,7 @@ try {
 		setData( data.port, 6667 );
 
 	// configure chans
-		setData(data.defaultChannelList, ['#jsircbot']);
+		setData(data.defaultChannelList, ['#soubok']);
 
 	// Configure anti-flood system ( in 10 seconds, we can send 5 messages OR 1456 bytes )
 		setData(data.antiflood.maxMessage, 5 );
@@ -304,7 +276,8 @@ try {
 	Print( 'IoError: '+ ex.text + ' ('+ex.os+')' );
 } catch(ex) {
 	
-	Print( ex.toSource() );
+	Print( ex.toSource(), '\n' );
+	Print( ex.stack, '\n' );
 }
 
 
