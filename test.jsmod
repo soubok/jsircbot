@@ -17,65 +17,74 @@
 	
 	var _mod = this;
 	
-	var _botCmd = {
-
-		raw:function( cmdName, cmdData, command, from, to, msg ) {
+	var _moduleListeners = {
 		
-			_mod.Send( cmdData );
-		},
-		dump:function( cmdName, cmdData, command, from, to, msg ) {
-			
-			Print(dumpData(_mod.data), '\n');
-			
-		},
-		quit:function() {
-			
-			_mod.api.Quit('bye...');
-		},
-		reload:function( cmdName, cmdData, command, from, to, msg ) {
-			
-			_mod.api.privmsg( to, 'Reloading ' + (cmdData||'') );
-			if ( cmdData == undefined )
-				core.ReloadModule(_mod); // after this, the current code will die
-			else
-				core.ReloadModuleByName(cmdData);
-
-		},
+		ctcp: {
 		
-		eval:function( cmdName, cmdData, command, from, to, msg ) {
-			
-			if( from != 'soubok!i=soubok@koe67-1-82-231-70-117.fbx.proxad.net' )
-				return;
-			
-			var nick = from.split('!',1);
-			var replyTo = to[0] == '#' ? to : nick;
+			PING: function( modCmd, tag, from, to, tag, data ) {
 
-			try {
-				_mod.api.privmsg( replyTo, eval(cmdData) );
-			} catch(ex) {
-				_mod.api.privmsg( replyTo, ex );
+				var nick = from.substring( 0, from.indexOf('!') );
+				_mod.api.CtcpResponse( nick, tag, data );
 			}
-		},
+		},	
 		
-		test:function( cmdName, cmdData, command, from, to, msg ) {
-		
-			DPrint( Array.slice(arguments).toSource() )
-			
-			var nick = from.split('!',1);
-			var replyTo = to[0] == '#' ? to : nick;
-			
-			
+		botcmd: {
 
-//			for ( var i = 0; i<100; i++ ) _mod.api.privmsg( nick, 'XxxxxxxxXxxxxxxxXxxxxxxxXxxxx '+i );
-			_mod.api.privmsg( to, core.ModuleList() );
-//			_mod.api.privmsg( replyTo, new Date() );
-//			_mod.api.privmsg( to, Array.slice(arguments).toSource() );
+			raw: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+
+				_mod.Send( cmdData );
+			},
+			dump: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+
+				Print(dumpData(_mod.data), '\n');
+
+			},
+			quit: function() {
+
+				_mod.api.Quit('bye...');
+			},
+			reload: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+
+				_mod.api.Privmsg( to, 'Reloading ' + (cmdData||'') );
+				if ( cmdData == undefined )
+					core.ReloadModule(_mod); // after this, the current code will die
+				else
+					core.ReloadModuleByName(cmdData);
+
+			},
+
+			eval: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+
+				if( from != 'soubok!i=soubok@koe67-1-82-231-70-117.fbx.proxad.net' )
+					return;
+
+				var nick = from.split('!',1);
+				var replyTo = to[0] == '#' ? to : nick;
+
+				try {
+					_mod.api.Privmsg( replyTo, eval(cmdData) );
+				} catch(ex) {
+					_mod.api.Privmsg( replyTo, ex );
+				}
+			},
+
+			test: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+
+				DPrint( Array.slice(arguments).toSource() )
+
+				var nick = from.split('!',1);
+				var replyTo = to[0] == '#' ? to : nick;
+
+	//			for ( var i = 0; i<100; i++ ) _mod.api.Privmsg( nick, 'XxxxxxxxXxxxxxxxXxxxxxxxXxxxx '+i );
+				_mod.api.Privmsg( to, core.ModuleList() );
+	//			_mod.api.Privmsg( replyTo, new Date() );
+	//			_mod.api.Privmsg( to, Array.slice(arguments).toSource() );
+			}
 		}
-
 	}
 
-	this.AddModuleListeners = function() _mod.api.botCmd.AddSet( _botCmd );
-	this.RemoveModuleListeners = function() _mod.api.botCmd.RemoveSet( _botCmd );
+	this.AddModuleListeners = function() _mod.AddModuleListenerSet( _moduleListeners );
+	this.RemoveModuleListeners = function() _mod.RemoveModuleListenerSet( _moduleListeners );
 
 /*
 		addDataListener( _module.data.channel['#jslibs'].names['soubok'], function(info) {
@@ -85,3 +94,11 @@
 */
 
 })
+
+
+/*
+
+DCCchat:
+  CHAT <space> <protocol> <space> <ip> <space> <port>
+  
+*/

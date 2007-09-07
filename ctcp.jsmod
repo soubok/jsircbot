@@ -12,6 +12,9 @@
  * License.
  * ***** END LICENSE BLOCK ***** */
 
+const X_DELIM = '\1';
+const X_QUOTE = '\134'; // back slash
+const SPC = '\040'; // space
 
 (function CTCPModule() {
 
@@ -19,24 +22,23 @@
 
 	function lowLevelCtcpQuote(data) { // NUL, NL, CR, QUOTE -> QUOTE 0, QUOTE n, QUOTE r, QUOTE QUOTE
 		
-//		var tr={ '\0':'\0200', '\r':'\020r', '\n':'\020n', '\020':'\020\020' };
 		var out='';
 		for each ( var c in data )
 			switch (c) {
 				case '\0':
-					out+='\0200';
+					out += '\0200';
 					break;
 				case '\r':
-					out+='\020r';
+					out += '\020r';
 					break;
 				case '\n':
-					out+='\020n';
+					out += '\020n';
 					break;
 				case '\020':
-					out+='\020\020';
+					out += '\020\020';
 					break;
 				default:
-					out+=c;
+					out += c;
 			}
 		return out;		
 	}
@@ -49,16 +51,16 @@
 			if ( data[i]=='\020' )
 				switch (data[++i]) {
 				case '0':
-					out+='\0';
+					out += '\0';
 					break;
 				case 'r':
-					out+='\r';
+					out += '\r';
 					break;
 				case 'n':
-					out+='\n';
+					out += '\n';
 					break;
 				case '\020':
-					out+='\020';
+					out += '\020';
 					break;
 				}
 			else
@@ -71,14 +73,14 @@
 		var out='';
 		for each ( var c in data )
 			switch (c) {
-			case '\1':
-				out+='\\a';
+			case X_DELIM:
+				out += X_QUOTE + 'a';
 				break;
-			case '\\':
-				out+='\\\\';
+			case X_QUOTE:
+				out += X_QUOTE + X_QUOTE;
 				break;
 			default:
-				out+=c;
+				out += c;
 			}
 		return out;
 	}
@@ -88,59 +90,49 @@
 		var out='';
 		var len=data.length;
 		for ( var i=0; i<len; i++ )
-			if ( data[i]=='\\' )
+			if ( data[i] == X_QUOTE )
 				switch (data[++i]) {
-				case '\\':
-					out+='\\';
+				case X_QUOTE:
+					out += X_QUOTE;
 					break;
 				case 'a':
-					out+='\1';
+					out += X_DELIM;
 					break;
 				}
 			else
-				out+=data[i];
+				out += data[i];
 		return out;		
 	}
 	
 
-	var _ctclListenerList=[];
-
-	function FireCtcpListener( from, to, tag, data ) {
-
-		for each ( var l in _ctclListenerList )
-			l.apply(null, arguments);
-	}
-
 	function DispatchCtcpMessage( from, to, ctcpMessage ) {
 
-		var pos = ctcpMessage.indexOf(' ');
-		var tag, data;
+		var tag, data, pos = ctcpMessage.indexOf(SPC);
 		if ( pos == -1 )
 			tag = ctcpMessage;
 		else {
 			tag = ctcpMessage.substring( 0, pos );
-			data = ctcpMessage.substring( pos+1 );
+			data = ctcpMessage.substring( pos + 1 );
 		}
-		FireCtcpListener( from, to, tag, data );
+		_mod.FireModuleListener( 'ctcp', tag, from, to, data );
 	}
 
-	_mod.CtcpPing = function( from, to, tag, data ) {
 
-		var nick = from.substring( 0, from.indexOf('!') );
-		if ( tag == 'PING' )
-			_mod.api.CtcpResponse( nick, tag, data );
-	}
+	var _serverMessageListener = {
+	
+		NOTICE: function( command, from, to, msg ) { // ctcp response
+		},
 
-	var messages = {
-
-		PRIVMSG:function( command, from, to, msg ) { // ctcp responses
-
+		PRIVMSG: function( command, from, to, msg ) [ DispatchCtcpMessage( from, to, msg ) for ( [i, msg] in Iterator(a.split(X_DELIM)) ) if ( i % 2 ) ];
+		
+/*
+		{ // ctcp request
 			var even = 0;
 			while (true) {
-				var odd = msg.indexOf('\1',even);
+				var odd = msg.indexOf(X_DELIM,even);
 				if ( odd != -1 ) {
 					odd++;
-					var even = msg.indexOf('\1',odd);
+					var even = msg.indexOf(X_DELIM,odd);
 					if ( even != -1 ) { // ok, we've got a first ctcp message
 
 						DispatchCtcpMessage( from, to, msg.substring( odd, even ) );
@@ -151,49 +143,31 @@
 					break;
 			}
 		}
+*/
+
 	}
 
-	this.AddModuleListeners = function() {
-		
-		_mod.AddMessageListenerSet( messages );
-		_mod.api.AddCtcpListener( _mod.CtcpPing );
-	}
-	
-	this.RemoveModuleListeners = function() {
-		
-		_mod.api.RemoveCtcpListener( _mod.CtcpPing ); // listeners table , context (this)
-		_mod.RemoveMessageListenerSet( messages );
-	}
+	this.AddModuleListeners = function() _mod.AddMessageListenerSet( _serverMessageListener );
+	this.RemoveModuleListeners = function() _mod.RemoveMessageListenerSet( _serverMessageListener );
 	
 	this.AddModuleAPI = function() {
 	
-		_mod.api.AddCtcpListener = function(func) {
-
-			_ctclListenerList.push(func);
-		}
-		
-		_mod.api.RemoveCtcpListener = function(func) {
-
-			var pos = _ctclListenerList.indexOf(func)
-			pos != -1 && _ctclListenerList.splice( pos, 1 );
-		}
-
-		_mod.api.CtcpQuery = function(who, tag, data) {
-			
-			_mod.Send( 'PRIVMSG '+who+' :'+lowLevelCtcpDequote( '\1'+ctcpLevelQuote(tag+' '+data)+'\1' ) );
-		}
-		
-		_mod.api.CtcpResponse = function(who, tag, data) {
-			
-			_mod.Send( 'NOTICE '+who+' :'+lowLevelCtcpDequote( '\1'+ctcpLevelQuote(tag+' '+data)+'\1' ) );
-		}
+		_mod.api.CtcpRequest = function(who, tag, data) _mod.Send( 'PRIVMSG ' + who + ' :' + lowLevelCtcpDequote( X_DELIM + ctcpLevelQuote(tag + SPC + data) + X_DELIM ) );
+		_mod.api.CtcpResponse = function(who, tag, data) _mod.Send( 'NOTICE ' + who + ' :' + lowLevelCtcpDequote( X_DELIM + ctcpLevelQuote(tag + SPC + data) + X_DELIM ) );
 	}
 	
 	this.RemoveModuleAPI = function() {
 
-		delete _mod.api.AddCtcpListener;
-		delete _mod.api.RemoveCtcpListener;
-		delete _mod.api.CtcpQuery;
+		delete _mod.api.CtcpRequest;
 		delete _mod.api.CtcpResponse;
 	}
 })
+
+/*
+
+Internet Relay Chat - Client To Client Protocol:
+	http://www.invlogic.com/irc/ctcp.html
+	http://www.invlogic.com/irc/ctcpprot_04.html
+	http://www.irchelp.org/irchelp/rfc/ctcpspec.html
+
+*/

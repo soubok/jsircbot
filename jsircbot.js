@@ -29,7 +29,7 @@ const CRLF = '\r\n';
 
 function LoadModulesFromPath(core, path, sufix) {
 
-	function ModuleMaker(path) function Make() {
+	function ModuleMaker(path) function Make() { // this function allows a module to reload itself
 	
 		var mod = new (Exec(path));
 		mod.Make = Make;
@@ -88,17 +88,19 @@ function MakeFloodSafeMessageSender( maxMessage, maxData, time, RawDataSender ) 
 	
 	return function( message, bypassAntiFlood ) {
 		
+		if ( !message ) return;
+		message += CRLF;
 		if ( bypassAntiFlood ) {
 		
 			_count--;
-			_bytes -= message.length - 2;
-			RawDataSender(message + CRLF);
+			_bytes -= message.length;
+			RawDataSender(message);
 		} else {
 		
-			message && _messageQueue.push(message + CRLF);
+			_messageQueue.push(message);
 			Process();
 		}
-		return _messageQueue.length;
+		return _messageQueue.length / maxMessage; // <1 : ok, messages are send; >1: beware, queue is full.
 	}
 }
 
@@ -116,6 +118,7 @@ function ClientCore( Configurator ) {
 	var _modules = [];
 	var _messageListener = new Listener();
 	var _moduleListener = new Listener();
+	var _coreListener = new Listener();
 	var _api = new SetOnceObject();
 	var _hasFinished = false;
 	
@@ -127,26 +130,27 @@ function ClientCore( Configurator ) {
 	}	
 
 	this.Send = MakeFloodSafeMessageSender( getData(_data.antiflood.maxMessage), getData(_data.antiflood.maxBytes), getData(_data.antiflood.interval), RawDataSender );
-	this.AddMessageListenerSet = _messageListener.AddSet;
-	this.RemoveMessageListenerSet = _messageListener.RemoveSet;
-	this.hasFinished = function() _hasFinished;
-	this.Disconnect = function() _connection.Disconnect(); // make a Gracefully disconnect
 
+	this.hasFinished = function() _hasFinished;
+	this.Disconnect = _connection.Disconnect; // make a Gracefully disconnect ( disconnect != close )
+	
 	this.Connect = function() {
 		
 		var _receiveBuffer = new Buffer();
 		
 		function OnConnected() {
 
-			_moduleListener.Fire('OnConnected');
+			_coreListener.Fire('OnConnected');
 		}
 
-		function OnDisconnected() {
+		function OnDisconnected( remotelyDisconnected ) {
 			
-			_moduleListener.Fire('OnDisconnected');
-			_moduleListener.Fire('RemoveModuleListeners');
-			_moduleListener.Fire('RemoveModuleAPI');
+			_coreListener.Fire('RemoveModuleListeners');
+			_coreListener.Fire('RemoveModuleAPI');
+			_coreListener.Fire('OnDisconnected');
 			_hasFinished = true;
+			_connection.Close();
+			// (TBD) retry if remotelyDisconnected ?
 		}
 		
 		var OnFailed = OnDisconnected; // (TBD) try another server
@@ -172,18 +176,20 @@ function ClientCore( Configurator ) {
 			}
 		}
 
-		setData( _data.connectTime, IntervalNow() );
-
 		_connection.Connect( getData(_data.server), getData(_data.port), OnConnected, OnData, OnDisconnected, OnFailed );
-		_moduleListener.Fire('OnConnecting');
+		setData( _data.connectTime, IntervalNow() );
+		_coreListener.Fire('OnConnecting');
 	}
 		
 	this.AddModule = function( mod ) {
 	
 		mod.name = mod.constructor.name;
-		_moduleListener.AddSet(mod);
-		mod.AddMessageListenerSet = this.AddMessageListenerSet;
-		mod.RemoveMessageListenerSet = this.RemoveMessageListenerSet;
+		_coreListener.AddSet(mod);
+		mod.AddMessageListenerSet = _messageListener.AddSet;
+		mod.RemoveMessageListenerSet = _messageListener.RemoveSet;
+		mod.AddModuleListenerSet = _moduleListener.AddSet;
+		mod.RemoveModuleListenerSet = _moduleListener.RemoveSet;
+		mod.FireModuleListener = _moduleListener.Fire;
 		mod.Send = this.Send;
 		mod.data = _data;
 		mod.api = _api;
@@ -197,13 +203,12 @@ function ClientCore( Configurator ) {
 	this.RemoveModule = function( mod ) {
 		
 		var pos = _modules.indexOf(mod);
-		if ( pos == -1 )
-			return;
+		if ( pos == -1 ) return;
 		_modules.splice(pos, 1);
 		mod.RemoveModuleListeners && mod.RemoveModuleListeners();
 		mod.RemoveModuleAPI && mod.RemoveModuleAPI();
 		mod.DestroyModule && mod.DestroyModule();
-		_moduleListener.RemoveSet(mod);
+		_coreListener.RemoveSet(mod);
 		delete mod.data;
 		delete mod.api;
 	}
@@ -262,8 +267,12 @@ try {
 	core.Connect();
 	
 	io.Process( function() core.hasFinished() || endSignal );
-	if ( endSignal )
+	
+	if ( endSignal ) {
+
 		core.Disconnect();
+		io.Process( function() core.hasFinished() );
+	}
 		
 	io.Close();
 
