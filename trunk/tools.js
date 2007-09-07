@@ -20,7 +20,21 @@ function DPrint() {
 	Print( '\n' );
 }
 
+function DStack() { try { throw Error() } catch(ex) { Print( 'Stack: ', ex.stack, '\n' ) } }
+
+function DArgs() { Print( 'Arguments: ', Array.slice(DArgs.caller.arguments).toSource(), '\n' ) }
+
+
 ///////////////////////////////////////////////////////
+
+function StringPad( str, count, chr ) {
+
+	var diff = count - str.length;
+		while( diff-- > 0 )
+			str = chr + str;  
+	return str;
+}
+
 
 var log = new function() {
 
@@ -32,7 +46,7 @@ var log = new function() {
 		
 		var t = IntervalNow() - _time0;
 		_file.Open( File.CREATE_FILE + File.WRONLY + File.APPEND );
-		_file.Write( '{' + t + '}' +data );
+		_file.Write( '{' + StringPad(t, 12, ' ') + '}' +data );
 		_file.Close();
 	}
 	
@@ -42,30 +56,56 @@ var log = new function() {
 	}
 }
 
+
 ///////////////////////////////////////////////////////
 
-function Failed(text) { log.WriteLn(text); throw new Error(text) }
+function ExToText(ex, showStack) ex.name+': '+ex.message+' ('+(showStack ? ex.stack : (ex.fileName+':'+ex.lineNumber))+')';
+
+function ReportError(text) { log.WriteLn(text); Print(test, '\n') } // fatal error
+
+function Failed(text) { log.WriteLn(text); throw new Error(text) } // fatal error
 
 function ERR() { throw ERR }
 
-function CHK( v ) v || ERR();
+function CHK(v) v || ERR();
+function CHKEQ(value, eq) value == eq ? value : ERR();
+function CHKNEQ(value, neq) value != neq ? value : ERR();
+
+function TRY(fct) {
+	try { 
+		void fct();
+		return true;
+	} catch(ex if ex == ERR) {
+		return false;
+	}
+}
 
 function Switch(i) arguments[++i];
 
 
 ///////////////////////////////////////////////////////
 
+
 function Listener() {
 	
 	var _list = [];
 	this.AddSet = function( set ) _list.push(set);
-	this.RemoveSet = function( set ) _list.splice(_list.indexOf(set), 1);
-	this.Fire = function( name ) {
+	this.RemoveSet = function( set ) _list.splice(CHKNEQ(_list.indexOf(set),-1), 1);
+	this.Fire = function() {
+		
+		try {
+			for each ( var set in _list.slice() ) {
 
-		for each ( var set in _list.slice() )
-			name in set && set[name].apply(null, arguments);
+				for ( var it = 0, n = set; n instanceof Object && arguments[it] in n; n = n[arguments[it++]] );
+				n instanceof Function && n.apply(null, arguments);
+			}
+		} catch(ex) {
+			
+			ReportError( ExToText(ex) );
+		}
 	}
 }
+
 
 ///////////////////////////////////////////////////////
 
@@ -101,6 +141,7 @@ function MakeHeaders( list ) {
 	return headers;
 }
 
+
 function FormURLEncode( list ) {
 
 	var data = '';
@@ -108,6 +149,7 @@ function FormURLEncode( list ) {
 		data += encodeURIComponent(k) + '=' + encodeURIComponent(list[k]);
 	return data.substr(1);
 }
+
 
 function MakeStatusLine( method, path, version ) {
 
@@ -117,16 +159,19 @@ function MakeStatusLine( method, path, version ) {
 
 ///////////////////////////////////////////////////////
 
+
 function SetOnceObject() {
 
 	return new ObjEx( undefined,undefined,undefined, function(name, value) this[name] ? Failed('API Already defined') : value );
 }
+
 
 function StringEnd( str, end ) {
 	
 	var pos = str.lastIndexOf(end);
 	return (pos != -1 && pos  == str.length - end.length);
 }
+
 
 function FileExtension(filename) {
 

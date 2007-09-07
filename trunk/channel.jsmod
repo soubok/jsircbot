@@ -16,14 +16,6 @@
 	
 	var _mod = this;
 
-
-	var chanList;
-	
-	this.InitModule = function() {
-	
-		chanList = getData(_mod.data.defaultChannelList);
-	}
-
 	function ParseModes( modes, args, chanData ) {
 
 		var simpleMode = { i:'inviteOnly', t:'topicByOp', p:'private', s:'secret', m:'moderated', n:'noExternalMessages', r:'reop', C:'noCtcp', N:'noExternalNotice', c:'noColor' };
@@ -71,6 +63,7 @@
 
 		RPL_WELCOME: function () {
 			
+			var chanList = getData(_mod.data.defaultChannelList);
 			for each ( var channel in chanList )
 				_mod.Send( 'JOIN ' + channel );
 		},

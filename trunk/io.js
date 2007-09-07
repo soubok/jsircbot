@@ -36,6 +36,26 @@ var io = new function() {
 			delete _tlist[when];
 		}
 
+		this.Process = function(defaultTimeout) {
+		
+			var now = IntervalNow();
+			if ( _min > now )
+				return;
+			for ( var w in _tlist )
+				if ( w <= now ) {
+				
+					void _tlist[w]();
+					delete _tlist[w];
+				}
+			_min = Number.POSITIVE_INFINITY;
+			for ( var w in _tlist )
+				if ( w < _min )
+					_min = w;
+			var t = _min - now;
+			return t > defaultTimeout ? defaultTimeout : t;
+		}
+
+/*
 		this.Next = function(defaultTimeout) {
 
 			_min = Number.POSITIVE_INFINITY;
@@ -58,6 +78,7 @@ var io = new function() {
 					delete _tlist[w];
 				}
 		}
+*/
 	}
 	
 	var _descriptorList = [];
@@ -76,17 +97,16 @@ var io = new function() {
 
 	this.Process = function( endPredicate ) {
 		
-		while ( !endPredicate() ) {
+		while ( !endPredicate() )
+			Poll(_descriptorList, _timeout.Process(500));
 
-			Poll(_descriptorList, _timeout.Next(500));
-			_timeout.Process();
-		}
+		// (TBD) end all remaining timeouts ? NO !
 	}
 	
 	this.Close = function() {
 		
 		for each ( var d in _descriptorList )
-			d.Close();		
+			d.Close();
 	}
 }
 
@@ -98,31 +118,35 @@ function UDPGet( host, port, data, timeout, OnResponse ) {
 
 	var timeoutId;
 	var time = IntervalNow();
-	var ms = new Socket( Socket.UDP );
-	ms.nonblocking = true;
-	ms.Connect( host, port );
-
-	ms.writable = function() {
-
-		delete ms.writable;
-		ms.Write(data);
+	var socket = new Socket( Socket.UDP );
+	socket.nonblocking = true;
+	try {
+		socket.Connect( host, port );
+	} catch(ex) {
+		OnResponse();
 	}
 
-	ms.readable = function() {
+	socket.writable = function() {
 
-		delete ms.readable;
-		var data = ms.Read(8192);
-		ms.Close();
+		delete socket.writable;
+		socket.Write(data);
+	}
+
+	socket.readable = function() {
+
+		delete socket.readable;
+		var data = socket.Read(8192);
+		socket.Close();
 		io.RemoveTimeout(timeoutId);
-		io.RemoveDescriptor(ms);
+		io.RemoveDescriptor(socket);
 		OnResponse && OnResponse(data, IntervalNow() - time);
 	}
 
-	io.AddDescriptor(ms);
+	io.AddDescriptor(socket);
 	timeoutId = io.AddTimeout( timeout, function() {
 
-		ms.Close();
-		io.AddDescriptor(ms);
+		socket.Close();
+		io.AddDescriptor(socket);
 		OnResponse && OnResponse();
 	});
 }	
@@ -135,9 +159,15 @@ function TCPGet( host, port, data, timeout, OnResponse ) {
 
 	var timeoutId;
 	var time = IntervalNow();
-	var socket = new Socket( Socket.UDP );
+	var socket = new Socket( Socket.TCP );
 	socket.nonblocking = true;
-	socket.Connect( host, port );
+
+	try {
+		socket.Connect( host, port );
+	} catch(ex) {
+		OnResponse();
+	}
+
 	var buffer = new Buffer();
 
 	socket.writable = function() {
@@ -186,8 +216,15 @@ function HttpPost( url, data, timeout, OnResponse ) {
 		headers['Content-Type'] = 'application/x-www-form-urlencoded';
 	}
 
-	var httpSocket = new Socket();
+	var httpSocket = new Socket(Socket.TCP);
 	httpSocket.nonblocking = true;
+	
+	try {
+		httpSocket.Connect( host, port );
+	} catch(ex) {
+		OnResponse();
+	}
+	
 	io.AddDescriptor( httpSocket );
 	var timeoutId = io.AddTimeout( timeout, Finalize );
 
@@ -201,8 +238,8 @@ function HttpPost( url, data, timeout, OnResponse ) {
 
 	httpSocket.writable = function(s) {
 
-		s.Write(statusLine + CRLF + MakeHeaders(headers) + CRLF + body);
 		delete s.writable;
+		s.Write(statusLine + CRLF + MakeHeaders(headers) + CRLF + body);
 	}
 
 	var responseBuffer = new Buffer();
@@ -229,7 +266,6 @@ function HttpPost( url, data, timeout, OnResponse ) {
 				OnResponse(statusCode, reasonPhrase, headers, responseBuffer.Read());
 			} catch(ex if ex == ERR) {
 
-//				log.WriteLn( 'Error while parsing HTTP response' );
 				OnResponse();
 			}
 		}
@@ -263,9 +299,9 @@ function SocketConnection() {
 		
 		function ConnectionFailed() {
 			
+			delete _socket.writable;
+			delete _socket.readable;
 			io.RemoveTimeout(_connectionTimeout);
-			io.RemoveDescriptor(_socket)
-			_socket.Close();
 			OnFailed();
 		}
 
@@ -282,9 +318,7 @@ function SocketConnection() {
 			if ( buf.length == 0 ) {
 				
 				delete s.readable;
-				io.RemoveDescriptor(s);
-				s.Close();
-				OnDisconnected();
+				OnDisconnected(true);
 			}	else {
 			
 				OnData(buf);
@@ -302,21 +336,26 @@ function SocketConnection() {
 			ConnectionFailed();
 		}
 	}
+
+	this.Close = function() {
+		
+		io.RemoveDescriptor(_socket); // no more read/write notifications are needed
+		_socket.Close();
+	}
 	
 	this.Disconnect = function() {
 
 		delete _socket.writable;
 		_socket.Shutdown(); // both
 		var shutdownTimeout;
-		function Close() {
-
+		function Disconnected() {
+			
+			delete _socket.readable;
 			io.RemoveTimeout(shutdownTimeout); // cancel the timeout
-			io.RemoveDescriptor(_socket); // no more read/write notifications are needed
-			_socket.Close();
-			OnDisconnected();
+			OnDisconnected(false); // locally disconnected
 		}
-		_socket.readable = Close;
-		shutdownTimeout = io.AddTimeout(1000, Close); // force disconnect after the timeout
+		_socket.readable = Disconnected;
+		shutdownTimeout = io.AddTimeout(2000, Disconnected); // force disconnect after the timeout
 	}
 	
 	this.Write = function(data) _socket.Write(data);
