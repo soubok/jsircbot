@@ -123,28 +123,10 @@ const SPC = '\040'; // space
 		NOTICE: function( command, from, to, msg ) { // ctcp response
 		},
 
-		PRIVMSG: function( command, from, to, msg ) [ DispatchCtcpMessage( from, to, msg ) for ( [i, msg] in Iterator(a.split(X_DELIM)) ) if ( i % 2 ) ];
-		
-/*
-		{ // ctcp request
-			var even = 0;
-			while (true) {
-				var odd = msg.indexOf(X_DELIM,even);
-				if ( odd != -1 ) {
-					odd++;
-					var even = msg.indexOf(X_DELIM,odd);
-					if ( even != -1 ) { // ok, we've got a first ctcp message
-
-						DispatchCtcpMessage( from, to, msg.substring( odd, even ) );
-						even++;
-					} else 
-						break;
-				} else 
-					break;
-			}
+		PRIVMSG: function( command, from, to, msg ) {
+			
+			[ DispatchCtcpMessage( from, to, m ) for ( [i, m] in Iterator(msg.split(X_DELIM)) ) if ( i % 2 ) ];
 		}
-*/
-
 	}
 
 	this.AddModuleListeners = function() _mod.AddMessageListenerSet( _serverMessageListener );
@@ -163,11 +145,8 @@ const SPC = '\040'; // space
 	}
 })
 
-/*
-
-Internet Relay Chat - Client To Client Protocol:
+/* Internet Relay Chat - Client To Client Protocol (CTCP):
 	http://www.invlogic.com/irc/ctcp.html
 	http://www.invlogic.com/irc/ctcpprot_04.html
 	http://www.irchelp.org/irchelp/rfc/ctcpspec.html
-
 */

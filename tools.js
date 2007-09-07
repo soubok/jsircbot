@@ -61,7 +61,7 @@ var log = new function() {
 
 function ExToText(ex, showStack) ex.name+': '+ex.message+' ('+(showStack ? ex.stack : (ex.fileName+':'+ex.lineNumber))+')';
 
-function ReportError(text) { log.WriteLn(text); Print(test, '\n') } // fatal error
+function ReportError(text) { log.WriteLn(text); Print(text, '\n') } // fatal error
 
 function Failed(text) { log.WriteLn(text); throw new Error(text) } // fatal error
 
@@ -96,7 +96,7 @@ function Listener() {
 		try {
 			for each ( var set in _list.slice() ) {
 
-				for ( var it = 0, n = set; n instanceof Object && arguments[it] in n; n = n[arguments[it++]] );
+				for ( var it = 0, n = set; n instanceof Object && it in arguments && arguments[it] in n; n = n[arguments[it++]] );
 				n instanceof Function && n.apply(null, arguments);
 			}
 		} catch(ex) {
@@ -146,7 +146,7 @@ function FormURLEncode( list ) {
 
 	var data = '';
 	for ( var k in list )
-		data += encodeURIComponent(k) + '=' + encodeURIComponent(list[k]);
+		data += '&' + encodeURIComponent(k) + '=' + encodeURIComponent(list[k]);
 	return data.substr(1);
 }
 
