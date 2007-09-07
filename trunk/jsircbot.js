@@ -40,7 +40,7 @@ function LoadModulesFromPath(core, path, sufix) {
 	for ( dir.Open(); (entry = dir.Read()); )
 		if ( StringEnd( entry, sufix ) ) {
 			
-			Print( 'Loading module '+ path+'/'+entry +' ...' );
+			Print( 'Loading module '+ path+'/'+entry +' ... ' );
 
 			try {
 			
@@ -88,17 +88,19 @@ function MakeFloodSafeMessageSender( maxMessage, maxData, time, RawDataSender ) 
 	
 	return function( message, bypassAntiFlood ) {
 		
-		if ( !message ) return;
-		message += CRLF;
-		if ( bypassAntiFlood ) {
+		if ( message ) { 
 		
-			_count--;
-			_bytes -= message.length;
-			RawDataSender(message);
-		} else {
-		
-			_messageQueue.push(message);
-			Process();
+			message += CRLF;
+			if ( bypassAntiFlood ) {
+
+				_count--;
+				_bytes -= message.length;
+				RawDataSender(message);
+			} else {
+
+				_messageQueue.push(message);
+				Process();
+			}
 		}
 		return _messageQueue.length / maxMessage; // <1 : ok, messages are send; >1: beware, queue is full.
 	}
@@ -132,7 +134,7 @@ function ClientCore( Configurator ) {
 	this.Send = MakeFloodSafeMessageSender( getData(_data.antiflood.maxMessage), getData(_data.antiflood.maxBytes), getData(_data.antiflood.interval), RawDataSender );
 
 	this.hasFinished = function() _hasFinished;
-	this.Disconnect = _connection.Disconnect; // make a Gracefully disconnect ( disconnect != close )
+	this.Disconnect = function() _connection.Disconnect(); // make a Gracefully disconnect ( disconnect != close )
 	
 	this.Connect = function() {
 		
@@ -144,6 +146,7 @@ function ClientCore( Configurator ) {
 		}
 
 		function OnDisconnected( remotelyDisconnected ) {
+
 			
 			_coreListener.Fire('RemoveModuleListeners');
 			_coreListener.Fire('RemoveModuleAPI');
@@ -211,13 +214,15 @@ function ClientCore( Configurator ) {
 		_coreListener.RemoveSet(mod);
 		delete mod.data;
 		delete mod.api;
+		Clear(mod);
 	}
 
 	this.ReloadModule = function( mod ) {
 
 		mod.Make || Failed('Unable to reload the module.');
+		var make = mod.Make;
 		this.RemoveModule(mod);
-		this.AddModule(mod.Make());
+		this.AddModule(make());
 	}
 	
 	this.ReloadModuleByName = function( name ) {

@@ -21,7 +21,7 @@
 		
 		ctcp: {
 		
-			PING: function( modCmd, tag, from, to, tag, data ) {
+			PING: function( modCmd, tag, from, to, data ) {
 
 				var nick = from.substring( 0, from.indexOf('!') );
 				_mod.api.CtcpResponse( nick, tag, data );

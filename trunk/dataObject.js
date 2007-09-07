@@ -87,7 +87,8 @@ function dumpData( path, tab ) {
 	for ( var name in path ) {
 	
 		var data = getData( path[name] );
-		out += tab + name + (( data != undefined ) ?'=' + data : '') + '\n' + dumpData(path[name], tab + '  ');
+		out += tab + name + ' = ' + data + ' <' + (typeof data) + '>';
+		out += '\n' + dumpData(path[name], tab + '    ');
 	}
 	return out;
 }

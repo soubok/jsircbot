@@ -179,6 +179,17 @@
 			}
 		}
 	};
+	
+	this.AddModuleAPI = function() {
+		
+		_mod.api.Join = function(channel) _mod.Send( 'JOIN ' + channel );
+		_mod.api.Part = function(channel) _mod.Send( 'PART ' + channel );
+	}
+	
+	this.RemoveModuleAPI = function() {
+		delete _mod.api.Join;
+		delete _mod.api.Part;
+	}
 
 	this.AddModuleListeners = function() _mod.AddMessageListenerSet( listenerSet ); // listeners table , context (this)
 	this.RemoveModuleListeners = function() _mod.RemoveMessageListenerSet( listenerSet ); // listeners table , context (this)
