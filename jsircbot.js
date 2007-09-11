@@ -27,30 +27,71 @@ const CRLF = '\r\n';
 ///////////////////////////////////////////////// TOOLS /////////////////////////////////////////////
 
 
-function LoadModulesFromPath(core, path, sufix) {
-
-	function ModuleMaker(path) function Make() { // this function allows a module to reload itself
+function MakeModuleFromUrl( url, callback ) {
 	
-		var mod = new (Exec(path));
-		mod.Make = Make;
-		return mod;
+	var args = arguments;
+	HttpRequest( url, '', 1000, function(statusCode, reasonPhrase, headers, body ) {
+
+		if ( statusCode != 200 ) {
+		
+			ReportError('Failed to load the module from '+url+' ('+reasonPhrase+')' );
+			return;
+		}
+
+		try {
+		
+			var mod = new (eval(body.toString()));
+			mod.Reload = function() args.callee.apply(null, args);
+			callback(mod);
+		} catch(ex) {
+
+			ReportError('Failed to make the module '+url+' ('+ex.toSource()+')' );
+		}
+	});
+}
+
+
+function MakeModuleFromPath( path, callback ) {
+
+	var args = arguments;
+	try {
+		
+		var file = new File(path);
+		var mod = new (eval(file.content));
+		mod.Reload = function() args.callee.apply(null, args);
+		callback(mod);
+	} catch(ex) {
+
+		ReportError( 'Failed to make the module from '+path+' ('+ex.toSource()+')' );
+	}
+}
+
+
+function LoadRemoteModules( core, baseUrl, moduleList ) {
+	
+	function Load( mod ) {
+
+		core.RemoveModuleByName(mod.name); // remove existing module with the same name
+		core.AddModule(mod);
 	}
 	
+	for each ( var moduleName in moduleList )
+		MakeModuleFromUrl( baseUrl + '/' + moduleName, Load );
+}
+
+
+function LoadLocalModules( core, path, sufix ) {
+	
+	function Load( mod ) {
+
+		core.RemoveModuleByName(mod.name); // remove existing module with the same name
+		core.AddModule(mod);
+	}
+
 	var entry, dir = new Directory(path, Directory.SKIP_BOTH);
 	for ( dir.Open(); (entry = dir.Read()); )
-		if ( StringEnd( entry, sufix ) ) {
-			
-			Print( 'Loading module '+ path+'/'+entry +' ... ' );
-
-			try {
-			
-				core.AddModule(ModuleMaker( path + '/' +entry )());
-				Print( 'Done.\n' );
-			} catch(ex) {
-
-				Print( 'Failed. ('+ex.toSource()+')\n' );
-			}
-		}
+		if ( StringEnd( entry, sufix ) )
+			MakeModuleFromPath( path + '/' +entry, Load );
 }
 
 
@@ -64,7 +105,7 @@ function MakeFloodSafeMessageSender( maxMessage, maxData, time, RawDataSender ) 
 	function Process() {
 	
 		var buffer = '';
-		while ( _count > 0 && _bytes > 0 && _messageQueue.length > 0 ) { // && (buffer + (_messageQueue[0]||'').length < maxData ???
+		while ( _count > 0 && _bytes > 0 && _messageQueue.length ) { // && (buffer + (_messageQueue[0]||'').length < maxData ???
 			
 			var msg = _messageQueue.shift();
 			buffer += msg;
@@ -185,8 +226,7 @@ function ClientCore( Configurator ) {
 	}
 		
 	this.AddModule = function( mod ) {
-	
-		mod.name = mod.constructor.name;
+		
 		_coreListener.AddSet(mod);
 		mod.AddMessageListenerSet = _messageListener.AddSet;
 		mod.RemoveMessageListenerSet = _messageListener.RemoveSet;
@@ -204,7 +244,7 @@ function ClientCore( Configurator ) {
 	}
 	
 	this.RemoveModule = function( mod ) {
-		
+	
 		var pos = _modules.indexOf(mod);
 		if ( pos == -1 ) return;
 		_modules.splice(pos, 1);
@@ -216,22 +256,33 @@ function ClientCore( Configurator ) {
 		delete mod.api;
 		Clear(mod);
 	}
+	
+	this.RemoveModuleByName = function( name ) {
+
+		for each ( mod in _modules.slice() ) // slice() to prevent dead-loop
+			if ( mod.name == name )
+				this.RemoveModule( mod );
+	}
+	
 
 	this.ReloadModule = function( mod ) {
 
-		mod.Make || Failed('Unable to reload the module.');
-		var make = mod.Make;
-		this.RemoveModule(mod);
-		this.AddModule(make());
+		if ( Reload in mod )
+			mod.Reload();
+		else
+			ReportWarning('Unable to reload the module '+mod.name+': Reload function not found.');
 	}
-	
+
 	this.ReloadModuleByName = function( name ) {
 		
 		for each ( mod in _modules.slice() ) // slice() to prevent dead-loop
 			if ( mod.name == name )
 				this.ReloadModule( mod );
 	}
+
 	
+	this.HasModule = function( name ) _modules.some(function(mod) mod.name == name);
+
 	this.ModuleList = function() [ m.name for each ( m in _modules ) ];
 
 	Seal(this);
@@ -254,7 +305,7 @@ try {
 		setData(data.defaultChannelList, ['#soubok']);
 
 	// Configure anti-flood system ( in 10 seconds, we can send 5 messages OR 1456 bytes )
-		setData(data.antiflood.maxMessage, 5 );
+		setData(data.antiflood.maxMessage, 10 );
 		setData(data.antiflood.maxBytes, 1456 );
 		setData(data.antiflood.interval, 10000 );
 
@@ -268,7 +319,11 @@ try {
 	}
 
 	var core = new ClientCore(Configurator);
-	LoadModulesFromPath( core, '.', '.jsmod' );
+	LoadLocalModules( core, '.', '.jsmod' );
+	
+	LoadRemoteModules( core, 'http://jsircbot.googlecode.com/svn/trunk', ['serverQuery.jsmod'] );
+
+	
 	core.Connect();
 	
 	io.Process( function() core.hasFinished() || endSignal );

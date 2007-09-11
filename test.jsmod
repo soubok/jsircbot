@@ -15,6 +15,7 @@
 
 (function testModule() {
 	
+	this.name = this.constructor.name;
 	var _mod = this;
 	
 	var _moduleListeners = {
@@ -43,14 +44,15 @@
 
 				_mod.api.Quit('bye...');
 			},
+			
 			reload: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 
-				_mod.api.Privmsg( to, 'Reloading ' + (cmdData||'') );
-				if ( cmdData == undefined )
-					core.ReloadModule(_mod); // after this, the current code will die
-				else
-					core.ReloadModuleByName(cmdData);
+				var nick = from.split('!',1);
+				var replyTo = to[0] == '#' ? to : nick;
 
+				core.ReloadModuleByName(cmdData);
+
+				_mod.api.Privmsg && _mod.api.Privmsg( replyTo, 'Done' );
 			},
 
 			eval: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
@@ -70,6 +72,12 @@
 
 			test: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 
+				var url = 'http://jsircbot.googlecode.com/svn/trunk/dccReceiver.jsmod';
+				HttpRequest( url, '', 1000, function(statusCode, reasonPhrase, headers, body) {
+					DPrint(body.length);
+				});
+				
+				
 				DPrint( Array.slice(arguments).toSource() )
 
 				var nick = from.split('!',1);

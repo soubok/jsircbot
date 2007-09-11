@@ -15,11 +15,8 @@
 
 (function DCCReceiverModule() { // http://en.wikipedia.org/wiki/Direct_Client-to-Client
 	
+	this.name = this.constructor.name;
 	var _mod = this;
-	
-	function IntegerToIp(number) (number>>24 & 255)+'.'+(number>>16 & 255)+'.'+(number>>8 & 255)+'.'+(number & 255);
-
-	function NumberToUint32NetworkOrderString(number) String.fromCharCode(number>>24 & 255)+String.fromCharCode(number>>16 & 255)+String.fromCharCode(number>>8 & 255)+String.fromCharCode(number & 255);
 	
 	function DCCReceive( ip, port, fileName, timeout ) { // receiver is a client socket / sender is the server
 

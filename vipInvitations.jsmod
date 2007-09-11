@@ -1,0 +1,219 @@
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: GNU GPL 2.0
+ *
+ * The contents of this file are subject to the
+ * GNU General Public License Version 2.0; you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ * http://www.gnu.org/licenses/gpl.html
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ * ***** END LICENSE BLOCK ***** */
+
+
+(function invitationModule() {
+
+	this.name = this.constructor.name;
+	var _mod = this;
+	
+	var pv = Exec('_privateData.js', false);
+	
+	const tremQueryPrefix = '\xFF\xFF\xFF\xFF';
+	
+	function ColorTremToIrc(str) {
+		
+		var color = arguments.callee.color || ( arguments.callee.color = { 0:1, 1:4, 2:9, 3:8, 4:12, 5:11, 6:13, 7:0 } );
+		var out = '';
+		for ( var i = 0; i < str.length; i++ ) {
+			switch (str[i]) {
+				case '^':
+					out += '\x03' + color[ String.charCodeAt(str[++i]) % 8 ];
+					break;
+				default:
+					out += str[i];
+			}
+		}
+		return out;
+	}
+
+	function ParsePlayer( playerInfo ) {
+		
+		var res = /([0-9]+) ([0-9]+) "(.*)"/(playerInfo);
+		return res ? (res.shift(), res) : undefined;
+	}
+	
+	function ParseStatus( statusLine ) {
+
+		var split = statusLine.split('\\');
+		split.shift(); // first is empty
+		for ( var status = {}; split.length; status[split.shift()] = split.shift() );
+		return status;
+	}
+	
+	function QueryTremServer( server, query, callback ) {
+
+		var [host,port] = pv.vipTremServer.split(':');
+		UDPGet( host, port, tremQueryPrefix + query, 2000, function(buf, ping) buf && callback(buf.split('\n'), ping) );
+	}
+	
+	var _moduleListeners = {
+		
+		dcc: {
+		
+			chat: function( modCmd, dccType, from, data ) {
+				
+//				var nick = from.split('!', 1);
+//				_mod.api.Privmsg( nick, data );	
+			}
+		},
+		
+		botcmd: {
+			
+			server:function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+				
+				if ( to != pv.vipChannel )
+					return;
+
+				var nick = from.split('!', 1);
+				var replyTo = to[0] == '#' ? to : nick;
+					
+				if ( !getData( _mod.data.channel[to].names[nick].operator ) ) {
+					
+					_mod.api.Privmsg( replyTo, 'Only VIPs can query the VIP server' );
+					return;
+				}
+				
+				if ( _mod.lastServerQueryInterval && IntervalNow() - _mod.lastServerQueryInterval < 10000 ) {
+
+					_mod.api.Privmsg( replyTo, 'Please retry later' );
+					return;
+				}
+					
+				QueryTremServer( pv.vipTremServer, 'getstatus', function(lines, ping) {
+
+					lines.shift(); // remove header
+					var serverInfo = ParseStatus(lines.shift());
+					lines.pop(); // last line is empty
+					var players = [];
+					if ( lines.length )
+						for ( var i in lines )
+							players.push( '\x030,1' + ColorTremToIrc( ParsePlayer(lines[i])[2] ) + '\x0F' );
+							
+					_mod.api.Privmsg( replyTo, ColorTremToIrc(serverInfo.sv_hostname) + '\x0F: ' + serverInfo.mapname + ', ' + lines.length + ' players' + ' (ping '+ping+')'  );
+					while ( players.length )
+						_mod.api.Privmsg( replyTo, players.splice(0,8).join('  ') );
+				});
+
+				_mod.lastServerQueryInterval = IntervalNow();
+			},
+
+
+
+			invite:function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+
+				if ( to != pv.vipChannel )
+					return;
+
+				var nick = from.split('!',1);
+				var replyTo = to[0] == '#' ? to : nick;
+				var guest = cmdData.split(' ',1);
+
+				_mod.api.AccesInfo( pv.vipChannel, function(access) {
+				
+					if ( !access || access[nick] < pv.vipChanLevel ) {
+					
+						_mod.api.Privmsg( replyTo, 'You must be a VIP to invite someone.' );
+						return;
+					}
+
+					if ( guest in access && access[guest] >= pv.vipChanLevel ) {
+					
+						_mod.api.Privmsg( replyTo, guest+' is already a VIP.' );
+						return;
+					}
+
+					_mod.api.NickInfo( guest, function(info) {
+
+						if ( !info ) {
+
+							_mod.api.Privmsg( replyTo, guest+' is not registred on IRC.' );
+							return;
+						}
+						
+						if ( info.isOnline )
+							_mod.api.Invite( guset, pv.vipChannel );
+						
+						_mod.api.Privmsg( replyTo, 'ok.' );
+						
+					});
+				});
+				
+				
+/*
+				HttpRequest( invitationURL, { nick:nick }, 1000, function(statusCode, reasonPhrase, headers, body) {
+					
+					if ( statusCode != 200 ) {
+
+						_mod.api.Privmsg( replyTo, 'Service unavailable (' + statusCode + ' ' + reasonPhrase + '). Please retry later.' );
+					} else {
+					
+						if ( body == '' ) {
+							_mod.api.Privmsg( replyTo, 'You must be a VIP to invite players.' );
+							return;
+						}
+					
+						var responseObject;
+						
+						try {
+							responseObject = eval('('+body+')');
+						} catch(ex) {
+							ReportError( ExToText(ex) );
+						}
+						
+						if ( responseObject )
+							_mod.api.Privmsg( replyTo, 'Ok, ' + responseObject.invitations_left + ' invitation(s) remaining' );
+						else
+							_mod.api.Privmsg( replyTo, 'Invalid server response. Please call TV.' );
+						
+					}
+				});
+*/
+			}
+		}
+	}
+
+
+	var _messageListeners = {
+
+		RPL_WELCOME: function( command, from, to, msg ) {
+		
+			_mod.api.Privmsg( pv.nickServ, 'IDENTIFY '+pv.password );
+			_mod.api.Join( pv.vipChannel );
+			// _mod.Send('CAPAB IDENTIFY-MSG'); // ask the server to prefix all messages with '+' if the nick is resistred
+		},
+
+		ERR_NICKNAMEINUSE: function( command, from, to, msg ) {
+
+			_mod.api.Privmsg( pv.nickServ, 'GHOST '+pv.botNick+' '+pv.password );
+			_mod.api.Nick( pv.botNick );
+		},
+		
+		RPL_USERHOST: function( command, from, who, hostInfo ) {
+		}
+	};
+
+	this.AddModuleListeners = function() {
+		
+		_mod.AddMessageListenerSet( _messageListeners );
+		_mod.AddModuleListenerSet( _moduleListeners );
+	}
+	
+	this.RemoveModuleListeners = function() {
+	
+		_mod.RemoveMessageListenerSet( _messageListeners );
+		_mod.RemoveModuleListenerSet( _moduleListeners );
+	}
+
+})

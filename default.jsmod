@@ -15,6 +15,7 @@
 
 (function DefaultModule() {
 	
+	this.name = this.constructor.name;
 	var _mod = this;
 
 // [TBD] autodetect max message length ( with a self sent mesage )
@@ -32,7 +33,8 @@
 
 		RPL_USERHOST: function( command, from, to, host ) {
 			
-			setData( _mod.data.userhost, host.substr(host.indexOf('=')+1) ); // hostinfo[0] = '+' or '-' : AWAY message set
+			if ( to == getData(_mod.data.nick) )
+				setData( _mod.data.userhost, host.substr(host.lastIndexOf('=')+1) ); // hostinfo[0] = '+' or '-' : AWAY message set ???
 		},
 		
 /* same info in RPL_USERHOST
@@ -130,7 +132,7 @@
 			var hostpos = to.indexOf('!');
 			if ( hostpos != -1 )
 				to = to.substr( 0, hostpos );
-			_mod.Send( 'PRIVMSG '+to+' :'+message );
+			return _mod.Send( 'PRIVMSG '+to+' :'+message );
 		}
 
 		_mod.api.Quit = function(quitMessage) {
