@@ -1,0 +1,128 @@
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: GNU GPL 2.0
+ *
+ * The contents of this file are subject to the
+ * GNU General Public License Version 2.0; you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ * http://www.gnu.org/licenses/gpl.html
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ * ***** END LICENSE BLOCK ***** */
+
+
+(function freenodeModule() {
+	
+	this.name = this.constructor.name;
+	var _mod = this;
+
+	var _requestList = [];
+	var _timeoutId;
+
+
+	function channelInfoParser(msg, request) {
+		// (TBD)
+	}
+
+	function accessParser(msg, request) {
+
+		var line = /^([0-9]+) +([0-9]+) +([^ ]+) +(.*)$/(msg);
+		if ( line )
+			request.reply[line[3]] = parseInt(line[2]);
+		else if ( msg.indexOf('Access List for') != -1 )
+			request.reply = {};
+		else if ( msg.indexOf('End of list') != -1 || msg.indexOf('is not registered') != -1 )
+			Done();
+	}
+	
+	function infoParser(msg, request) {
+		
+		if ( msg.indexOf('is not registered') == -1 ) {
+
+			var [field, data] = LTrim(msg).split(': ',2);
+			switch ( field ) {
+				case 'Nickname':
+					request.reply = {};
+					request.reply.nick = data.split(' ',1)[0];
+					request.reply.isOnline = (data.indexOf('ONLINE') != -1);
+					break;
+				case 'Registered':
+					request.reply.registred = data;
+					break;
+				case 'Last Seen':
+					request.reply.lastSeen = data;
+					break;
+				case 'Last Seen Address':
+					request.reply.lastSeenAddress = data;
+					break;
+				case 'Last Seen Quit Msg':
+					request.reply.lastSeenQuitMsg = data;
+					break;
+				case 'Email Address':
+					request.reply.emailAddress = data;
+					break;
+				case 'UIN':
+					request.reply.UIN = data;
+					break;
+				case 'Nickname Options':
+					request.reply.nicknameOptions = data.split(', ');
+					Done();
+					break;
+			}
+		} else
+			Done();
+	}
+	
+	function Done() {
+	
+		io.RemoveTimeout(_timeoutId);
+		_requestList[0].callback(_requestList[0].reply || undefined);
+		_requestList.shift();
+		_requestList.length && ProcessRequest();
+	}
+	
+	function ProcessRequest() {
+
+		_timeoutId = io.AddTimeout( 10000, Done );
+		_mod.api.Privmsg( _requestList[0].service, _requestList[0].query );
+	}
+	
+	function StartRequest( service, query, parser, callback) {
+
+		_requestList.push({ service:service, query:query, parser:parser, callback:callback });
+		_requestList.length == 1 && ProcessRequest();
+	}
+	
+	var _messageListeners = {
+
+		NOTICE: function( command, from, to, msg ) {
+		
+			if ( _requestList.length && from == _requestList[0].service && to == getData(_mod.data.nick) )
+				_requestList[0].parser(msg, _requestList[0]);
+		}
+		
+//	RPL_USERHOST:
+//USERHOST soubok
+//:kubrick.freenode.net 302 soubok :soubok=+i=soubok@82.231.70.117 		
+
+	}
+	
+	this.AddModuleAPI = function() {
+	
+		_mod.api.NickInfo = function(nick, callback) StartRequest( 'NickServ!NickServ@services.', 'info '+nick, infoParser, callback );
+		_mod.api.AccesInfo = function(channel, callback) StartRequest( 'ChanServ!ChanServ@services.', 'access '+channel+' list', accessParser, callback );
+		_mod.api.ChanInfo = function(channel, callback) StartRequest( 'ChanServ!ChanServ@services.', 'info '+channel, channelInfoParser, callback );
+	}
+	
+	this.RemoveModuleAPI = function() {
+	
+		delete _mod.api.NickInfo;
+		delete _mod.api.AccesInfo;
+		delete _mod.api.ChanInfo;
+	}
+	
+	this.AddModuleListeners = function() _mod.AddMessageListenerSet( _messageListeners );
+	this.RemoveModuleListeners = function() _mod.RemoveMessageListenerSet( _messageListeners );
+})

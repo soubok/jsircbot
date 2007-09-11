@@ -18,6 +18,7 @@ const SPC = '\040'; // space
 
 (function CTCPModule() {
 
+	this.name = this.constructor.name;
 	var _mod = this;
 
 	function lowLevelCtcpQuote(data) { // NUL, NL, CR, QUOTE -> QUOTE 0, QUOTE n, QUOTE r, QUOTE QUOTE

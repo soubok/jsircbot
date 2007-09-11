@@ -53,31 +53,6 @@ var io = new function() {
 			var t = _min - now;
 			return t > defaultTimeout ? defaultTimeout : t;
 		}
-
-/*
-		this.Next = function(defaultTimeout) {
-
-			_min = Number.POSITIVE_INFINITY;
-			for ( var w in _tlist )
-				if ( w < _min )
-					_min = w;
-			var t = _min - IntervalNow();
-			return t > defaultTimeout ? defaultTimeout : t;
-		}
-
-		this.Process = function() {
-		
-			var now = IntervalNow();
-			if ( _min > now )
-				return;
-			for ( var w in _tlist )
-				if ( w <= now ) {
-				
-					_tlist[w]();
-					delete _tlist[w];
-				}
-		}
-*/
 	}
 	
 	var _descriptorList = [];
@@ -98,7 +73,6 @@ var io = new function() {
 		
 		while ( !endPredicate() )
 			Poll(_descriptorList, _timeout.Process(500));
-		// (TBD) end all remaining timeouts ? NO !
 	}
 	
 	this.Close = function() {
@@ -118,6 +92,7 @@ function UDPGet( host, port, data, timeout, OnResponse ) {
 	var time = IntervalNow();
 	var socket = new Socket( Socket.UDP );
 	socket.nonblocking = true;
+
 	try {
 		socket.Connect( host, port );
 	} catch(ex) {
@@ -159,6 +134,7 @@ function TCPGet( host, port, data, timeout, OnResponse ) {
 	var time = IntervalNow();
 	var socket = new Socket( Socket.TCP );
 	socket.nonblocking = true;
+	socket.noDelay = true;
 
 	try {
 		socket.Connect( host, port );
@@ -201,7 +177,7 @@ function TCPGet( host, port, data, timeout, OnResponse ) {
 ///////////////////////////////////////////////////////
 
 
-function HttpPost( url, data, timeout, OnResponse ) {
+function HttpRequest( url, data, timeout, OnResponse ) {
 
 	var ud = ParseUri(url);
 	var headers = { Host:ud.host, Connection:'Close' };
@@ -218,21 +194,18 @@ function HttpPost( url, data, timeout, OnResponse ) {
 
 		try {
 
-			var [httpVersion,statusCode,reasonPhrase] = CHK(response.ReadUntil(CRLF)).split(' ');
+			var [httpVersion,statusCode,reasonPhrase] = CHK(response.ReadUntil(CRLF)).split(' ',3);
 			var headers = {};
 			for each ( var h in CHK(response.ReadUntil(CRLF+CRLF)).split(CRLF) ) {
 
-				var [k, v] = h.split(': '); 
+				var [k, v] = h.split(': ',2); 
 				headers[k] = v;
 			}
-
 			OnResponse(statusCode, reasonPhrase, headers, response);
 		} catch(ex if ex == ERR) {
 
 			OnResponse();
 		}
-		
-	
 	});
 }
 

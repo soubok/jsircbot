@@ -27,12 +27,25 @@ function DArgs() { Print( 'Arguments: ', Array.slice(DArgs.caller.arguments).toS
 
 ///////////////////////////////////////////////////////
 
+function IntegerToIp(number) (number>>24 & 255)+'.'+(number>>16 & 255)+'.'+(number>>8 & 255)+'.'+(number & 255);
+
+function NumberToUint32NetworkOrderString(number) String.fromCharCode(number>>24 & 255)+String.fromCharCode(number>>16 & 255)+String.fromCharCode(number>>8 & 255)+String.fromCharCode(number & 255);
+
 function StringPad( str, count, chr ) {
 
 	var diff = count - str.length;
 		while( diff-- > 0 )
 			str = chr + str;  
 	return str;
+}
+
+
+function LTrim(str) {
+
+	for ( var i in str )
+		if ( str[i] != ' ' )
+			return str.substr(i);
+	return '';
 }
 
 
@@ -56,12 +69,17 @@ var log = new function() {
 	}
 }
 
+///////////////////////////////////////////////////////
+
+function Noop() {}
+
 
 ///////////////////////////////////////////////////////
 
 function ExToText(ex, showStack) ex.name+': '+ex.message+' ('+(showStack ? ex.stack : (ex.fileName+':'+ex.lineNumber))+')';
 
 function ReportError(text) { log.WriteLn(text); Print(text, '\n') } // fatal error
+function ReportWarning(text) { log.WriteLn(text); Print(text, '\n') } // fatal error
 
 function Failed(text) { log.WriteLn(text); throw new Error(text) } // fatal error
 
