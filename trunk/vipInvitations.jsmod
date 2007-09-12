@@ -29,7 +29,7 @@
 		for ( var i = 0; i < str.length; i++ ) {
 			switch (str[i]) {
 				case '^':
-					out += '\x03' + color[ String.charCodeAt(str[++i]) % 8 ];
+					out += '\x03' + color[String.charCodeAt(str[++i]) % 8];
 					break;
 				default:
 					out += str[i];
@@ -46,9 +46,10 @@
 	
 	function ParseStatus( statusLine ) {
 
-		var split = statusLine.split('\\');
+		var status = {}, split = statusLine.split('\\');
 		split.shift(); // first is empty
-		for ( var status = {}; split.length; status[split.shift()] = split.shift() );
+		while (split.length)
+			status[split.shift()] = split.shift();
 		return status;
 	}
 	
@@ -85,22 +86,35 @@
 					return;
 				}
 				
-				if ( _mod.lastServerQueryInterval && IntervalNow() - _mod.lastServerQueryInterval < 10000 ) {
+				if ( _mod.lastServerQueryInterval && IntervalNow() - _mod.lastServerQueryInterval < 10000 ) { // anti-flood
 
 					_mod.api.Privmsg( replyTo, 'Please retry later' );
 					return;
 				}
 					
 				QueryTremServer( pv.vipTremServer, 'getstatus', function(lines, ping) {
+					
+					if ( !lines ) {
+						
+						_mod.api.Privmsg( replyTo, 'Sorry, the server does not respond.' );
+						return;
+					}
 
-					lines.shift(); // remove header
-					var serverInfo = ParseStatus(lines.shift());
-					lines.pop(); // last line is empty
-					var players = [];
-					if ( lines.length )
-						for ( var i in lines )
-							players.push( '\x030,1' + ColorTremToIrc( ParsePlayer(lines[i])[2] ) + '\x0F' );
-							
+					try {
+						lines.shift(); // remove header
+						var serverInfo = CHK(ParseStatus(lines.shift()));
+						lines.pop(); // last line is empty
+						var players = [];
+						if ( lines.length )
+							for ( var i in lines )
+								players.push( '\x030,1' + ColorTremToIrc( CHK(ParsePlayer(lines[i]))[2] ) + '\x0F' );
+								
+					} catch(ex if ex == ERR) {
+
+						_mod.api.Privmsg( replyTo, 'Sorry, invalid server response.' );
+						return;
+					}
+					
 					_mod.api.Privmsg( replyTo, ColorTremToIrc(serverInfo.sv_hostname) + '\x0F: ' + serverInfo.mapname + ', ' + lines.length + ' players' + ' (ping '+ping+')'  );
 					while ( players.length )
 						_mod.api.Privmsg( replyTo, players.splice(0,8).join('  ') );
@@ -122,64 +136,50 @@
 
 				_mod.api.AccesInfo( pv.vipChannel, function(access) {
 				
-					if ( !access || access[nick] < pv.vipChanLevel ) {
-					
-						_mod.api.Privmsg( replyTo, 'You must be a VIP to invite someone.' );
-						return;
-					}
-
-					if ( guest in access && access[guest] >= pv.vipChanLevel ) {
-					
-						_mod.api.Privmsg( replyTo, guest+' is already a VIP.' );
-						return;
-					}
+					if ( !access || access[nick] < pv.vipChanLevel )
+						return _mod.api.Privmsg( replyTo, 'You must be a VIP to invite someone.' );
+					if ( guest in access && access[guest] >= pv.vipChanLevel )
+						return _mod.api.Privmsg( replyTo, guest+' is already a VIP.' );
 
 					_mod.api.NickInfo( guest, function(info) {
 
-						if ( !info ) {
+						if ( !info )
+							return _mod.api.Privmsg( replyTo, guest+' is not registred on IRC.' );
+							
+						HttpRequest( invitationURL, { nick:nick }, 1000, function(statusCode, reasonPhrase, headers, body) {
 
-							_mod.api.Privmsg( replyTo, guest+' is not registred on IRC.' );
-							return;
-						}
-						
-						if ( info.isOnline )
-							_mod.api.Invite( guset, pv.vipChannel );
-						
-						_mod.api.Privmsg( replyTo, 'ok.' );
-						
+							if ( statusCode != 200 )
+								return _mod.api.Privmsg( replyTo, 'Service unavailable (' + statusCode + ' ' + reasonPhrase + '). Please retry later.' );
+							if ( !body ) {
+								return _mod.api.Privmsg( replyTo, 'You must be a VIP to invite someone.' );
+
+							var responseObject;
+							try {
+								responseObject = eval('('+body+')');
+							} catch(ex) {
+								ReportError( ExToText(ex) );
+							}
+							if ( !responseObject )
+								_mod.api.Privmsg( replyTo, 'Invalid server response. Please call TV.' );
+								
+							if ( responseObject.invitations_left <= 0 )
+								_mod.api.Privmsg( replyTo, 'Sorry '+nick+', you have no invitations remaining.' );
+
+							var invLeft = responseObject.invitations_left - 1;
+
+							// do the invitation
+							
+							HttpRequest( invitationURL, { guest:guest, host:nick }, 1000, function(statusCode, reasonPhrase, headers, body) {} );
+							
+							_mod.api.Privmsg( replyTo, guest + ' has been invited. You have ' + invLeft + ' invitation(s) remaining.' );
+							
+							_mod.api.SetAccessLevel( pv.vipChannel, guest, pv.vipChanLevel );
+							
+							if ( info.isOnline )
+								_mod.api.Invite( guset, pv.vipChannel );
+						});
 					});
 				});
-				
-				
-/*
-				HttpRequest( invitationURL, { nick:nick }, 1000, function(statusCode, reasonPhrase, headers, body) {
-					
-					if ( statusCode != 200 ) {
-
-						_mod.api.Privmsg( replyTo, 'Service unavailable (' + statusCode + ' ' + reasonPhrase + '). Please retry later.' );
-					} else {
-					
-						if ( body == '' ) {
-							_mod.api.Privmsg( replyTo, 'You must be a VIP to invite players.' );
-							return;
-						}
-					
-						var responseObject;
-						
-						try {
-							responseObject = eval('('+body+')');
-						} catch(ex) {
-							ReportError( ExToText(ex) );
-						}
-						
-						if ( responseObject )
-							_mod.api.Privmsg( replyTo, 'Ok, ' + responseObject.invitations_left + ' invitation(s) remaining' );
-						else
-							_mod.api.Privmsg( replyTo, 'Invalid server response. Please call TV.' );
-						
-					}
-				});
-*/
 			}
 		}
 	}
