@@ -19,7 +19,7 @@
 	var _mod = this;
 	
 	var _count = 0;
-	var _maxDccChatConnections = 2;
+	var _maxDccChatConnections = 32; // (TBD) move to configuration
 
 	var _moduleListeners = {
 	
@@ -35,16 +35,60 @@
 					ReportWarning('Too many DCC CHAT connections.');
 					return;
 				}
-				var chat = new SocketConnection();
-				function OnData( buf ) _mod.FireModuleListener( 'dcc', 'chat', from, buf );
-				function OnConnected() _count++;
-				function OnDisconnected() { chat.Close(); _count-- }
-				function OnFailed() ReportError('DCC CHAT Connection failed.');
-				chat.Connect( IntegerToIp(nip), nport, OnConnected, OnData, OnDisconnected, OnFailed );
+				
+				var connection = new SocketConnection( IntegerToIp(nip), nport );
+				connection.OnData = function( buf ) {
+					
+					_mod.FireModuleListener( 'dcc', 'chatData', from, buf, connection );
+				}
+				
+				connection.OnConnected = function() {
+					
+					_count++;
+					_mod.FireModuleListener( 'dcc', 'chatStart', from, connection );
+				}
+					
+				connection.OnDisconnected = function() { 
+					
+					_mod.FireModuleListener( 'dcc', 'chatEnd', from, connection );
+					connection.Close();
+					_count--
+				}
+				
+				connection.OnFailed = function() ReportError('DCC CHAT Connection failed.');
 			}
 		}
 	};
 
 	this.AddModuleListeners = function() _mod.AddModuleListenerSet( _moduleListeners );
 	this.RemoveModuleListeners = function() _mod.RemoveModuleListenerSet( _moduleListeners );
+	
+	
+	this.AddModuleAPI = function() {
+		
+		_mod.api.OpenDCCChat = function( nick, callback ) {
+			
+			var port = 1024;
+			var ip = getData( _mod.data.userhost ).split('@',2)[1];
+			
+			var _dccAcceptTimeout;
+			
+			var server = new SocketServer( port, ip, function(connection) {
+				
+				io.AddTimeout(_dccAcceptTimeout);
+				server.Close(); // we accept only one connection
+				callback(connection);
+			});
+			
+			_dccAcceptTimeout = io.AddTimeout( 30000, function() server.Close() );
+			
+			_mod.api.CtcpRequest( nick, 'DCC', 'CHAT chat ' + IpToIntegerp(ip) + ' ' + port );
+		}
+	}
+
+	this.RemoveModuleAPI = function() {
+		
+		delete _mod.api.OpenDCCChat;
+	}
+	
 })
