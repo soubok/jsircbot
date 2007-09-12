@@ -78,7 +78,7 @@
 	function Done() {
 	
 		io.RemoveTimeout(_timeoutId);
-		_requestList[0].callback(_requestList[0].reply || undefined);
+		void _requestList[0].callback(_requestList[0].reply || undefined);
 		_requestList.shift();
 		_requestList.length && ProcessRequest();
 	}
@@ -103,17 +103,17 @@
 				_requestList[0].parser(msg, _requestList[0]);
 		}
 		
-//	RPL_USERHOST:
+//	RPL_USERHOST: 302
 //USERHOST soubok
 //:kubrick.freenode.net 302 soubok :soubok=+i=soubok@82.231.70.117 		
-
 	}
 	
 	this.AddModuleAPI = function() {
 	
-		_mod.api.NickInfo = function(nick, callback) StartRequest( 'NickServ!NickServ@services.', 'info '+nick, infoParser, callback );
-		_mod.api.AccesInfo = function(channel, callback) StartRequest( 'ChanServ!ChanServ@services.', 'access '+channel+' list', accessParser, callback );
-		_mod.api.ChanInfo = function(channel, callback) StartRequest( 'ChanServ!ChanServ@services.', 'info '+channel, channelInfoParser, callback );
+		_mod.api.NickInfo = function(nick, callback) StartRequest( 'NickServ!NickServ@services.', 'INFO '+nick, infoParser, callback );
+		_mod.api.AccesInfo = function(channel, callback) StartRequest( 'ChanServ!ChanServ@services.', 'ACCESS '+channel+' LIST', accessParser, callback );
+		_mod.api.ChanInfo = function(channel, callback) StartRequest( 'ChanServ!ChanServ@services.', 'INFO '+channel, channelInfoParser, callback );
+		_mod.api.SetAccessLevel = function(channel, nick, level) void _mod.api.Privmsg( 'ChanServ!ChanServ@services.', 'ACCESS '+chnnel+' ADD '+nick+' '+level );
 	}
 	
 	this.RemoveModuleAPI = function() {
@@ -126,3 +126,10 @@
 	this.AddModuleListeners = function() _mod.AddMessageListenerSet( _messageListeners );
 	this.RemoveModuleListeners = function() _mod.RemoveMessageListenerSet( _messageListeners );
 })
+
+
+/*
+freenode modes:
+	http://freenode.net/using_the_network.shtml
+	
+*/

@@ -12,6 +12,7 @@
  * License.
  * ***** END LICENSE BLOCK ***** */
 
+/////////////////////////////////////////////////////// Debug tools
 
 function DPrint() {
 	
@@ -24,30 +25,7 @@ function DStack() { try { throw Error() } catch(ex) { Print( 'Stack: ', ex.stack
 
 function DArgs() { Print( 'Arguments: ', Array.slice(DArgs.caller.arguments).toSource(), '\n' ) }
 
-
 ///////////////////////////////////////////////////////
-
-function IntegerToIp(number) (number>>24 & 255)+'.'+(number>>16 & 255)+'.'+(number>>8 & 255)+'.'+(number & 255);
-
-function NumberToUint32NetworkOrderString(number) String.fromCharCode(number>>24 & 255)+String.fromCharCode(number>>16 & 255)+String.fromCharCode(number>>8 & 255)+String.fromCharCode(number & 255);
-
-function StringPad( str, count, chr ) {
-
-	var diff = count - str.length;
-		while( diff-- > 0 )
-			str = chr + str;  
-	return str;
-}
-
-
-function LTrim(str) {
-
-	for ( var i in str )
-		if ( str[i] != ' ' )
-			return str.substr(i);
-	return '';
-}
-
 
 var log = new function() {
 
@@ -71,20 +49,15 @@ var log = new function() {
 
 ///////////////////////////////////////////////////////
 
-function Noop() {}
-
-
-///////////////////////////////////////////////////////
-
 function ExToText(ex, showStack) ex.name+': '+ex.message+' ('+(showStack ? ex.stack : (ex.fileName+':'+ex.lineNumber))+')';
 
-function ReportError(text) { log.WriteLn(text); Print(text, '\n') } // fatal error
-function ReportWarning(text) { log.WriteLn(text); Print(text, '\n') } // fatal error
+function ReportError(text) { log.WriteLn(text); Print(text, '\n') }
+
+function ReportWarning(text) { log.WriteLn(text); Print(text, '\n') }
 
 function Failed(text) { log.WriteLn(text); throw new Error(text) } // fatal error
 
 function ERR() { throw ERR }
-
 function CHK(v) v || ERR();
 function CHKEQ(value, eq) value == eq ? value : ERR();
 function CHKNEQ(value, neq) value != neq ? value : ERR();
@@ -98,10 +71,38 @@ function TRY(fct) {
 	}
 }
 
+/////////////////////////////////////////////////////// Misc tools
+
+function IntegerToIp(number) (number>>24 & 255)+'.'+(number>>16 & 255)+'.'+(number>>8 & 255)+'.'+(number & 255);
+
+function NumberToUint32NetworkOrderString(number) String.fromCharCode(number>>24 & 255)+String.fromCharCode(number>>16 & 255)+String.fromCharCode(number>>8 & 255)+String.fromCharCode(number & 255);
+
+function StringPad( str, count, chr ) {
+	
+	str += '';
+	chr = chr || ' ';
+	var diff = count - str.length;
+		while( diff-- > 0 )
+			str = chr + str;  
+	return str;
+}
+
+function LTrim(str) {
+
+	for ( var i in str )
+		if ( str[i] != ' ' )
+			return str.substr(i);
+	return '';
+}
+
+function StringReplacer(conversionObject) function(s) s.replace(new RegExp([k for (k in conversionObject)].join('|'), 'g'), function(str) conversionObject[str]); // eg. StringReplacer({aa:11})('xxaaxx'); returns 'xx11xx'
+
 function Switch(i) arguments[++i];
 
+function Noop() {}
 
-///////////////////////////////////////////////////////
+
+/////////////////////////////////////////////////////// Event Listener
 
 
 function Listener() {
@@ -115,7 +116,7 @@ function Listener() {
 			for each ( var set in _list.slice() ) {
 
 				for ( var it = 0, n = set; n instanceof Object && it in arguments && arguments[it] in n; n = n[arguments[it++]] );
-				n instanceof Function && n.apply(null, arguments);
+				n instanceof Function && void n.apply(null, arguments);
 			}
 		} catch(ex) {
 			
@@ -125,7 +126,7 @@ function Listener() {
 }
 
 
-///////////////////////////////////////////////////////
+/////////////////////////////////////////////////////// HTTP tools
 
 
 function ParseUri(source) { // ParseUri 1.2; MIT License By Steven Levithan. http://blog.stevenlevithan.com/archives/ParseUri
