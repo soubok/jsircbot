@@ -182,6 +182,10 @@ function HttpRequest( url, data, timeout, OnResponse ) {
 	var ud = ParseUri(url);
 	var headers = { Host:ud.host, Connection:'Close' };
 	var statusLine = MakeStatusLine( data ? 'POST' : 'GET', ud.relative );
+
+	if ( ud.userInfo )
+		headers['Authorization'] = 'Basic ' + encode64(ud.userInfo);
+	
 	var body = '';
 	if ( data ) {
 
@@ -192,6 +196,12 @@ function HttpRequest( url, data, timeout, OnResponse ) {
 
 	TCPGet( ud.host, ud.port||80, statusLine + CRLF + MakeHeaders(headers) + CRLF + body, 2000, function( response ) {
 
+		if ( !response ) {
+		
+			OnResponse();
+			return;
+		}
+			
 		try {
 
 			var [httpVersion,statusCode,reasonPhrase] = CHK(response.ReadUntil(CRLF)).split(' ',3);
@@ -224,77 +234,106 @@ function ProxyHttpConnection( proxyHost, proxyPort ) {
 
 ///////////////////////////////////////////////////////
 
-function SocketConnection() {
+function SocketConnection( host, port ) {
 
-	var _socket = new Socket(Socket.TCP);
-	_socket.nonblocking = true;
-	_socket.noDelay = true;
+	var _this = this;
+	
+	this.OnConnected = Noop;
+	this.OnData = Noop;
+	this.OnDisconnected = Noop;
+	this.OnFailed = Noop;
+	
+	var _socket;	
+	if ( host instanceof Socket ) {
+		
+		_socket = host;
+	} else {
+		_socket = new Socket(Socket.TCP);
+		_socket.nonblocking = true;
+		_socket.noDelay = true;
 
-	this.Connect = function( host, port, OnConnected, OnData, OnDisconnected, OnFailed ) {
+		try {
+			_socket.Connect(host, port);
+
+		} catch(ex) {
+
+			ConnectionFailed();
+			return;
+		}
 
 		var _connectionTimeout;
-		
+
 		function ConnectionFailed() {
-			
+
 			delete _socket.writable;
 			delete _socket.readable;
 			io.RemoveTimeout(_connectionTimeout);
-			OnFailed();
-		}
-
-		_socket.writable = function(s) {
-		
-			delete s.writable;
-			io.RemoveTimeout(_connectionTimeout);
-			OnConnected();
+			_socket.Close();
+			_this.OnFailed();
 		}
 		
-		_socket.readable = function(s) {
-			
-			var buf = s.Read();
-			if ( buf.length == 0 ) {
-				
-				delete s.readable;
-				OnDisconnected(true);
-			}	else {
-			
-				OnData(buf);
-			}
-		}
-		
-		io.AddDescriptor(_socket);
 		_connectionTimeout = io.AddTimeout( 5000, ConnectionFailed );
 
-		try {		
-			_socket.Connect(host, port);
-			
-		} catch(ex) {
-			
-			ConnectionFailed();
+		_socket.writable = function(s) {
+
+			delete s.writable;
+			io.RemoveTimeout(_connectionTimeout);
+			_this.OnConnected();
 		}
-
-		this.Close = function() {
-
-			io.RemoveDescriptor(_socket); // no more read/write notifications are needed
-			_socket.Close();
-		}
-
-		this.Disconnect = function() {
-
-			delete _socket.writable;
-			_socket.Shutdown(); // both
-			var shutdownTimeout;
-			function Disconnected() {
-			
-				delete _socket.readable;
-				io.RemoveTimeout(shutdownTimeout); // cancel the timeout
-				OnDisconnected(false); // locally disconnected
-			}
-			_socket.readable = Disconnected;
-			shutdownTimeout = io.AddTimeout( 2000, Disconnected ); // force disconnect after the timeout
-		}
-
-		this.Write = function(data) _socket.Write(data);
 	}
+	
+	io.AddDescriptor(_socket);
+
+	_socket.readable = function(s) {
+
+		var buf = s.Read();
+		if ( buf.length == 0 ) {
+
+			delete s.readable;
+			_this.OnDisconnected(true);
+		}	else {
+
+			_this.OnData(buf);
+		}
+	}
+
+	this.Close = function() {
+
+		io.RemoveDescriptor(_socket); // no more read/write notifications are needed
+		_socket.Close();
+	}
+
+	this.Disconnect = function() {
+
+		delete _socket.writable;
+		_socket.Shutdown(); // both
+		var shutdownTimeout;
+		function Disconnected() {
+
+			delete _socket.readable;
+			io.RemoveTimeout(shutdownTimeout); // cancel the timeout
+			_this.OnDisconnected(false); // locally disconnected
+		}
+		_socket.readable = Disconnected;
+		shutdownTimeout = io.AddTimeout( 2000, Disconnected ); // force disconnect after the timeout
+	}
+
+	this.Write = function(data) _socket.Write(data);
 }
 
+
+function SocketServer( port, ip, OnIncoming ) {
+
+	var _server = new Socket(Socket.TCP);
+	_server.nonblocking = true;
+	
+	_server.Bind(port, ip);
+	_server.Listen();
+	_server.readable = function(s) OnIncoming(new SocketConnection( s.Accept() ));
+	this.Close = function() {
+
+		io.RemoveDescriptor(_server);
+		_server.Close();
+	}
+	io.AddDescriptor(_server);
+}

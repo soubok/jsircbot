@@ -63,10 +63,15 @@
 		
 		dcc: {
 		
-			chat: function( modCmd, dccType, from, data ) {
+			chatData: function( modCmd, dccType, from, data, connection ) {
 				
-//				var nick = from.split('!', 1);
-//				_mod.api.Privmsg( nick, data );	
+				if ( data == '!spy\n' ) {
+
+					_mod.AddMessageListenerSet( function() {
+						
+						connection.Write( Array.slice(arguments).toSource() + CRLF );
+					});
+				}
 			}
 		},
 		
@@ -81,7 +86,7 @@
 				var replyTo = to[0] == '#' ? to : nick;
 					
 				if ( !getData( _mod.data.channel[to].names[nick].operator ) ) {
-					
+				
 					_mod.api.Privmsg( replyTo, 'Only VIPs can query the VIP server' );
 					return;
 				}
@@ -95,7 +100,7 @@
 				QueryTremServer( pv.vipTremServer, 'getstatus', function(lines, ping) {
 					
 					if ( !lines ) {
-						
+					
 						_mod.api.Privmsg( replyTo, 'Sorry, the server does not respond.' );
 						return;
 					}
@@ -115,7 +120,7 @@
 						return;
 					}
 					
-					_mod.api.Privmsg( replyTo, ColorTremToIrc(serverInfo.sv_hostname) + '\x0F: ' + serverInfo.mapname + ', ' + lines.length + ' players' + ' (ping '+ping+')'  );
+					_mod.api.Privmsg( replyTo, ColorTremToIrc(serverInfo.sv_hostname) + '\x0F is running ' + serverInfo.mapname + ' with ' + lines.length + ' player(s)' ); //  + ' (ping '+ping+')'
 					while ( players.length )
 						_mod.api.Privmsg( replyTo, players.splice(0,8).join('  ') );
 				});
@@ -132,26 +137,66 @@
 
 				var nick = from.split('!',1);
 				var replyTo = to[0] == '#' ? to : nick;
+				
 				var guest = cmdData.split(' ',1);
 
 				_mod.api.AccesInfo( pv.vipChannel, function(access) {
+
+					if ( !access || access[nick] < pv.vipChanLevel ) {
+					
+						_mod.api.Privmsg( replyTo, 'You must be a VIP to use the bot.' );
+						return;
+					}
 				
-					if ( !access || access[nick] < pv.vipChanLevel )
-						return _mod.api.Privmsg( replyTo, 'You must be a VIP to invite someone.' );
-					if ( guest in access && access[guest] >= pv.vipChanLevel )
-						return _mod.api.Privmsg( replyTo, guest+' is already a VIP.' );
+					if ( !guest ) { // just get info
+					
+						HttpRequest( invitationURL, { action:'info', nick:nick }, 1000, function(statusCode, reasonPhrase, headers, body) {
+
+							if ( statusCode != 200 ) {
+								
+								_mod.api.Privmsg( replyTo, 'Service unavailable (' + statusCode + ' ' + reasonPhrase + '). Please retry later.' );
+								return;
+							}
+							
+							if ( !body ) {
+								
+								_mod.api.Privmsg( replyTo, 'You are not a VIP.' );
+								return;
+							}
+							
+							_mod.api.Privmsg( replyTo, nick + ', you are a VIP since '+(new date(responseObject.date*1000))+' and you have ' + responseObject.invitations_left + ' invitation(s) remaining.' );
+						});
+						
+						return;
+					}
+
+					if ( guest in access && access[guest] >= pv.vipChanLevel ) {
+					
+						_mod.api.Privmsg( replyTo, guest+' is already a VIP.' );
+						return;
+					}
 
 					_mod.api.NickInfo( guest, function(info) {
 
-						if ( !info )
-							return _mod.api.Privmsg( replyTo, guest+' is not registred on IRC.' );
+						if ( !info ) {
+						
+							_mod.api.Privmsg( replyTo, guest+' is not registred on IRC.' );
+							return;
+						}
 							
-						HttpRequest( invitationURL, { nick:nick }, 1000, function(statusCode, reasonPhrase, headers, body) {
+						HttpRequest( invitationURL, { action:'info', nick:nick }, 1000, function(statusCode, reasonPhrase, headers, body) {
 
-							if ( statusCode != 200 )
-								return _mod.api.Privmsg( replyTo, 'Service unavailable (' + statusCode + ' ' + reasonPhrase + '). Please retry later.' );
+							if ( statusCode != 200 ) {
+							
+								_mod.api.Privmsg( replyTo, 'Service unavailable (' + statusCode + ' ' + reasonPhrase + '). Please retry later.' );
+								return;
+							}
+							
 							if ( !body ) {
-								return _mod.api.Privmsg( replyTo, 'You must be a VIP to invite someone.' );
+							
+								_mod.api.Privmsg( replyTo, 'You must be a VIP to invite someone.' );
+								return;
+							}
 
 							var responseObject;
 							try {
@@ -159,6 +204,7 @@
 							} catch(ex) {
 								ReportError( ExToText(ex) );
 							}
+							
 							if ( !responseObject )
 								_mod.api.Privmsg( replyTo, 'Invalid server response. Please call TV.' );
 								
@@ -169,7 +215,7 @@
 
 							// do the invitation
 							
-							HttpRequest( invitationURL, { guest:guest, host:nick }, 1000, function(statusCode, reasonPhrase, headers, body) {} );
+							HttpRequest( invitationURL, { action:'invite', guest:guest, host:nick }, 1000, Noop );
 							
 							_mod.api.Privmsg( replyTo, guest + ' has been invited. You have ' + invLeft + ' invitation(s) remaining.' );
 							
@@ -189,6 +235,8 @@
 
 		RPL_WELCOME: function( command, from, to, msg ) {
 		
+		
+			_mod.api.Nick( pv.botNick );
 			_mod.api.Privmsg( pv.nickServ, 'IDENTIFY '+pv.password );
 			_mod.api.Join( pv.vipChannel );
 			// _mod.Send('CAPAB IDENTIFY-MSG'); // ask the server to prefix all messages with '+' if the nick is resistred

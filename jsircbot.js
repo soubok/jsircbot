@@ -21,6 +21,8 @@ Exec('dataObject.js');
 Exec('io.js');
 Exec('ident.js');
 
+const CR = '\r';
+const LF = '\n';
 const CRLF = '\r\n';
 
 
@@ -56,8 +58,10 @@ function MakeModuleFromPath( path, callback ) {
 	var args = arguments;
 	try {
 		
-		var file = new File(path);
-		var mod = new (eval(file.content));
+//		var file = new File(path);
+//		var mod = new (eval(file.content));
+		var mod = new (Exec(path, false));
+
 		mod.Reload = function() args.callee.apply(null, args);
 		callback(mod);
 	} catch(ex) {
@@ -157,7 +161,7 @@ function ClientCore( Configurator ) {
 	Configurator(_data);
 
 	var _numericCommand = Exec('NumericCommand.js');
-	var _connection = new SocketConnection();
+	var _connection;
 	var _modules = [];
 	var _messageListener = new Listener();
 	var _moduleListener = new Listener();
@@ -180,15 +184,16 @@ function ClientCore( Configurator ) {
 	this.Connect = function() {
 		
 		var _receiveBuffer = new Buffer();
-		
-		function OnConnected() {
 
+		_connection = new SocketConnection( getData(_data.server), getData(_data.port) );
+		
+		_connection.OnConnected = function() {
+			
 			_coreListener.Fire('OnConnected');
 		}
 
-		function OnDisconnected( remotelyDisconnected ) {
+		_connection.OnDisconnected = function( remotelyDisconnected ) {
 
-			
 			_coreListener.Fire('RemoveModuleListeners');
 			_coreListener.Fire('RemoveModuleAPI');
 			_coreListener.Fire('OnDisconnected');
@@ -197,9 +202,9 @@ function ClientCore( Configurator ) {
 			// (TBD) retry if remotelyDisconnected ?
 		}
 		
-		var OnFailed = OnDisconnected; // (TBD) try another server
+		_connection.OnFailed = _connection.OnDisconnected; // (TBD) try another server
 
-		function OnData(buf) {
+		_connection.OnData = function(buf) {
 
 			_receiveBuffer.Write(buf);
 			var message;
@@ -220,7 +225,6 @@ function ClientCore( Configurator ) {
 			}
 		}
 
-		_connection.Connect( getData(_data.server), getData(_data.port), OnConnected, OnData, OnDisconnected, OnFailed );
 		setData( _data.connectTime, IntervalNow() );
 		_coreListener.Fire('OnConnecting');
 	}
@@ -267,7 +271,7 @@ function ClientCore( Configurator ) {
 
 	this.ReloadModule = function( mod ) {
 
-		if ( Reload in mod )
+		if ( 'Reload' in mod )
 			mod.Reload();
 		else
 			ReportWarning('Unable to reload the module '+mod.name+': Reload function not found.');

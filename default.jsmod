@@ -34,7 +34,7 @@
 		RPL_USERHOST: function( command, from, to, host ) {
 			
 			if ( to == getData(_mod.data.nick) )
-				setData( _mod.data.userhost, host.substr(host.lastIndexOf('=')+1) ); // hostinfo[0] = '+' or '-' : AWAY message set ???
+				setData( _mod.data.userhost, RTrim( host.substr(host.lastIndexOf('=')+1) ) ); // hostinfo[0] = '+' or '-' : AWAY message set ???
 		},
 		
 /* same info in RPL_USERHOST
