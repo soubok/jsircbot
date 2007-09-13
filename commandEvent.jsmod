@@ -1,0 +1,109 @@
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: GNU GPL 2.0
+ *
+ * The contents of this file are subject to the
+ * GNU General Public License Version 2.0; you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ * http://www.gnu.org/licenses/gpl.html
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ * ***** END LICENSE BLOCK ***** */
+
+
+(function CommandEventModule() {
+	
+	this.name = this.constructor.name;
+	var _mod = this;
+	
+	
+	this.AddModuleAPI = function() {
+
+		_mod.api.UserHost = function( nickList, OnReply ) {
+
+			var timeoutId, events;
+
+			function Free() {
+				
+				_mod.RemoveMessageListenerSet(events);
+				io.RemoveTimeout(timeoutId);
+			}
+
+			function Error( command, erroneousCommand ) {
+				
+				if ( erroneousCommand == 'USERHOST' ) {
+
+					Free();
+					OnReply(); // error
+				}
+			}
+			
+			function Reply( command, from, to, hostList ) {
+
+				Free();
+				
+				var userHostParser = /./;
+				
+				try {
+					var result = {};
+					for each ( userhost in hostList.split(' ') ) {
+						
+// var key = [ 'source', 'nick', 'op', 'awayMsg', 'host'];
+// var match = /(.+?)(\*?)=(\+?)(?:.*?)@(.*)/('test*=+i=toto@titi');
+// for ( var res = {}, i = 0; i < match.length; i++) res[key[i]] = match[i];
+
+
+						var user = CHK(userhost.split('=',1))[0];
+						var host = CHK(userhost.split('@',2))[1];
+						result[CHK(user)] = CHK(host);
+					}
+				} catch(ex if ex == ERR ) {
+					
+					OnReply(); // error
+					return;
+				}
+				OnReply(result);
+			}
+			
+			var events = { RPL_USERHOST:Reply, ERR_NEEDMOREPARAMS:Error };
+			_mod.AddMessageListenerSet( events );
+
+			_mod.Send( 'USERHOST ' + nick, false, function() {
+				
+				// start the timeout ONLY vhen the message has been sent
+				timeoutId = io.AddTimeout(2000, function() { Free(); OnReply() } );
+			});
+		}
+
+		_mod.api.Listen = function() {
+		}
+	}
+
+	this.RemoveModuleAPI = function() {
+		
+		delete _mod.api.Listen;
+	}
+})
+
+
+/*
+302    RPL_USERHOST
+              ":*1<reply> *( " " <reply> )"
+
+         - Reply format used by USERHOST to list replies to
+           the query list.  The reply string is composed as
+           follows:
+
+           reply = nickname [ "*" ] "=" ( "+" / "-" ) hostname
+
+           The '*' indicates whether the client has registered
+           as an Operator.  The '-' or '+' characters represent
+           whether the client has set an AWAY message or not
+           respectively.
+
+eg:
+USERHOST Wiz Michael syrk
+:ircd.stealth.net 302 yournick :syrk=+syrk@millennium.stealth.net
+*/

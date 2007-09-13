@@ -111,7 +111,8 @@ function MakeFloodSafeMessageSender( maxMessage, maxData, time, RawDataSender ) 
 		var buffer = '';
 		while ( _count > 0 && _bytes > 0 && _messageQueue.length ) { // && (buffer + (_messageQueue[0]||'').length < maxData ???
 			
-			var msg = _messageQueue.shift();
+			var [msg,OnSent] = _messageQueue.shift();
+			OnSent && void OnSent();
 			buffer += msg;
 			_bytes -= msg.length;
 			_count--;
@@ -131,19 +132,20 @@ function MakeFloodSafeMessageSender( maxMessage, maxData, time, RawDataSender ) 
 		_messageQueue.length && Process(); // process if needed. else no more timeout
 	}
 	
-	return function( message, bypassAntiFlood ) {
+	return function( message, bypassAntiFlood, OnSent ) {
 		
 		if ( message ) { 
 		
 			message += CRLF;
 			if ( bypassAntiFlood ) {
 
+				void OnSent();
 				_count--;
 				_bytes -= message.length;
 				RawDataSender(message);
 			} else {
 
-				_messageQueue.push(message);
+				_messageQueue.push([message,OnSent]);
 				Process();
 			}
 		}

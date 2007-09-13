@@ -47,7 +47,7 @@
 			
 			reload: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 
-				var nick = from.split('!',1);
+				var nick = from.split('!',1)[0];
 				var replyTo = to[0] == '#' ? to : nick;
 
 				core.ReloadModuleByName(cmdData);
@@ -60,7 +60,7 @@
 				if( from != 'soubok!i=soubok@koe67-1-82-231-70-117.fbx.proxad.net' )
 					return;
 
-				var nick = from.split('!',1);
+				var nick = from.split('!',1)[0];
 				var replyTo = to[0] == '#' ? to : nick;
 
 				try {
@@ -72,7 +72,7 @@
 			
 			test: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 				
-				var nick = from.split('!',1);
+				var nick = from.split('!',1)[0];
 				_mod.api.OpenDCCChat(nick, function(connection) {
 				
 					connection.OnDisconnected = function() DPrint('OnDisconnected');
@@ -88,7 +88,7 @@
 				
 				DPrint( Array.slice(arguments).toSource() )
 
-				var nick = from.split('!',1);
+				var nick = from.split('!',1)[0];
 				var replyTo = to[0] == '#' ? to : nick;
 */
 
