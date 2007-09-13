@@ -31,26 +31,15 @@
 			_mod.Send( 'USERHOST ' + to );
 		},
 
-		RPL_USERHOST: function( command, from, to, host ) {
+		RPL_USERHOST: function( command, from, to, hostList ) {
 			
-			if ( to == getData(_mod.data.nick) )
-				setData( _mod.data.userhost, RTrim( host.substr(host.lastIndexOf('=')+1) ) ); // hostinfo[0] = '+' or '-' : AWAY message set ???
+			if ( to == getData(_mod.data.nick) ) {
+				
+				var host = hostList.split(' ')[0];
+				setData( _mod.data.userhost, host.substr(host.lastIndexOf('=')+1) ); // hostinfo[0] = '+' or '-' : AWAY message set ???
+			}
 		},
 		
-/* same info in RPL_USERHOST
-		function firstModeMessage( who, command, what, modes ) {
-			
-			var nick = who.substring( 0, who.indexOf('!') ); // [TBD] try to auto extract this
-
-			if ( nick == getData(_mod.data.nick) ) { // self
-				
-				setData( _mod.data.fullnick, who );
-				_mod.RemoveMessageListener( 'MODE', firstModeMessage );
-			}
-		}
-		_mod.AddMessageListener( 'MODE', firstModeMessage );
-*/
-
 		ERR_NICKCOLLISION: function() {
 			
 			delData( _mod.data.nick );
@@ -147,7 +136,14 @@
 		delete _mod.api.Quit;
 	}
 
-	this.AddModuleListeners = function() _mod.AddMessageListenerSet( listenerSet );
-	this.RemoveModuleListeners = function() _mod.RemoveMessageListenerSet( listenerSet );
+	this.AddModuleListeners = function() {
+		
+		_mod.AddMessageListenerSet( listenerSet );
+	}
+	
+	this.RemoveModuleListeners = function() {
+		
+		_mod.RemoveMessageListenerSet( listenerSet );
+	}
 })
 

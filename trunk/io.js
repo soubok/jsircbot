@@ -247,7 +247,12 @@ function SocketConnection( host, port ) {
 	if ( host instanceof Socket ) {
 		
 		_socket = host;
+		_this.sockPort = _socket.sockPort;
+		_this.sockName = _socket.sockName;
+		_this.peerPort = _socket.peerPort;
+		_this.peerName = _socket.peerName;
 	} else {
+	
 		_socket = new Socket(Socket.TCP);
 		_socket.nonblocking = true;
 		_socket.noDelay = true;
@@ -278,6 +283,10 @@ function SocketConnection( host, port ) {
 
 			delete s.writable;
 			io.RemoveTimeout(_connectionTimeout);
+			_this.sockPort = _socket.sockPort;
+			_this.sockName = _socket.sockName;
+			_this.peerPort = _socket.peerPort;
+			_this.peerName = _socket.peerName;
 			_this.OnConnected();
 		}
 	}
@@ -326,9 +335,13 @@ function SocketServer( port, ip, OnIncoming ) {
 
 	var _server = new Socket(Socket.TCP);
 	_server.nonblocking = true;
-	
-	_server.Bind(port, ip);
+	if ( port instanceof Array && port.length == 2 )
+		for ( var [p, portMax] = port; !server1.Bind( p, ip ) && p <= portMax; p++ );
+	else
+		_server.Bind(port, ip);
 	_server.Listen();
+	this.port = _server.sockPort;
+	this.name = _server.sockName;
 	_server.readable = function(s) OnIncoming(new SocketConnection( s.Accept() ));
 	this.Close = function() {
 

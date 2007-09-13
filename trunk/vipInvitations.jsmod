@@ -82,7 +82,7 @@
 				if ( to != pv.vipChannel )
 					return;
 
-				var nick = from.split('!', 1);
+				var nick = from.split('!', 1)[0];
 				var replyTo = to[0] == '#' ? to : nick;
 					
 				if ( !getData( _mod.data.channel[to].names[nick].operator ) ) {
@@ -135,10 +135,10 @@
 				if ( to != pv.vipChannel )
 					return;
 
-				var nick = from.split('!',1);
+				var nick = from.split('!',1)[0];
 				var replyTo = to[0] == '#' ? to : nick;
 				
-				var guest = cmdData.split(' ',1);
+				var guest = cmdData.split(' ',1)[0];
 
 				_mod.api.AccesInfo( pv.vipChannel, function(access) {
 

@@ -20,6 +20,8 @@
 	
 	var _count = 0;
 	var _maxDccChatConnections = 32; // (TBD) move to configuration
+	var _DCCPortRange = [1024, 2048];
+	var _chatRequestTimeout = 30000;
 
 	var _moduleListeners = {
 	
@@ -68,21 +70,17 @@
 		
 		_mod.api.OpenDCCChat = function( nick, callback ) {
 			
-			var port = 1024;
 			var ip = getData( _mod.data.userhost ).split('@',2)[1];
 			
 			var _dccAcceptTimeout;
-			
-			var server = new SocketServer( port, ip, function(connection) {
+			var server = new SocketServer( _DCCPortRange, ip, function(connection) {
 				
 				io.AddTimeout(_dccAcceptTimeout);
 				server.Close(); // we accept only one connection
 				callback(connection);
 			});
-			
-			_dccAcceptTimeout = io.AddTimeout( 30000, function() server.Close() );
-			
-			_mod.api.CtcpRequest( nick, 'DCC', 'CHAT chat ' + IpToIntegerp(ip) + ' ' + port );
+			_dccAcceptTimeout = io.AddTimeout( _chatRequestTimeout, function() server.Close() );
+			_mod.api.CtcpRequest( nick, 'DCC', 'CHAT chat ' + IpToIntegerp(ip) + ' ' + server.port );
 		}
 	}
 
