@@ -58,7 +58,7 @@ function ReportWarning(text) { log.WriteLn(text); Print(text, '\n') }
 function Failed(text) { log.WriteLn(text); throw new Error(text) } // fatal error
 
 function ERR() { throw ERR }
-function CHK(v) v || ERR();
+function CHK(v) v || ERR(); // check that the argument is not !!false
 function CHKEQ(value, eq) value == eq ? value : ERR();
 function CHKNEQ(value, neq) value != neq ? value : ERR();
 
@@ -73,6 +73,9 @@ function TRY(fct) {
 
 /////////////////////////////////////////////////////// Misc tools
 
+function Noop() {}
+
+
 function IntegerToIp(number) (number>>24 & 255)+'.'+(number>>16 & 255)+'.'+(number>>8 & 255)+'.'+(number & 255);
 
 function IpToIntegerp(ip) { 
@@ -85,6 +88,13 @@ function IpToIntegerp(ip) {
 
 
 function NumberToUint32NetworkOrderString(number) String.fromCharCode(number>>24 & 255)+String.fromCharCode(number>>16 & 255)+String.fromCharCode(number>>8 & 255)+String.fromCharCode(number & 255);
+
+function RandomString(length) {
+	
+	for ( var str = ''; str.length < length; str += Math.random().toString().substr(2) );
+	return str.substr(0, length);
+}
+
 
 function StringPad( str, count, chr ) {
 	
@@ -111,12 +121,19 @@ function RTrim(str) {
 	return str.substr(0, ++i);
 }
 
+function StrBefore( str, sep ) str.split(sep,1)[0];
 
 function StringReplacer(conversionObject) function(s) s.replace(new RegExp([k for (k in conversionObject)].join('|'), 'g'), function(str) conversionObject[str]); // eg. StringReplacer({aa:11})('xxaaxx'); returns 'xx11xx'
 
 function Switch(i) arguments[++i];
 
-function Noop() {}
+function MakeObj( tpl, arr ) {
+	
+	var obj = {};
+	if ( arr )
+		for ( var p in tpl ) obj[p] = arr[tpl[p]];
+	return obj;
+}
 
 
 /////////////////////////////////////////////////////// Event Listener
@@ -148,7 +165,6 @@ function Listener() {
 
 function ParseUri(source) { // ParseUri 1.2; MIT License By Steven Levithan. http://blog.stevenlevithan.com/archives/ParseUri
 	var o = ParseUri.options, value = o.parser[o.strictMode ? "strict" : "loose"].exec(source);
-
 	for (var i = 0, uri = {}; i < 14; i++) uri[o.key[i]] = value[i] || "";
 	uri[o.q.name] = {};
 	uri[o.key[12]].replace(o.q.parser, function ($0, $1, $2) { if ($1) uri[o.q.name][$1] = $2 });

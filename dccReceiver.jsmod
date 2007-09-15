@@ -20,7 +20,7 @@
 	
 	function DCCReceive( ip, port, fileName, timeout ) { // receiver is a client socket / sender is the server
 
-		var destinationPath = getData(_mod.data.DCCReceiverModule.destinationPath );
+		var destinationPath = getData(_mod.data[_mod.name].destinationPath );
 		
 		var dccSocket = new Socket();
 		var file = new File( destinationPath +'/' + fileName);

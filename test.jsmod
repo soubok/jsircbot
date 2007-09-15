@@ -31,53 +31,153 @@
 		
 		botcmd: {
 
-			raw: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
-
-				_mod.Send( cmdData );
-			},
 			dump: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 
-				Print(dumpData(_mod.data), '\n');
+				if ( !_mod.api.IsBotOp(from) )
+					return;
 
+				var nick = StrBefore(from, '!');
+				
+				_mod.api.OpenDCCChat( nick, function(connection) {
+					
+					connection.Write( dumpData(_mod.data) + '\n' );
+					connection.Close();
+				});
 			},
-			quit: function() {
+
+			quit: function( modCmd, cmdName, cmdData, command, from ) {
+
+				if ( !_mod.api.IsBotOp(from) )
+					return;
 
 				_mod.api.Quit('bye...');
 			},
 			
 			reload: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 
+				if ( !_mod.api.IsBotOp(from) )
+					return;
+
 				var nick = from.split('!',1)[0];
 				var replyTo = to[0] == '#' ? to : nick;
+				
+				if ( cmdData ) {
+				
+					var matchName = new RegExp(cmdData, 'i');
+					for each ( var moduleName in core.ModuleList() )
+						if ( matchName(moduleName) ) {
+						
+							_mod.api && _mod.api.Privmsg && _mod.api.Privmsg( replyTo, 'Reloading '+moduleName );
+							core.ReloadModuleByName(moduleName);
+						}
+				} else {
 
-				core.ReloadModuleByName(cmdData);
-
-				_mod.api.Privmsg && _mod.api.Privmsg( replyTo, 'Done' );
+					_mod.api.Privmsg && _mod.api.Privmsg( replyTo, 'list: '+core.ModuleList().join('  ') );
+				}
 			},
 
 			eval: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+				
+				if ( !_mod.api.IsBotOp(from) )
+					return;
 
-				if( from != 'soubok!i=soubok@koe67-1-82-231-70-117.fbx.proxad.net' )
+				var nick = StrBefore(from, '!');
+				_mod.api.OpenDCCChat( nick, function(connection) {
+					
+					var code = '';
+					
+					connection.OnData = function(buf) {
+						
+						code += buf;
+						if ( IsStatementValid(code) ) {
+							
+							var res;
+							try {
+
+								res = eval( buf );
+							} catch(ex) {
+
+								res = ex;
+							}
+							connection.Write(res + CRLF);
+							code = '';
+						}
+					}
+				});
+			},
+			
+			raw: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+
+				if ( !_mod.api.IsBotOp(from) )
+					return;
+
+				var nick = StrBefore(from, '!');
+
+				function CreateSpy(connection) function() {
+
+					connection.Write( Array.slice(arguments).toSource() + CRLF );
+				}
+				
+				_mod.api.OpenDCCChat( nick, function(connection) {
+
+					var spy = CreateSpy(connection);
+					_mod.AddMessageListenerSet(spy);
+					connection.OnData = function(buf) {
+						
+						if ( buf.substr(-2) == CRLF )
+							buf = buf.substr(0, buf.length-2);
+						_mod.Send(buf);
+					}
+
+					connection.OnDisconnected = function() _mod.RemoveMessageListenerSet(spy);
+				});
+			},
+
+			echo: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+
+				if ( !_mod.api.IsBotOp(from) )
+					return;
+
+				var nick = from.split('!',1)[0];
+				var replyTo = to[0] == '#' ? to : nick;
+				
+				_mod.api.Privmsg( replyTo, cmdData );
+			},
+
+			userhost: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+
+				if ( !_mod.api.IsBotOp(from) )
 					return;
 
 				var nick = from.split('!',1)[0];
 				var replyTo = to[0] == '#' ? to : nick;
 
-				try {
-					_mod.api.Privmsg( replyTo, eval(cmdData) );
-				} catch(ex) {
-					_mod.api.Privmsg( replyTo, ex );
-				}
-			},
-			
-			test: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
-				
-				var nick = from.split('!',1)[0];
-				_mod.api.OpenDCCChat(nick, function(connection) {
-				
-					connection.OnDisconnected = function() DPrint('OnDisconnected');
-					connection.Write('hello\n');
+/* getUserIp
+				var nick = StrBefore(from, '!');
+				_mod.api.OpenDCCChat( nick, function(connection) {
+						
+					var ip = connection.peerName;
+					connection.Close();
+					_mod.api.Privmsg( nick, 'your IP is: ' + ip );
 				});
+*/
+
+				_mod.api.UserHost( cmdData.split(' '), function(result) {
+				
+					_mod.api.Privmsg( replyTo, 'userhost : ' + result.toSource() );
+				});
+
+				
+/*
+				_mod.api.Prompt( 'soubok', 'hello', function() {
+				
+					DArgs();
+				});
+*/
+
+/* DCC chat				
+*/
+
 
 /*
 				var url = 'http://jsircbot.googlecode.com/svn/trunk/dccReceiver.jsmod';
@@ -93,7 +193,6 @@
 */
 
 	//			for ( var i = 0; i<100; i++ ) _mod.api.Privmsg( nick, 'XxxxxxxxXxxxxxxxXxxxxxxxXxxxx '+i );
-//				_mod.api.Privmsg( to, core.ModuleList() );
 	//			_mod.api.Privmsg( replyTo, new Date() );
 	//			_mod.api.Privmsg( to, Array.slice(arguments).toSource() );
 			}

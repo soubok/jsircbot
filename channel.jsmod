@@ -17,6 +17,8 @@
 	this.name = this.constructor.name;
 	var _mod = this;
 	
+	const _nameParser = /(@?)(\+?)(.*)/;
+	
 	function NormalizeChannelName(channelName) channelName.toLowerCase();
 
 	function ParseModes( modes, args, chanData ) {
@@ -69,14 +71,14 @@
 
 		RPL_WELCOME: function () {
 			
-			var chanList = getData(_mod.data.defaultChannelList);
+			var chanList = getData(_mod.data[_mod.name].joinList);
 			for each ( var channel in chanList )
 				_mod.Send( 'JOIN ' + channel );
 		},
 		
 		RPL_CREATIONTIME: function( command, from, to, channel, time ) {
 
-			setData( _mod.data.channel[NormalizeChannelName(channel)].creationTime, time );
+			setData( _mod.data.channel[NormalizeChannelName(channel)].creationTime, parseInt(time) );
 		},		
 
 		JOIN: function( command, who, channel ) { // :cdd_etf_bot!~cdd_etf_b@nost.net JOIN #soubok
@@ -85,8 +87,7 @@
 			
 			// channel name case may be wrong
 			
-			var nick = who.substring( 0, who.indexOf('!') ); // [TBD] try to auto extract this
-
+			var nick = StrBefore(who, '!'); // [TBD] try to auto extract this
 			if ( nick == getData(_mod.data.nick) ) { // self
 
 				setData( _mod.data.channel[NormalizeChannelName(channel)], true );
@@ -106,7 +107,7 @@
 
 		PART: function( command, who, channel ) {
 
-			var nick = who.substring( 0, who.indexOf('!') ); // [TBD] try to auto extract this
+			var nick = StrBefore(who, '!'); // (TBD) try to auto extract this
 			if ( nick == getData(_mod.data.nick) )
 				delData( _mod.data.channel[NormalizeChannelName(channel)] );
 			else
@@ -123,8 +124,7 @@
 
 		QUIT: function( command, who ) {
 
-			var nick = who.split('!',1);
-			
+			var nick = StrBefore(who, '!');
 			for each ( var chan in _mod.data.channel )
 				if ( nick in chan.names )
 					delData( chan.names[nick] );
@@ -132,11 +132,9 @@
 		
 		NICK: function( command, who, newNick ) {
 
-			var nick = who.split('!',1);
-
-//			if ( nick == getData( _mod.data.nick ) ) // do not manage bot nick change here!
+			var nick = StrBefore(who, '!')
+//			if ( nick == getData( _mod.data.nick ) ) // do not manage bot nick change here! why ?
 //				return;
-
 			for each ( var chan in _mod.data.channel )
 				if ( nick in chan.names )
 					moveData( chan.names[nick], chan.names[newNick] );
@@ -149,11 +147,9 @@
 
 		TOPIC: function( command, from, channel, topic ) {
 			
-			var who = from.split('!',1);
+			var who = StrBefore(from, '!')			
 			var time = Math.floor( (new Date().getTime())/1000 ); // adjust time because timezone ?
-
 			setData( _mod.data.channel[NormalizeChannelName(channel)].topic, topic );
-
 			setData( _mod.data.channel[NormalizeChannelName(channel)].topicWho, who );
 			setData( _mod.data.channel[NormalizeChannelName(channel)].topicWho, time );
 		},
@@ -183,54 +179,30 @@
 		
 		RPL_NAMREPLY: function( command, from, to, type, channel, list ) {
 		
-			// this is the first time that the channel name is used with the right case
-			
 			var chanData = _mod.data.channel[NormalizeChannelName(channel)];
 			
-			setData( chanData.name, channel );
+			setData( chanData.name, channel ); // this is the first time that the channel name is used with the right case,then save it
+			setData( chanData.secret, type == '@' );
+			setData( chanData.priv, type == '*' );
 			
-
-			if (type == '@')
-				setData( chanData.secret, true );
-
-			if (type == '*')
-				setData( chanData.priv, true );
-
-			var names = list.split(' ');
-			
-			for each ( var name in names ) {
+			for each ( var name in list.split(' ') ) {
 				
 				if ( !name ) continue;
-			
-				var nameOnly;
-				switch( name[0] ) {
-					case '+':
-						nameOnly = name.substring(1);
-						setData( chanData.names[nameOnly].voice, true );
-						break;
-					case '@':
-						nameOnly = name.substring(1);
-						setData( chanData.names[nameOnly].operator, true );
-						break;
-					default:
-						nameOnly = name;
-				}
-				setData( chanData.names[nameOnly], true );
+				var match = _nameParser(name);
+				if ( !match ) continue;
+				var [, op, voice, nick] = match;
+				setData( chanData.names[nick], true );
+				setData( chanData.names[nick].voice, !!voice );
+				setData( chanData.names[nick].operator, !!op );
 			}
 		}
 	};
 	
-	this.AddModuleAPI = function() {
-		
-		_mod.api.Join = function(channel) _mod.Send( 'JOIN ' + channel );
-		_mod.api.Part = function(channel) _mod.Send( 'PART ' + channel );
-		_mod.api.Invite = function(nick, channel) _mod.Send( 'INVITE ' + nick + ' ' + channel );
-	}
+	_mod.moduleApi = {
 	
-	this.RemoveModuleAPI = function() {
-	
-		delete _mod.api.Join;
-		delete _mod.api.Part;
+		Join: function(channel) _mod.Send( 'JOIN ' + channel ),
+		Part: function(channel) _mod.Send( 'PART ' + channel ),
+		Invite: function(nick, channel) _mod.Send( 'INVITE ' + nick + ' ' + channel )
 	}
 
 	this.AddModuleListeners = function() _mod.AddMessageListenerSet( listenerSet ); // listeners table , context (this)

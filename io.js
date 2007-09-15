@@ -194,9 +194,9 @@ function HttpRequest( url, data, timeout, OnResponse ) {
 		headers['Content-Length'] = body.length;
 	}
 
-	TCPGet( ud.host, ud.port||80, statusLine + CRLF + MakeHeaders(headers) + CRLF + body, 2000, function( response ) {
+	TCPGet( ud.host, ud.port||80, statusLine + CRLF + MakeHeaders(headers) + CRLF + body, timeout, function( response ) {
 
-		if ( !response ) {
+		if ( !response || response.length == 0 ) {
 		
 			OnResponse();
 			return;
@@ -211,7 +211,7 @@ function HttpRequest( url, data, timeout, OnResponse ) {
 				var [k, v] = h.split(': ',2); 
 				headers[k] = v;
 			}
-			OnResponse(statusCode, reasonPhrase, headers, response);
+			OnResponse(statusCode, reasonPhrase, headers, response.Read());
 		} catch(ex if ex == ERR) {
 
 			OnResponse();
@@ -234,9 +234,11 @@ function ProxyHttpConnection( proxyHost, proxyPort ) {
 
 ///////////////////////////////////////////////////////
 
-function SocketConnection( host, port ) {
-
+function SocketConnection( host, port, timeout ) {
+	
 	var _this = this;
+
+	timeout = timeout||5000;
 	
 	this.OnConnected = Noop;
 	this.OnData = Noop;
@@ -277,7 +279,7 @@ function SocketConnection( host, port ) {
 			_this.OnFailed();
 		}
 		
-		_connectionTimeout = io.AddTimeout( 5000, ConnectionFailed );
+		_connectionTimeout = io.AddTimeout( timeout, ConnectionFailed );
 
 		_socket.writable = function(s) {
 
@@ -324,25 +326,33 @@ function SocketConnection( host, port ) {
 			_this.OnDisconnected(false); // locally disconnected
 		}
 		_socket.readable = Disconnected;
-		shutdownTimeout = io.AddTimeout( 2000, Disconnected ); // force disconnect after the timeout
+		shutdownTimeout = io.AddTimeout( timeout/2, Disconnected ); // force disconnect after the timeout
 	}
 
 	this.Write = function(data) _socket.Write(data);
 }
 
 
-function SocketServer( port, ip, OnIncoming ) {
+function SocketServer( port, ip ) {
+
+	var _this = this;
+	
+	this.OnIncoming = Noop;
 
 	var _server = new Socket(Socket.TCP);
 	_server.nonblocking = true;
-	if ( port instanceof Array && port.length == 2 )
-		for ( var [p, portMax] = port; !server1.Bind( p, ip ) && p <= portMax; p++ );
-	else
+	if ( port instanceof Array ) {
+		
+		for ( var [p, portMax] = port; !_server.Bind( p, ip ) && p <= portMax; p++ );
+	} else {
+	
+		_server.reuseAddr = true; // if we have a port range, we can work without this option
 		_server.Bind(port, ip);
+	}
 	_server.Listen();
 	this.port = _server.sockPort;
 	this.name = _server.sockName;
-	_server.readable = function(s) OnIncoming(new SocketConnection( s.Accept() ));
+	_server.readable = function(s) _this.OnIncoming(new SocketConnection( s.Accept() ));
 	this.Close = function() {
 
 		io.RemoveDescriptor(_server);

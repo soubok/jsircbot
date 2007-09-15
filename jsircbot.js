@@ -42,7 +42,7 @@ function MakeModuleFromUrl( url, callback ) {
 
 		try {
 		
-			var mod = new (eval(body.toString()));
+			var mod = new (eval(body));
 			mod.Reload = function() args.callee.apply(null, args);
 			callback(mod);
 		} catch(ex) {
@@ -105,17 +105,19 @@ function MakeFloodSafeMessageSender( maxMessage, maxData, time, RawDataSender ) 
 	var _bytes = maxData;
 	var _messageQueue = [];
 	var _timeoutId;
-	
+
 	function Process() {
 	
 		var buffer = '';
 		while ( _count > 0 && _bytes > 0 && _messageQueue.length ) { // && (buffer + (_messageQueue[0]||'').length < maxData ???
 			
-			var [msg,OnSent] = _messageQueue.shift();
+			var [messages, OnSent] = _messageQueue.shift();
 			OnSent && void OnSent();
-			buffer += msg;
-			_bytes -= msg.length;
-			_count--;
+			
+			_count -= messages.length;
+			var messageString = messages.join(CRLF)+CRLF;
+			_bytes -= messageString.length;
+			buffer += messageString;
 		}
 		
 		buffer.length && RawDataSender(buffer);
@@ -125,7 +127,7 @@ function MakeFloodSafeMessageSender( maxMessage, maxData, time, RawDataSender ) 
 	}
 	
 	function Timeout() {
-	
+
 		_timeoutId = undefined;
 		_count = maxMessage;
 		_bytes = maxData;
@@ -135,14 +137,22 @@ function MakeFloodSafeMessageSender( maxMessage, maxData, time, RawDataSender ) 
 	return function( message, bypassAntiFlood, OnSent ) {
 		
 		if ( message ) { 
-		
-			message += CRLF;
+
+			if ( !(message instanceof Array) )
+				message = [message];
+			
 			if ( bypassAntiFlood ) {
 
-				void OnSent();
-				_count--;
-				_bytes -= message.length;
-				RawDataSender(message);
+				OnSent && void OnSent();
+
+				_count -= message.length;
+				var messageString = message.join(CRLF)+CRLF;
+				_bytes -= messageString.length;
+				RawDataSender(messageString);
+
+				if ( !_timeoutId ) // do not reset the timeout
+					_timeoutId = io.AddTimeout( time, Timeout );
+				
 			} else {
 
 				_messageQueue.push([message,OnSent]);
@@ -191,6 +201,10 @@ function ClientCore( Configurator ) {
 		
 		_connection.OnConnected = function() {
 			
+			setData( _data.sockName, _connection.sockName );
+			setData( _data.sockPort, _connection.sockPort );
+			setData( _data.peerPort, _connection.peerPort );
+			setData( _data.peerName, _connection.peerName );
 			_coreListener.Fire('OnConnected');
 		}
 
@@ -226,7 +240,6 @@ function ClientCore( Configurator ) {
 				_messageListener.Fire.apply( null, args );
 			}
 		}
-
 		setData( _data.connectTime, IntervalNow() );
 		_coreListener.Fire('OnConnecting');
 	}
@@ -239,11 +252,15 @@ function ClientCore( Configurator ) {
 		mod.AddModuleListenerSet = _moduleListener.AddSet;
 		mod.RemoveModuleListenerSet = _moduleListener.RemoveSet;
 		mod.FireModuleListener = _moduleListener.Fire;
+		
+		if ( mod.moduleApi )
+			for ( var f in mod.moduleApi )
+				_api[f] = mod.moduleApi[f];
+		
 		mod.Send = this.Send;
 		mod.data = _data;
 		mod.api = _api;
 		_modules.push(mod);
-		mod.AddModuleAPI && mod.AddModuleAPI();
 		mod.AddModuleListeners && mod.AddModuleListeners();
 		mod.InitModule && mod.InitModule();
 		return mod;
@@ -255,7 +272,11 @@ function ClientCore( Configurator ) {
 		if ( pos == -1 ) return;
 		_modules.splice(pos, 1);
 		mod.RemoveModuleListeners && mod.RemoveModuleListeners();
-		mod.RemoveModuleAPI && mod.RemoveModuleAPI();
+		
+		if ( mod.moduleApi )
+			for ( var f in mod.moduleApi )
+				delete _api[f];
+		
 		mod.DestroyModule && mod.DestroyModule();
 		_coreListener.RemoveSet(mod);
 		delete mod.data;
@@ -269,7 +290,6 @@ function ClientCore( Configurator ) {
 			if ( mod.name == name )
 				this.RemoveModule( mod );
 	}
-	
 
 	this.ReloadModule = function( mod ) {
 
@@ -287,7 +307,7 @@ function ClientCore( Configurator ) {
 	}
 
 	
-	this.HasModule = function( name ) _modules.some(function(mod) mod.name == name);
+	this.HasModuleName = function( name ) _modules.some(function(mod) mod.name == name);
 
 	this.ModuleList = function() [ m.name for each ( m in _modules ) ];
 
@@ -306,22 +326,31 @@ try {
 
 		setData( data.server, 'irc.freenode.net' );
 		setData( data.port, 6667 );
+		setData( data.hostname, '127.0.0.1' ); // try something else
+
+	// bot nick
+		setData(data.nick, 'TremVipBot');
+
+	// ident
+		setData(data.ident.opsys, 'UNIX');
+		setData(data.ident.userid, 'USERID');
+		setData(data.ident.username, 'user_TremVipBot');
+		setData(data.ident.realname, 'real_TremVipBot');
 
 	// configure chans
-		setData(data.defaultChannelList, ['#soubok']);
+		setData(data.ChannelModule.joinList, ['#soubok']);
 
 	// Configure anti-flood system ( in 10 seconds, we can send 5 messages OR 1456 bytes )
 		setData(data.antiflood.maxMessage, 10 );
 		setData(data.antiflood.maxBytes, 1456 );
 		setData(data.antiflood.interval, 10000 );
 
-	// configure nick, user, ...
-		setData(data.nick, 'TremVipBot' );
-		setData(data.username, 'user_TremVipBot' );
-		setData(data.realname, 'real_TremVipBot' );
-
 	// configure DCCReceiver module
 		setData(data.DCCReceiverModule.destinationPath, '.' );
+		
+	// bot operator password
+		setData(data.OperatorManagerModule.password, 's6d5vf4qsd6f5vsqs8dv8q' );
+		
 	}
 
 	var core = new ClientCore(Configurator);

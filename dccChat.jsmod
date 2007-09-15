@@ -61,32 +61,24 @@
 			}
 		}
 	};
+	
+	_mod.moduleApi = {
+	
+		OpenDCCChat: function( nick, callback ) {
+
+			var _dccAcceptTimeout, ip = getData( _mod.data.sockName );
+			var server = new SocketServer( _DCCPortRange, ip );
+			server.OnIncoming = function(connection) {
+
+				io.RemoveTimeout(_dccAcceptTimeout);
+				server.Close(); // we accept only one connection
+				callback(connection);
+			}
+			_dccAcceptTimeout = io.AddTimeout( _chatRequestTimeout, function() { server.Close() } );
+			_mod.api.CtcpRequest( nick, 'DCC', 'CHAT chat ' + IpToIntegerp(ip) + ' ' + server.port );
+		}	
+	};
 
 	this.AddModuleListeners = function() _mod.AddModuleListenerSet( _moduleListeners );
 	this.RemoveModuleListeners = function() _mod.RemoveModuleListenerSet( _moduleListeners );
-	
-	
-	this.AddModuleAPI = function() {
-		
-		_mod.api.OpenDCCChat = function( nick, callback ) {
-			
-			var ip = getData( _mod.data.userhost ).split('@',2)[1];
-			
-			var _dccAcceptTimeout;
-			var server = new SocketServer( _DCCPortRange, ip, function(connection) {
-				
-				io.AddTimeout(_dccAcceptTimeout);
-				server.Close(); // we accept only one connection
-				callback(connection);
-			});
-			_dccAcceptTimeout = io.AddTimeout( _chatRequestTimeout, function() server.Close() );
-			_mod.api.CtcpRequest( nick, 'DCC', 'CHAT chat ' + IpToIntegerp(ip) + ' ' + server.port );
-		}
-	}
-
-	this.RemoveModuleAPI = function() {
-		
-		delete _mod.api.OpenDCCChat;
-	}
-	
 })

@@ -18,73 +18,146 @@
 	this.name = this.constructor.name;
 	var _mod = this;
 	
+	const _maxServerReplyInterval = 1000;
+	const _maxUserReplyInterval = 10000;
 	
-	this.AddModuleAPI = function() {
+	var _userHostParser = /(.+?)(\*?)=(\+?)(?:.*?)@(.*)/;
+	
+	var _callList = [];
+	function ScheduleCall(fct) {
+		
+		_callList.push(fct);
+		if ( _callList.length == 1 )
+			_callList[0]();
+	}
+	
+	function NextCall() {
+		
+		_callList.shift();
+		_callList.length && _callList[0]();
+	}
+	
+	
+	_mod.moduleApi = {
+	
+		UserHost: function( nickList, OnReply ) {
 
-		_mod.api.UserHost = function( nickList, OnReply ) {
+			var pingData = RandomString(16);
+		
+			ScheduleCall(function() {
 
-			var timeoutId, events;
-
-			function Free() {
+				var timeoutId, events = {};
 				
-				_mod.RemoveMessageListenerSet(events);
-				io.RemoveTimeout(timeoutId);
-			}
+				_mod.AddMessageListenerSet(events);
 
-			function Error( command, erroneousCommand ) {
-				
-				if ( erroneousCommand == 'USERHOST' ) {
+				function End(reply) {
 
-					Free();
-					OnReply(); // error
+					_mod.RemoveMessageListenerSet(events);
+					io.RemoveTimeout(timeoutId);
+					NextCall();
+					OnReply(reply);
 				}
-			}
-			
-			function Reply( command, from, to, hostList ) {
 
-				Free();
-				
-				var userHostParser = /./;
-				
-				try {
+				function Error( command, from, to, erroneousCommand, reasonPhrase ) {
+
+					if ( erroneousCommand == 'USERHOST' )
+						End();
+				}
+
+				function UserHostResponse( command, from, to, hostList ) {
+
 					var result = {};
-					for each ( userhost in hostList.split(' ') ) {
-						
-// var key = [ 'source', 'nick', 'op', 'awayMsg', 'host'];
-// var match = /(.+?)(\*?)=(\+?)(?:.*?)@(.*)/('test*=+i=toto@titi');
-// for ( var res = {}, i = 0; i < match.length; i++) res[key[i]] = match[i];
+					for each ( var userhost in hostList.split(' ') ) {
 
+						var match = _userHostParser(userhost);
+						if ( userhost && match ) {
 
-						var user = CHK(userhost.split('=',1))[0];
-						var host = CHK(userhost.split('@',2))[1];
-						result[CHK(user)] = CHK(host);
+							var [, nick, ircOp, hasAwayMsg, host] = match;
+							result[nick] = host;
+						}
 					}
-				} catch(ex if ex == ERR ) {
-					
-					OnReply(); // error
-					return;
+					End(result);
 				}
-				OnReply(result);
-			}
-			
-			var events = { RPL_USERHOST:Reply, ERR_NEEDMOREPARAMS:Error };
-			_mod.AddMessageListenerSet( events );
 
-			_mod.Send( 'USERHOST ' + nick, false, function() {
+				events.PONG = function(command, from, server, data) {
+
+					if ( data != pingData )
+						return;
+					delete events.PONG;
+					events.RPL_USERHOST = UserHostResponse;
+					events.ERR_NEEDMOREPARAMS = Error;
+				}
 				
-				// start the timeout ONLY vhen the message has been sent
-				timeoutId = io.AddTimeout(2000, function() { Free(); OnReply() } );
+				// the PING ensure that the RPL_USERHOST is related to the right USERHOST
+				_mod.Send( ['PING '+pingData, 'USERHOST '+nickList.join(' ')], false, function() {
+
+					timeoutId = io.AddTimeout(_maxServerReplyInterval, End ); // start the timeout ONLY vhen the message has been sent
+				});
+			});
+		},
+		
+
+		Prompt: function( nick, message, OnReply ) {
+			
+			ScheduleCall(function() {
+
+				var timeoutId, events;
+
+				function End(message) {
+
+					_mod.RemoveMessageListenerSet(events);
+					io.RemoveTimeout(timeoutId);
+					NextCall();
+					OnReply(message);
+				}
+				
+				function Error() End(); // we need to ignore Error arguments because on error, OnReply must be called w/o arguments
+
+				function Reply( command, from, to, message ) {
+
+					if ( to == getData( _mod.data.nick ) && nick == StrBefore(from, '!') )
+						End(message);
+				}
+				events = { PRIVMSG:Reply, ERR_NORECIPIENT:Error, ERR_NOTEXTTOSEND:Error, ERR_CANNOTSENDTOCHAN:Error, ERR_NOTOPLEVEL:Error, ERR_WILDTOPLEVEL:Error, ERR_TOOMANYTARGETS:Error, ERR_NOSUCHNICK:Error, RPL_AWAY:Error };
+				_mod.AddMessageListenerSet(events);
+				_mod.api.Privmsg( nick, message, function() {
+
+					timeoutId = io.AddTimeout(_maxUserReplyInterval, End ); // start the timeout ONLY vhen the message has been sent
+				});
+			});
+		},
+
+
+		Sync: function( OnReply ) {
+			
+			var pingData = IntervalNow();
+			
+			ScheduleCall(function() {
+
+				var timeoutId, events;
+
+				function End(status) {
+
+					_mod.RemoveMessageListenerSet(events);
+					io.RemoveTimeout(timeoutId);
+					NextCall();
+					OnReply(status);
+				}
+				
+				function Reply( command, from, server, data ) data == pingData && End(true);
+
+				events = { PONG:Reply };
+
+				_mod.AddMessageListenerSet(events);
+				_mod.Send( 'PING '+pingData, false, function() {
+
+					timeoutId = io.AddTimeout(_maxServerReplyInterval, End ); // start the timeout ONLY vhen the message has been sent
+				});
 			});
 		}
-
-		_mod.api.Listen = function() {
-		}
-	}
-
-	this.RemoveModuleAPI = function() {
 		
-		delete _mod.api.Listen;
-	}
+		
+	};
 })
 
 
