@@ -1,0 +1,78 @@
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: GNU GPL 2.0
+ *
+ * The contents of this file are subject to the
+ * GNU General Public License Version 2.0; you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ * http://www.gnu.org/licenses/gpl.html
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ * ***** END LICENSE BLOCK ***** */
+
+
+(function OperatorManagerModule() {
+	
+	this.name = this.constructor.name;
+	var _mod = this;
+	
+	this.InitModule = function() {
+	
+		setData( _mod.data[_mod.name].list, [] );
+	}
+
+	var _moduleListeners = {
+		
+		botcmd: {
+
+			oops: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+
+				if ( !_mod.api.IsBotOp(from) )
+					return;
+			
+				setData( _mod.data[_mod.name].password, undefined );
+				setData( _mod.data[_mod.name].list, [] );
+
+				var replyTo = to[0] == '#' ? to : StrBefore(from, '!');
+				_mod.api.Privmsg( replyTo, 'Operator functions are locked.' );
+			},
+
+			isop: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+
+				var replyTo = to[0] == '#' ? to : StrBefore(from, '!');
+				_mod.api.Privmsg( replyTo, _mod.api.IsBotOp(from) ? 'yes' : 'no' );
+			},
+			
+			op: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+				
+				var replyTo = to[0] == '#' ? to : StrBefore(from, '!');
+				
+				if ( !_mod.api.IsBotOp(from) ) {
+	
+					var password = getData( _mod.data[_mod.name].password );
+				
+					if ( password && cmdData == password ) {
+
+						getData( _mod.data[_mod.name].list ).push(from);
+						_mod.api.Privmsg( replyTo, 'Done.' );
+					}
+				} else {
+
+					_mod.api.Privmsg( replyTo, 'Already done.' );
+				}
+			}
+		}
+	}
+	
+	_mod.moduleApi = {
+	
+		IsBotOp:function(from) getData( _mod.data[_mod.name].list ).indexOf(from) != -1
+	}
+	
+	this.AddModuleListeners = function() _mod.AddModuleListenerSet( _moduleListeners );
+	this.RemoveModuleListeners = function() _mod.RemoveModuleListenerSet( _moduleListeners );
+
+})
+

@@ -133,16 +133,10 @@ const SPC = '\040'; // space
 	this.AddModuleListeners = function() _mod.AddMessageListenerSet( _serverMessageListener );
 	this.RemoveModuleListeners = function() _mod.RemoveMessageListenerSet( _serverMessageListener );
 	
-	this.AddModuleAPI = function() {
-	
-		_mod.api.CtcpRequest = function(who, tag, data) _mod.Send( 'PRIVMSG ' + who + ' :' + lowLevelCtcpDequote( X_DELIM + ctcpLevelQuote(tag + SPC + data) + X_DELIM ) );
-		_mod.api.CtcpResponse = function(who, tag, data) _mod.Send( 'NOTICE ' + who + ' :' + lowLevelCtcpDequote( X_DELIM + ctcpLevelQuote(tag + SPC + data) + X_DELIM ) );
-	}
-	
-	this.RemoveModuleAPI = function() {
-
-		delete _mod.api.CtcpRequest;
-		delete _mod.api.CtcpResponse;
+	_mod.moduleApi = {
+		
+		CtcpRequest:function(who, tag, data) _mod.Send( 'PRIVMSG ' + who + ' :' + lowLevelCtcpDequote( X_DELIM + ctcpLevelQuote(tag + SPC + data) + X_DELIM ) ),
+		CtcpResponse:function(who, tag, data) _mod.Send( 'NOTICE ' + who + ' :' + lowLevelCtcpDequote( X_DELIM + ctcpLevelQuote(tag + SPC + data) + X_DELIM ) )
 	}
 })
 

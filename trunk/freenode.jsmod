@@ -85,8 +85,10 @@
 	
 	function ProcessRequest() {
 
-		_timeoutId = io.AddTimeout( 10000, Done );
-		_mod.api.Privmsg( _requestList[0].service, _requestList[0].query );
+		_mod.api.Privmsg( _requestList[0].service, _requestList[0].query, function() {
+
+			_timeoutId = io.AddTimeout( 3000, Done );
+		});
 	}
 	
 	function StartRequest( service, query, parser, callback) {
@@ -102,25 +104,19 @@
 			if ( _requestList.length && from == _requestList[0].service && to == getData(_mod.data.nick) )
 				_requestList[0].parser(msg, _requestList[0]);
 		}
+	}
+	
+// we can sync the NickServ or ChanServ with a bad TEST command. The response will be:  ["NOTICE", "NickServ!NickServ@services.", "TremVipBot", "Unknown command [TEST]"]
+	
+	_mod.moduleApi = {
+	
+		NickInfo:function(nick, callback) StartRequest( 'NickServ!NickServ@services.', 'INFO '+nick, infoParser, callback ),
 		
-//	RPL_USERHOST: 302
-//USERHOST soubok
-//:kubrick.freenode.net 302 soubok :soubok=+i=soubok@82.231.70.117 		
-	}
-	
-	this.AddModuleAPI = function() {
-	
-		_mod.api.NickInfo = function(nick, callback) StartRequest( 'NickServ!NickServ@services.', 'INFO '+nick, infoParser, callback );
-		_mod.api.AccesInfo = function(channel, callback) StartRequest( 'ChanServ!ChanServ@services.', 'ACCESS '+channel+' LIST', accessParser, callback );
-		_mod.api.ChanInfo = function(channel, callback) StartRequest( 'ChanServ!ChanServ@services.', 'INFO '+channel, channelInfoParser, callback );
-		_mod.api.SetAccessLevel = function(channel, nick, level) void _mod.api.Privmsg( 'ChanServ!ChanServ@services.', 'ACCESS '+chnnel+' ADD '+nick+' '+level );
-	}
-	
-	this.RemoveModuleAPI = function() {
-	
-		delete _mod.api.NickInfo;
-		delete _mod.api.AccesInfo;
-		delete _mod.api.ChanInfo;
+		AccesInfo:function(channel, callback) StartRequest( 'ChanServ!ChanServ@services.', 'ACCESS '+channel+' LIST', accessParser, callback ),
+		
+		ChanInfo:function(channel, callback) StartRequest( 'ChanServ!ChanServ@services.', 'INFO '+channel, channelInfoParser, callback ),
+		
+		SetAccessLevel:function(channel, nick, level) void _mod.api.Privmsg( 'ChanServ!ChanServ@services.', 'ACCESS '+channel+' ADD '+nick+' '+level )
 	}
 	
 	this.AddModuleListeners = function() _mod.AddMessageListenerSet( _messageListeners );

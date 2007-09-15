@@ -53,13 +53,14 @@ function setData( path, data ) {
 }
 
 function getData( path ) {
-
-	return ObjEx.Aux(path).data || undefined; // "|| undefined" avoids strict warning
+	
+	var aux = ObjEx.Aux(path);
+	return ('data' in aux) ? (aux.data) : undefined;
 }
 
 function hasData( path ) {
 
-	return 'data' in ObjEx.Aux(path);
+	return ('data' in ObjEx.Aux(path));
 }
 
 function moveData( path, newPath ) {
@@ -69,6 +70,11 @@ function moveData( path, newPath ) {
 	for ( var k in path )
 		moveData( path[k], newPath[k] );		
 }
+
+//function delPath( path ) {
+//	
+//	delete path;
+//}
 
 function delData( path ) { // delete datas but not listeners
 
@@ -80,14 +86,46 @@ function delData( path ) { // delete datas but not listeners
 		delData( v );
 }
 
+/*
+
+var xml = <data>
+  <aaa/>
+  <aaa/>
+</data>;
+
+for each( var x in xml ) {
+
+  _o(x.name())
+}
+
+function importXML( dest, src ) {
+	
+	for ( var name in src ) {
+		
+		dest[name] = src[name]
+}
+*/
+
 function dumpData( path, tab ) {
 
 	tab = tab||'';
 	var out = '';
 	for ( var name in path ) {
 		
-		var data = getData( path[name] );
-		out += tab + name + '=' + data + '<' + (typeof data) + '>';
+		var has = hasData(path[name]);
+		var data = getData(path[name]);
+
+		switch ( typeof data ) {
+			case 'string':
+				data = '"' + data + '"';
+				break;
+			case 'object':
+				if ( data instanceof Array )
+					data = data.toSource();
+				break;
+		}
+
+		out += tab + name + (has ? (' = ' + data) : '');
 		out += '\n' + dumpData(path[name], tab + '    ');
 	}
 	return out;

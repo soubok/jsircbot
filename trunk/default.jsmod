@@ -17,6 +17,8 @@
 	
 	this.name = this.constructor.name;
 	var _mod = this;
+	
+	const _lagProbeInterval = 30000;
 
 // [TBD] autodetect max message length ( with a self sent mesage )
 // [TBD] autodetect flood limit
@@ -29,6 +31,13 @@
 
 			setData( _mod.data.nick, to );
 			_mod.Send( 'USERHOST ' + to );
+			
+			function LagProbe() {
+				
+				_mod.Send( 'PING LAG' + IntervalNow(), true );
+				io.AddTimeout(_lagProbeInterval, arguments.callee );
+			}
+			LagProbe();
 		},
 
 		RPL_USERHOST: function( command, from, to, hostList ) {
@@ -69,6 +78,14 @@
 			setData( _mod.data.lastPingTime, IntervalNow() );
 		},
 
+		PONG: function( command, from, server, data ) {
+			
+			if ( data.substr(0,3) == 'LAG' ) {
+
+				setData( _mod.data.ping, IntervalNow() - parseInt(data.substr(3)) );
+			}
+		},
+
 		NOTICE: function( command, from, to, message ) {
 
 			// irc.clockworkorange.co.uk- on 1 ca 1(2) ft 10(10) tr
@@ -95,45 +112,18 @@
 	this.OnConnected = function() {
 		
 		var data = _mod.data;
-		Ident( io, function(identRequest) identRequest + ' : '+getData(data.userid)+' : '+getData(data.opsys)+' : '+getData(data.nick)+CRLF, 2000 ); // let 2 seconds to the server to make the IDENT request
-		_mod.Send( 'USER '+getData(data.username)+' '+getData(data.hostname)+' '+getData(data.server)+' :'+getData(data.realname) );
+		Ident( io, function(identRequest) identRequest + ' : '+getData(data.ident.userid)+' : '+getData(data.ident.opsys)+' : '+getData(data.nick)+CRLF, 2000 ); // let 2 seconds to the server to make the IDENT request
+		_mod.Send( 'USER '+getData(data.ident.username)+' '+getData(data.hostname)+' '+getData(data.server)+' :'+getData(data.ident.realname) );
 		_mod.Send( 'NICK '+getData(data.nick) );
 	} 
 
-	this.InitModule = function() {
+	_mod.moduleApi = {
 
-		setData( _mod.data.hostname, '127.0.0.1' ); // try something else
-//		setData( _mod.data.username, username||('user_'+nick) );
-//		setData( _mod.data.realname, realname||('name_'+nick) );
-		setData( _mod.data.opsys, 'UNIX' ); // for identd
-		setData( _mod.data.userid, 'USERID' ); // for identd
-	}
-
-	this.AddModuleAPI = function() {
+		Nick: function( nick ) void _mod.Send( 'NICK '+nick ),
 		
-		_mod.api.Nick = function( nick ) {
+		Privmsg: function( to, message, OnSent ) _mod.Send( 'PRIVMSG '+StrBefore(to,'!')+' :'+message, false, OnSent ),
 
-			_mod.Send( 'NICK '+nick );
-		}
-		
-		_mod.api.Privmsg = function( to, message ) {
-		
-			var hostpos = to.indexOf('!');
-			if ( hostpos != -1 )
-				to = to.substr( 0, hostpos );
-			return _mod.Send( 'PRIVMSG '+to+' :'+message );
-		}
-
-		_mod.api.Quit = function(quitMessage) {
-
-			_mod.Send( 'QUIT :'+quitMessage, true ); // true = force the message to be post ASAP
-		}
-	}
-
-	this.RemoveModuleAPI = function() {
-		
-		delete _mod.api.Privmsg;
-		delete _mod.api.Quit;
+		Quit: function(quitMessage) _mod.Send( 'QUIT :'+quitMessage, true ) // true = force the message to be post ASAP
 	}
 
 	this.AddModuleListeners = function() {
