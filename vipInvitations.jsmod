@@ -88,7 +88,7 @@
 
 	function QueryVIPDatabase( data, OnResult ) {
 
-		HttpRequest( pv.invitationURL, data, 2000, function(status, statusCode, reasonPhrase, headers, body) {
+		HttpRequest( pv.invitationURL, data, 3000, function(status, statusCode, reasonPhrase, headers, body) {
 
 			if ( status != OK ) {
 				
@@ -152,13 +152,22 @@
 		});
 	}
 	
-	
-	
+
 	var _moduleListeners = {
 		
 		botcmd: {
 			
-			server:function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+			help: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+
+				if ( to != pv.vipChannel )
+					return;
+
+				var nick = StrBefore(from, '!');
+				var replyTo = to[0] == '#' ? to : nick;
+				_mod.api.Privmsg( replyTo, 'Help: !invite [<nick>] / !server' );
+			},
+			
+			server: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 				
 				if ( to != pv.vipChannel )
 					return;
@@ -168,7 +177,7 @@
 
 				if ( _mod.lastServerQueryInterval && IntervalNow() - _mod.lastServerQueryInterval < 10000 ) { // anti-flood
 
-					_mod.api.Privmsg( replyTo, 'Please don\'t spam, retry later' );
+					_mod.api.Privmsg( replyTo, 'Please don\'t spam, try again later.' );
 					return;
 				}
 				
@@ -219,7 +228,7 @@
 
 						if ( status != OK ) {
 
-							_mod.api.Privmsg( replyTo, 'Unable to get your IRC status.' );
+							_mod.api.Privmsg( replyTo, 'Unable to get your VIP status.' );
 							return;
 						}
 
@@ -247,9 +256,11 @@
 	//								_mod.api.Privmsg( replyTo, response.error );
 									return;
 								}
-
-								_mod.api.Privmsg( replyTo, nick + ', you\'ve been a VIP since '+(new Date(parseInt(response.time)*1000))+' and you have ' + response.invitations_left + ' invitation(s) remaining.' );
+								
+								var days = Math.floor( (new Date() - new Date(parseInt(response.time)*1000)) / 86400000 );
+								_mod.api.Privmsg( replyTo, nick + ', you\'ve been a VIP for '+days+' days and you have ' + response.invitations_left + ' invitation(s) remaining.' );
 							});
+							
 							return;
 						}
 

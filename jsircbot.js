@@ -21,11 +21,6 @@ Exec('dataObject.js');
 Exec('io.js');
 Exec('ident.js');
 
-const CR = '\r';
-const LF = '\n';
-const CRLF = '\r\n';
-
-
 ///////////////////////////////////////////////// TOOLS /////////////////////////////////////////////
 
 
