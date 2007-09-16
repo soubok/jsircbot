@@ -21,79 +21,141 @@
 	var _requestList = [];
 	var _timeoutId;
 
-
 	function channelInfoParser(msg, request) {
-		// (TBD)
+	
+		if ( msg.indexOf('is not registered') != -1 ) {
+			
+			Done(NOTFOUND);
+			return;
+		}
+		var [field, data] = LTrim(msg).split(': ',2);
+		switch ( field ) {
+			case 'Channel':
+				request.reply = {};
+				request.reply.channel = data;
+				break;
+			case 'Contact':
+				request.reply.Contact = StrBefore(data,' ');
+				request.reply.isContactOnline = (data.indexOf('ONLINE') != -1);
+				break;
+			case 'Registered':
+				request.reply.registered = data;
+				break;
+			case 'Topic':
+				request.reply.topic = data;
+				break;
+			case 'Contact URI':
+				request.reply.contactUri = data;
+				break;
+			case 'Options':
+				request.reply.options = data.split(', ');
+				break;
+			case 'Mode Lock':
+				request.reply.modeLock = data;
+				Done(OK);
+				break;
+		}
 	}
 
-	function accessParser(msg, request) {
+	function accessInfoParser(msg, request) {
+		
+		try {
+	
+			if ( msg.indexOf('End of list') != -1 || msg.indexOf('is not registered') != -1 ) {
+				
+				Done(OK);
+				return;
+			}
+	
+			if ( msg.indexOf('Access List for') != -1 ) {
 
-		var line = /^([0-9]+) +([0-9]+) +([^ ]+) +(.*)$/(msg);
-		if ( line )
-			request.reply[line[3]] = parseInt(line[2]);
-		else if ( msg.indexOf('Access List for') != -1 )
-			request.reply = {};
-		else if ( msg.indexOf('End of list') != -1 || msg.indexOf('is not registered') != -1 )
-			Done();
+				request.reply = [];
+				return;
+			}
+		
+			var tpl = { num:1, level:2, hostmask:3, time:4 };
+			var parseAccessInfoLine = /^([0-9]+) +([0-9]+) +([^ ]+) +(.*?) *$/;
+			var match = parseAccessInfoLine(msg);
+			match && request.reply.push( MakeObj( tpl, match ) );
+
+		} catch(ex if ex == ERR) {
+			
+			log.WriteLn('accessInfoParser: parsing error');
+			Done(ERROR);
+			return;
+		}
 	}
+	
 	
 	function infoParser(msg, request) {
 		
-		if ( msg.indexOf('is not registered') == -1 ) {
+		if ( msg.indexOf('is not registered') != -1 ) {
+			
+			Done(NOTFOUND);
+			return;
+		}
+		var [field, data] = LTrim(msg).split(': ',2);
+		switch ( field ) {
+			case 'Nickname':
+				request.reply = {};
+				request.reply.nick = StrBefore(data,' ');
+				request.reply.isOnline = (data.indexOf('ONLINE') != -1);
+				break;
+			case 'Registered':
+				request.reply.registred = data;
+				break;
+			case 'Last Seen':
+				request.reply.lastSeen = data;
+				break;
+			case 'Last Seen Address':
+				request.reply.lastSeenAddress = data;
+				break;
+			case 'Last Seen Quit Msg':
+				request.reply.lastSeenQuitMsg = data;
+				break;
+			case 'Email Address':
+				request.reply.emailAddress = data;
+				break;
+			case 'UIN':
+				request.reply.UIN = data;
+				break;
+			case 'Nickname Options':
+				request.reply.nicknameOptions = data.split(', ');
+				Done(OK);
+				break;
+		}
+	}
 
-			var [field, data] = LTrim(msg).split(': ',2);
-			switch ( field ) {
-				case 'Nickname':
-					request.reply = {};
-					request.reply.nick = data.split(' ',1)[0];
-					request.reply.isOnline = (data.indexOf('ONLINE') != -1);
-					break;
-				case 'Registered':
-					request.reply.registred = data;
-					break;
-				case 'Last Seen':
-					request.reply.lastSeen = data;
-					break;
-				case 'Last Seen Address':
-					request.reply.lastSeenAddress = data;
-					break;
-				case 'Last Seen Quit Msg':
-					request.reply.lastSeenQuitMsg = data;
-					break;
-				case 'Email Address':
-					request.reply.emailAddress = data;
-					break;
-				case 'UIN':
-					request.reply.UIN = data;
-					break;
-				case 'Nickname Options':
-					request.reply.nicknameOptions = data.split(', ');
-					Done();
-					break;
-			}
-		} else
-			Done();
+	// WaitSync generates a parser that waits for the sync signal and then set the regular message parser.
+	function WaitSync(syncKey, commandParser) {
+		
+		return function(msg, request) {
+		
+			if ( msg.indexOf(syncKey) != -1 ) // the message contains the sync key ( -NickServ- Unknown command [<key>] )
+				request.parser = commandParser;
+		}
 	}
 	
-	function Done() {
+	function Done(status) {
 	
 		io.RemoveTimeout(_timeoutId);
-		void _requestList[0].callback(_requestList[0].reply || undefined);
+		void _requestList[0].callback(status, _requestList[0].reply || undefined);
 		_requestList.shift();
 		_requestList.length && ProcessRequest();
 	}
 	
 	function ProcessRequest() {
 
-		_mod.api.Privmsg( _requestList[0].service, _requestList[0].query, function() {
+		_mod.api.Privmsg( _requestList[0].service, _requestList[0].message, function() {
 
-			_timeoutId = io.AddTimeout( 3000, Done );
+			_timeoutId = io.AddTimeout( 10000, function() Done(TIMEOUT) );
 		});
 	}
 	
 	function StartRequest( service, query, parser, callback) {
-
-		_requestList.push({ service:service, query:query, parser:parser, callback:callback });
+	
+		var syncKey = RandomString(8);
+		_requestList.push({ service:service, message:[syncKey, query], parser:WaitSync(syncKey, parser), callback:callback });
 		_requestList.length == 1 && ProcessRequest();
 	}
 	
@@ -109,12 +171,16 @@
 // we can sync the NickServ or ChanServ with a bad TEST command. The response will be:  ["NOTICE", "NickServ!NickServ@services.", "TremVipBot", "Unknown command [TEST]"]
 	
 	_mod.moduleApi = {
-	
+
+		// Syntax: INFO <nickname>	
 		NickInfo:function(nick, callback) StartRequest( 'NickServ!NickServ@services.', 'INFO '+nick, infoParser, callback ),
-		
-		AccesInfo:function(channel, callback) StartRequest( 'ChanServ!ChanServ@services.', 'ACCESS '+channel+' LIST', accessParser, callback ),
-		
+
+		// Syntax: INFO <channel>
 		ChanInfo:function(channel, callback) StartRequest( 'ChanServ!ChanServ@services.', 'INFO '+channel, channelInfoParser, callback ),
+		
+		// Syntax: ACCESS <channel> LIST [FULL|mask]
+		AccessInfo:function(channel, callback) StartRequest( 'ChanServ!ChanServ@services.', 'ACCESS '+channel+' LIST', accessInfoParser, callback ),
+		
 		
 		SetAccessLevel:function(channel, nick, level) void _mod.api.Privmsg( 'ChanServ!ChanServ@services.', 'ACCESS '+channel+' ADD '+nick+' '+level )
 	}

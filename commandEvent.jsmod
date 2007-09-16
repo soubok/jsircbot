@@ -18,7 +18,7 @@
 	this.name = this.constructor.name;
 	var _mod = this;
 	
-	const _maxServerReplyInterval = 1000;
+	const _maxServerReplyInterval = 2000;
 	const _maxUserReplyInterval = 10000;
 	
 	var _userHostParser = /(.+?)(\*?)=(\+?)(?:.*?)@(.*)/;
@@ -27,8 +27,7 @@
 	function ScheduleCall(fct) {
 		
 		_callList.push(fct);
-		if ( _callList.length == 1 )
-			_callList[0]();
+		_callList.length == 1 && void _callList[0]();
 	}
 	
 	function NextCall() {
@@ -40,43 +39,21 @@
 	
 	_mod.moduleApi = {
 	
-		UserHost: function( nickList, OnReply ) {
+		Whois: function( nick, OnReply ) {
 
-			var pingData = RandomString(16);
-		
 			ScheduleCall(function() {
 
-				var timeoutId, events = {};
+				var pingData = RandomString(16);
+				var timeoutId, events = {}, result = {};
 				
 				_mod.AddMessageListenerSet(events);
 
-				function End(reply) {
+				function End(status, reply) {
 
 					_mod.RemoveMessageListenerSet(events);
 					io.RemoveTimeout(timeoutId);
 					NextCall();
-					OnReply(reply);
-				}
-
-				function Error( command, from, to, erroneousCommand, reasonPhrase ) {
-
-					if ( erroneousCommand == 'USERHOST' )
-						End();
-				}
-
-				function UserHostResponse( command, from, to, hostList ) {
-
-					var result = {};
-					for each ( var userhost in hostList.split(' ') ) {
-
-						var match = _userHostParser(userhost);
-						if ( userhost && match ) {
-
-							var [, nick, ircOp, hasAwayMsg, host] = match;
-							result[nick] = host;
-						}
-					}
-					End(result);
+					OnReply(status, reply);
 				}
 
 				events.PONG = function(command, from, server, data) {
@@ -84,14 +61,90 @@
 					if ( data != pingData )
 						return;
 					delete events.PONG;
-					events.RPL_USERHOST = UserHostResponse;
-					events.ERR_NEEDMOREPARAMS = Error;
+					
+					events.RPL_WHOISUSER = function( command, from, to, nick, user, host, star, realName ) {
+						
+						result.nick = nick
+						result.user = user
+						result.host = host;
+						result.realName = realName;
+					}
+					events.RPL_WHOISCHANNELS = function( command, from, to, nick, channelList ) {
+
+						result.channelList = RTrim(channelList).split(' ');
+					}
+					events.RPL_WHOISSERVER = function( command, from, to, nick, server, serverInfo ) {
+						result.server = server;
+						result.serverInfo = serverInfo;
+					}
+					events[320] = function( command, from, to, nick ) { // is identified to services (freenode only)
+					
+						result.isIdentified = true;
+					}
+					events.RPL_ENDOFWHOIS = function( command, from, to, nick ) {
+						
+						End(OK, result);
+					}
+					events.ERR_NOSUCHSERVER = function() End(NOTFOUND);
+					events.ERR_NONICKNAMEGIVEN = function() End(ERROR);
+					events.ERR_NOSUCHNICK = function() End(NOTFOUND);
 				}
 				
-				// the PING ensure that the RPL_USERHOST is related to the right USERHOST
+				_mod.Send( ['PING '+pingData, 'WHOIS '+nick], false, function() { // PING to sync the request
+
+					timeoutId = io.AddTimeout(_maxServerReplyInterval, function() End(TIMEOUT) );
+				});
+			});		
+		},
+
+
+		UserHost: function( nickList, OnReply ) {
+
+			ScheduleCall(function() {
+
+				var pingData = RandomString(16);
+				var timeoutId, events = {};
+				
+				function End(status, reply) {
+
+					_mod.RemoveMessageListenerSet(events);
+					io.RemoveTimeout(timeoutId);
+					NextCall();
+					OnReply(status, reply);
+				}
+
+				events.PONG = function(command, from, server, data) {
+
+					if ( data != pingData )
+						return;
+					delete events.PONG;
+					events.RPL_USERHOST = function( command, from, to, hostList ) {
+
+						var result = {};
+						for each ( var userhost in hostList.split(' ') ) {
+
+							var match = _userHostParser(userhost);
+							if ( userhost && match ) {
+
+								var [, nick, ircOp, hasAwayMsg, host] = match;
+								result[nick] = host;
+							}
+						}
+						End(OK, result);
+					};
+
+					events.ERR_NEEDMOREPARAMS = function( command, from, to, erroneousCommand, reasonPhrase ) {
+
+						if ( erroneousCommand == 'USERHOST' )
+							End(ERROR);
+					};
+				};
+
+				_mod.AddMessageListenerSet(status, events);
+				
 				_mod.Send( ['PING '+pingData, 'USERHOST '+nickList.join(' ')], false, function() {
 
-					timeoutId = io.AddTimeout(_maxServerReplyInterval, End ); // start the timeout ONLY vhen the message has been sent
+					timeoutId = io.AddTimeout(_maxServerReplyInterval, function() End(TIMEOUT) ); // start the timeout ONLY vhen the message has been sent
 				});
 			});
 		},
@@ -101,28 +154,34 @@
 			
 			ScheduleCall(function() {
 
-				var timeoutId, events;
+				var timeoutId, events = {};
 
-				function End(message) {
+				function End(status, message) {
 
 					_mod.RemoveMessageListenerSet(events);
 					io.RemoveTimeout(timeoutId);
 					NextCall();
-					OnReply(message);
+					OnReply(status, message);
 				}
-				
-				function Error() End(); // we need to ignore Error arguments because on error, OnReply must be called w/o arguments
 
-				function Reply( command, from, to, message ) {
+				events.PRIVMSG = function( command, from, to, message ) {
 
 					if ( to == getData( _mod.data.nick ) && nick == StrBefore(from, '!') )
-						End(message);
-				}
-				events = { PRIVMSG:Reply, ERR_NORECIPIENT:Error, ERR_NOTEXTTOSEND:Error, ERR_CANNOTSENDTOCHAN:Error, ERR_NOTOPLEVEL:Error, ERR_WILDTOPLEVEL:Error, ERR_TOOMANYTARGETS:Error, ERR_NOSUCHNICK:Error, RPL_AWAY:Error };
+						End(OK, message);
+				};
+				events.ERR_NORECIPIENT = function() Error(ERROR);
+				events.ERR_NOTEXTTOSEND = function() Error(ERROR);
+				events.ERR_CANNOTSENDTOCHAN = function() Error(ERROR);
+				events.ERR_NOTOPLEVEL = function() Error(ERROR);
+				events.ERR_WILDTOPLEVEL = function() Error(ERROR);
+				events.ERR_TOOMANYTARGETS = function() Error(ERROR);
+				events.ERR_NOSUCHNICK = function() End(NOTFOUND);
+				events.RPL_AWAY = function() Error(ERROR);
+
 				_mod.AddMessageListenerSet(events);
 				_mod.api.Privmsg( nick, message, function() {
 
-					timeoutId = io.AddTimeout(_maxUserReplyInterval, End ); // start the timeout ONLY vhen the message has been sent
+					timeoutId = io.AddTimeout(_maxUserReplyInterval, function() End(TIMEOUT) ); // start the timeout ONLY vhen the message has been sent
 				});
 			});
 		},
@@ -130,10 +189,9 @@
 
 		Sync: function( OnReply ) {
 			
-			var pingData = IntervalNow();
-			
 			ScheduleCall(function() {
 
+				var pingData = IntervalNow();
 				var timeoutId, events;
 
 				function End(status) {
@@ -180,3 +238,15 @@ eg:
 USERHOST Wiz Michael syrk
 :ircd.stealth.net 302 yournick :syrk=+syrk@millennium.stealth.net
 */
+
+
+//  WHOIS
+// doc: http://www.irchelp.org/irchelp/rfc/rfc2812.txt
+// WHOIS CY`TV
+// :zelazny.freenode.net 311 soubok CY`TV n=tv ns301208.ovh.net * :tv
+// :zelazny.freenode.net 319 soubok CY`TV :@#CY @#trem-vips 
+// :zelazny.freenode.net 312 soubok CY`TV irc.freenode.net :http://freenode.net/
+// :zelazny.freenode.net 320 soubok CY`TV :is identified to services 
+// :zelazny.freenode.net 318 soubok CY`TV :End of /WHOIS list.
+
+

@@ -18,7 +18,7 @@
 	this.name = this.constructor.name;
 	var _mod = this;
 	
-	const _lagProbeInterval = 30000;
+	const _lagProbeInterval = 60000;
 
 // [TBD] autodetect max message length ( with a self sent mesage )
 // [TBD] autodetect flood limit
@@ -121,7 +121,12 @@
 
 		Nick: function( nick ) void _mod.Send( 'NICK '+nick ),
 		
-		Privmsg: function( to, message, OnSent ) _mod.Send( 'PRIVMSG '+StrBefore(to,'!')+' :'+message, false, OnSent ),
+		Privmsg: function( to, messages, OnSent ) {
+			
+			if( !(messages instanceof Array) )
+				messages = [messages];
+			_mod.Send( [ 'PRIVMSG '+StrBefore(to,'!')+' :'+message for each ( message in messages ) ], false, OnSent )
+		},
 
 		Quit: function(quitMessage) _mod.Send( 'QUIT :'+quitMessage, true ) // true = force the message to be post ASAP
 	}

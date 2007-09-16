@@ -87,6 +87,11 @@
 					var code = '';
 					
 					connection.OnData = function(buf) {
+
+						if ( buf.substr(-1) == LF )
+							buf = buf.substr(0, buf.length-1);
+						if ( buf.substr(-1) == CR )
+							buf = buf.substr(0, buf.length-1);
 						
 						code += buf;
 						if ( IsStatementValid(code) ) {
@@ -99,7 +104,7 @@
 
 								res = ex;
 							}
-							connection.Write(res + CRLF);
+							connection.Write(res + LF);
 							code = '';
 						}
 					}
@@ -115,7 +120,7 @@
 
 				function CreateSpy(connection) function() {
 
-					connection.Write( Array.slice(arguments).toSource() + CRLF );
+					connection.Write( Array.slice(arguments).toSource() + LF );
 				}
 				
 				_mod.api.OpenDCCChat( nick, function(connection) {
@@ -124,8 +129,10 @@
 					_mod.AddMessageListenerSet(spy);
 					connection.OnData = function(buf) {
 						
-						if ( buf.substr(-2) == CRLF )
-							buf = buf.substr(0, buf.length-2);
+						if ( buf.substr(-1) == LF )
+							buf = buf.substr(0, buf.length-1);
+						if ( buf.substr(-1) == CR )
+							buf = buf.substr(0, buf.length-1);
 						_mod.Send(buf);
 					}
 
@@ -181,7 +188,7 @@
 
 /*
 				var url = 'http://jsircbot.googlecode.com/svn/trunk/dccReceiver.jsmod';
-				HttpRequest( url, '', 1000, function(statusCode, reasonPhrase, headers, body) {
+				HttpRequest( url, '', 1000, function(status, statusCode, reasonPhrase, headers, body) {
 					DPrint(body.length);
 				});
 				
