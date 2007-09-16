@@ -47,6 +47,13 @@ var log = new function() {
 	}
 }
 
+/////////////////////////////////////////////////////// callback functions status
+
+const OK = {};
+const ERROR = {};
+const TIMEOUT = {};
+const NOTFOUND = {};
+
 ///////////////////////////////////////////////////////
 
 function ExToText(ex, showStack) ex.name+': '+ex.message+' ('+(showStack ? ex.stack : (ex.fileName+':'+ex.lineNumber))+')';
@@ -86,7 +93,6 @@ function IpToIntegerp(ip) {
 	return res;
 }
 
-
 function NumberToUint32NetworkOrderString(number) String.fromCharCode(number>>24 & 255)+String.fromCharCode(number>>16 & 255)+String.fromCharCode(number>>8 & 255)+String.fromCharCode(number & 255);
 
 function RandomString(length) {
@@ -95,6 +101,7 @@ function RandomString(length) {
 	return str.substr(0, length);
 }
 
+function RandomRange( min, max )	min + Math.random() * (max - min);
 
 function StringPad( str, count, chr ) {
 	
@@ -135,6 +142,13 @@ function MakeObj( tpl, arr ) {
 	return obj;
 }
 
+/*
+function CachedRegex(regex) {
+
+	var regexList = arguments.callee.regexList || (arguments.callee.regexList={});
+	return regexList[regex] || (regexList[regex] = new Regex(regex);
+}
+*/
 
 /////////////////////////////////////////////////////// Event Listener
 

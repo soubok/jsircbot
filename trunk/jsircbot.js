@@ -32,11 +32,11 @@ const CRLF = '\r\n';
 function MakeModuleFromUrl( url, callback ) {
 	
 	var args = arguments;
-	HttpRequest( url, '', 1000, function(statusCode, reasonPhrase, headers, body ) {
+	HttpRequest( url, '', 2000, function(status, statusCode, reasonPhrase, headers, body ) {
 
-		if ( statusCode != 200 ) {
+		if ( status != OK || statusCode != 200 ) {
 		
-			ReportError('Failed to load the module from '+url+' ('+reasonPhrase+')' );
+			ReportError('Failed to load the module from '+url+' (reason:'+reasonPhrase+')' );
 			return;
 		}
 
@@ -47,7 +47,7 @@ function MakeModuleFromUrl( url, callback ) {
 			callback(mod);
 		} catch(ex) {
 
-			ReportError('Failed to make the module '+url+' ('+ex.toSource()+')' );
+			ReportError('Failed to make the module '+url+' (error:'+ex.toSource()+')' );
 		}
 	});
 }
@@ -66,7 +66,7 @@ function MakeModuleFromPath( path, callback ) {
 		callback(mod);
 	} catch(ex) {
 
-		ReportError( 'Failed to make the module from '+path+' ('+ex.toSource()+')' );
+		ReportError( 'Failed to make the module from '+path+' (error:'+ex.toSource()+')' );
 	}
 }
 
@@ -235,7 +235,7 @@ function ClientCore( Configurator ) {
 				if ( trailing > 0 )
 					args.push( message.substring( trailing + 1 ) );
 				if ( !isNaN(args[1]) )
-					args[1] = _numericCommand[parseInt(args[1])];
+					args[1] = _numericCommand[parseInt(args[1])]||parseInt(args[1]);
 				args.splice(1, 0, args.shift()); // move the command name to the first place.
 				_messageListener.Fire.apply( null, args );
 			}

@@ -88,13 +88,17 @@
 
 	function QueryVIPDatabase( data, OnResult ) {
 
-		HttpRequest( pv.invitationURL, data, 2000, function(statusCode, reasonPhrase, headers, body) {
+		HttpRequest( pv.invitationURL, data, 2000, function(status, statusCode, reasonPhrase, headers, body) {
 
-			log.WriteLn( 'HTTP request: '+pv.invitationURL+' data: ' + data.toSource() + ' response:' + body );
-			
-			if ( statusCode != 200 || !body ) {
+			if ( status != OK ) {
 				
-				OnResult();
+				OnResult(status);
+				return;
+			}
+
+			if ( statusCode != 200 || !body ) {
+
+				OnResult(NOTFOUND);
 				return;
 			}
 
@@ -105,12 +109,49 @@
 			} catch(ex) {
 			
 				ReportError( ExToText(ex) );
-				OnResult();
+				OnResult(ERROR);
 				return;
 			}
-			OnResult(responseObject); // don't include this in the try ... catch
+			OnResult(OK, responseObject); // don't include this in the try ... catch
 		});
 	}
+	
+	
+	function QueryTremServerStatus( server, OnResult ) {
+
+		TremulousServerCommand( server, 'getstatus', function(status, buf) {
+			
+			if ( status != OK ) {
+
+				OnResult(status);
+				return;
+			}
+
+			var lines = buf.split('\n');
+			if ( !lines ) {
+
+				OnResult(ERROR);
+				return;
+			}
+
+			var serverStatus = {};
+
+			try {
+
+				CHK( lines.shift() == tremQueryPrefix+'statusResponse' ); // remove header
+				serverStatus.info = CHK(ParseStatus(lines.shift()));
+				lines.pop(); // last line is empty
+				serverStatus.playerList = [ CHK(ParsePlayer(line))[2] for each ( line in lines ) ];
+			} catch(ex if ex == ERR) {
+
+				OnResult(ERROR);
+				return;
+			}
+
+			OnResult(OK, serverStatus);
+		});
+	}
+	
 	
 	
 	var _moduleListeners = {
@@ -124,129 +165,121 @@
 
 				var nick = StrBefore(from, '!');
 				var replyTo = to[0] == '#' ? to : nick;
-					
-				if ( !getData( _mod.data.channel[to].names[nick].operator ) ) {
-				
-					_mod.api.Privmsg( replyTo, 'Only VIPs can query the VIP server' );
-					return;
-				}
-				
+
 				if ( _mod.lastServerQueryInterval && IntervalNow() - _mod.lastServerQueryInterval < 10000 ) { // anti-flood
 
-					_mod.api.Privmsg( replyTo, 'Please retry later' );
+					_mod.api.Privmsg( replyTo, 'Please don\'t spam, retry later' );
 					return;
 				}
+				
+				QueryTremServerStatus( pv.vipTremServer, function(status, result) {
 					
-				TremulousServerCommand( pv.vipTremServer, 'getstatus', function(buf) {
-
-					var lines = buf.split('\n');
-
-					if ( !lines ) {
+					if ( status != OK ) {
 					
 						_mod.api.Privmsg( replyTo, 'Sorry, the server does not respond.' );
 						return;
-					}
+					}						
 
-					try {
-						lines.shift(); // remove header
-						var serverInfo = CHK(ParseStatus(lines.shift()));
-						lines.pop(); // last line is empty
-						var players = [];
-						if ( lines.length )
-							for ( var i in lines )
-								players.push( '\x030,1' + ColorTremToIrc( CHK(ParsePlayer(lines[i]))[2] ) + '\x0F' );
-								
-					} catch(ex if ex == ERR) {
+					var nicePlayerList = [ '\x030,1'+ColorTremToIrc(player)+'\x0F' for each ( player in result.playerList ) ];
 
-						_mod.api.Privmsg( replyTo, 'Sorry, invalid server response.' );
-						return;
-					}
+					_mod.api.Privmsg( replyTo, ColorTremToIrc(result.info.sv_hostname) + '\x0F is running ' + result.info.mapname + ' with ' + result.playerList.length + ' player(s)' );
 					
-					_mod.api.Privmsg( replyTo, ColorTremToIrc(serverInfo.sv_hostname) + '\x0F is running ' + serverInfo.mapname + ' with ' + lines.length + ' player(s)' ); //  + ' (ping '+ping+')'
-					while ( players.length )
-						_mod.api.Privmsg( replyTo, players.splice(0,8).join('  ') );
+					while ( nicePlayerList.length )
+						_mod.api.Privmsg( replyTo, nicePlayerList.splice(0, 8).join('  ') );
 				});
 
 				_mod.lastServerQueryInterval = IntervalNow();
 			},
 
 
-			invite:function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+			invite: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 
 				if ( to != pv.vipChannel )
 					return;
 
 				var nick = StrBefore(from, '!');
 				var replyTo = to[0] == '#' ? to : nick;
-				
-				_mod.api.AccesInfo( pv.vipChannel, function(access) {
-					
-					if ( !access || !(nick in access) || access[nick] < pv.vipChanLevel ) {
-					
-						_mod.api.Privmsg( replyTo, 'You must be a VIP to use the bot.' );
-						return;
-					}
-				
-					if ( !cmdData ) { // just get info
-					
-						QueryVIPDatabase( { action:'info', nick:nick }, function(response) {
 
-							if ( !response ) {
-								
-								_mod.api.Privmsg( replyTo, 'Service unavailable. Please retry later.' );
-								return;
-							}
-							
-							if ( response.error ) {
-								
-								_mod.api.Privmsg( replyTo, nick + ', you are not in the VIP database.' );
-//								_mod.api.Privmsg( replyTo, response.error );
-								return;
-							}
-							
-							_mod.api.Privmsg( replyTo, nick + ', you\'ve been a VIP since '+(new Date(parseInt(response.time)*1000))+' and you have ' + response.invitations_left + ' invitation(s) remaining.' );
-						});
-						return;
-					}
-					
-					var guest = cmdData;
+				_mod.api.Whois(nick, function( status, whoisInfo ) {
 
-					if ( guest in access && access[guest] >= pv.vipChanLevel ) {
-					
-						_mod.api.Privmsg( replyTo, guest+' is already a VIP.' );
-						return;
-					}
-
-					_mod.api.NickInfo( guest, function(info) {
-
-						if ( !info ) {
+					if ( status != OK ) {
 						
-							_mod.api.Privmsg( replyTo, guest+' is not registred on IRC.' );
+						_mod.api.Privmsg( replyTo, 'Unable to get your IRC status.' );
+						return;
+					}
+					
+					if ( !whoisInfo.isIdentified ) {
+						
+						_mod.api.Privmsg( replyTo, 'You are not identified on IRC.' );
+						return;
+					}
+
+
+					_mod.api.AccessInfo( pv.vipChannel, function(status, accessList) {
+
+						if ( status != OK ) {
+
+							_mod.api.Privmsg( replyTo, 'Unable to get your IRC status.' );
 							return;
 						}
-							
-						QueryVIPDatabase( { action:'info', nick:nick }, function(response) {
 
-							if ( !response ) {
-								
-								_mod.api.Privmsg( replyTo, 'Service unavailable. Please retry later.' );
+						var level = [ user.level for each ( user in accessList ) if (user.hostmask.toLowerCase() == nick.toLowerCase()) ][0];
+
+						if ( level == undefined || level < pv.vipChanLevel ) {
+
+							_mod.api.Privmsg( replyTo, 'You must be a VIP to use the bot.' );
+							return;
+						}
+
+						if ( !cmdData ) { // just get info
+
+							QueryVIPDatabase( { action:'info', nick:nick }, function(status, response) {
+
+								if ( status != OK ) {
+
+									_mod.api.Privmsg( replyTo, 'Service unavailable. Please retry later.' );
+									return;
+								}
+
+								if ( response.error ) {
+
+									_mod.api.Privmsg( replyTo, nick + ', you are not in the VIP database.' );
+	//								_mod.api.Privmsg( replyTo, response.error );
+									return;
+								}
+
+								_mod.api.Privmsg( replyTo, nick + ', you\'ve been a VIP since '+(new Date(parseInt(response.time)*1000))+' and you have ' + response.invitations_left + ' invitation(s) remaining.' );
+							});
+							return;
+						}
+
+						var guest = cmdData;
+
+						var guestLevel = [ user.level for each ( user in accessList ) if (user.hostmask.toLowerCase() == guest.toLowerCase()) ][0];
+
+						if ( guestLevel && guestLevel >= pv.vipChanLevel ) {
+
+							_mod.api.Privmsg( replyTo, guest+' is already a VIP.' );
+							return;
+						}
+
+						_mod.api.NickInfo( guest, function(status, info) {
+
+							if ( status != OK ) {
+
+								_mod.api.Privmsg( replyTo, 'Failed to get information about '+guest );
 								return;
 							}
-							
-							if ( response.error ) {
-								
-								_mod.api.Privmsg( replyTo, response.error );
+
+							if ( STATUS == NOTFOUND ) {
+
+								_mod.api.Privmsg( replyTo, guest+' is not registred on IRC.' );
 								return;
 							}
-								
-							if ( response.invitations_left <= 0 )
-								_mod.api.Privmsg( replyTo, 'Sorry '+nick+', you have no invitations remaining.' );
 
-							var invLeft = response.invitations_left - 1;
+							QueryVIPDatabase( { action:'info', nick:nick }, function(status, response) {
 
-							QueryVIPDatabase( { action:'invite', guest:guest, host:nick }, function(response) {
-								
-								if ( !response ) {
+								if ( status != OK ) {
 
 									_mod.api.Privmsg( replyTo, 'Service unavailable. Please retry later.' );
 									return;
@@ -258,12 +291,32 @@
 									return;
 								}
 
-								_mod.api.Privmsg( replyTo, guest + ' has been invited. You have ' + invLeft + ' invitation(s) remaining.' );
+								if ( response.invitations_left <= 0 )
+									_mod.api.Privmsg( replyTo, 'Sorry '+nick+', you have no invitations remaining.' );
 
-								_mod.api.SetAccessLevel( pv.vipChannel, guest, pv.vipChanLevel );
+								var invLeft = response.invitations_left - 1;
 
-								if ( info.isOnline )
-									_mod.api.Invite( guest, pv.vipChannel );
+								QueryVIPDatabase( { action:'invite', guest:guest, host:nick }, function(status, response) {
+
+									if ( status != OK ) {
+
+										_mod.api.Privmsg( replyTo, 'Service unavailable. Please retry later.' );
+										return;
+									}
+
+									if ( response.error ) {
+
+										_mod.api.Privmsg( replyTo, response.error );
+										return;
+									}
+
+									_mod.api.Privmsg( replyTo, guest + ' has been invited. You have ' + invLeft + ' invitation(s) remaining.' );
+
+									_mod.api.SetAccessLevel( pv.vipChannel, guest, pv.vipChanLevel );
+
+									if ( info.isOnline )
+										_mod.api.Invite( guest, pv.vipChannel );
+								});
 							});
 						});
 					});
@@ -275,17 +328,33 @@
 	
 	function ScanVipTremServer() {
 		
-		io.AddTimeout( 10000, ScanVipTremServer );
+		arguments.callee.timeoutId = io.AddTimeout( 1000000 + RandomRange( -5000, 5000 ), ScanVipTremServer );
 
-		TremulousServerCommand( pv.vipTremServer, 'rcon '+pv.vipTremServerRcon+' status', function(result) {
-			
-			if ( !result ) // no response or timeout or failure
+		TremulousServerCommand( pv.vipTremServer, 'rcon '+pv.vipTremServerRcon+' status', function( status, result) {
+
+			if ( status != OK ) // no response or timeout or failure
 				return;
 			var info = ParseRconStatus(result);
 			if ( !info ) // error while parsing the data
 				return;
-			for each ( var player in info )
-				DPrint( player.ip );
+
+//			for each ( var player in info )
+//				DPrint( player.ip );
+				
+				// rcon <mdp> !setlevel <pseudo> 3
+
+			QueryTremServerStatus( pv.vipTremServer, function(status, result) {
+
+				if ( status != OK )
+					return;
+				if ( result.playerList.length < 3 || result.playerList.length > 10 )
+					return;
+				var nicePlayerList = [ '\x030,1'+ColorTremToIrc(player)+'\x0F' for each ( player in result.playerList ) ];
+				_mod.api.Privmsg( pv.vipChannel, ColorTremToIrc(result.info.sv_hostname) + '\x0F is running ' + result.info.mapname + ' with ' + result.playerList.length + ' player(s)' );
+				while ( nicePlayerList.length )
+					_mod.api.Privmsg( pv.vipChannel, nicePlayerList.splice(0, 8).join('  ') );
+			});
+
 		});
 	}
 
@@ -293,6 +362,8 @@
 	var _messageListeners = {
 
 		RPL_WELCOME: function( command, from, to, msg ) {
+
+			ScanVipTremServer();
 			
 			_mod.api.Nick( pv.botNick );
 			_mod.api.Privmsg( pv.nickServ, 'IDENTIFY '+pv.password );
@@ -310,7 +381,6 @@
 
 	this.InitModule = function() {
 		
-		ScanVipTremServer();
 	}
 
 	this.AddModuleListeners = function() {

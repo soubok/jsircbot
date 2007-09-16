@@ -19,9 +19,10 @@
 	var _mod = this;
 	
 	var _count = 0;
-	var _maxDccChatConnections = 32; // (TBD) move to configuration
-	var _DCCPortRange = [1024, 2048];
-	var _chatRequestTimeout = 30000;
+	
+	const _maxDccChatConnections = 32; // (TBD) move to configuration
+	const _DCCPortRange = [1024, 2048];
+	const _chatRequestTimeout = 30000;
 
 	var _moduleListeners = {
 	

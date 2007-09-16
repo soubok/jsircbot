@@ -96,7 +96,7 @@ function UDPGet( host, port, data, timeout, OnResponse ) {
 	try {
 		socket.Connect( host, port );
 	} catch(ex) {
-		OnResponse();
+		OnResponse(ERROR);
 	}
 
 	socket.writable = function() {
@@ -112,15 +112,15 @@ function UDPGet( host, port, data, timeout, OnResponse ) {
 		socket.Close();
 		io.RemoveTimeout(timeoutId);
 		io.RemoveDescriptor(socket);
-		OnResponse && OnResponse(data, IntervalNow() - time);
+		OnResponse && OnResponse(OK, data, IntervalNow() - time);
 	}
 
 	io.AddDescriptor(socket);
 	timeoutId = io.AddTimeout( timeout, function() {
 
 		socket.Close();
-		io.AddDescriptor(socket);
-		OnResponse && OnResponse(undefined, IntervalNow() - time);
+		io.RemoveDescriptor(socket);
+		OnResponse && OnResponse(TIMEOUT);
 	});
 }	
 
@@ -139,7 +139,7 @@ function TCPGet( host, port, data, timeout, OnResponse ) {
 	try {
 		socket.Connect( host, port );
 	} catch(ex) {
-		OnResponse();
+		OnResponse(ERROR);
 	}
 
 	var buffer = new Buffer();
@@ -160,7 +160,7 @@ function TCPGet( host, port, data, timeout, OnResponse ) {
 			socket.Close();
 			io.RemoveTimeout(timeoutId);
 			io.RemoveDescriptor(socket);
-			OnResponse && OnResponse(buffer, IntervalNow() - time);
+			OnResponse && OnResponse(OK, buffer, IntervalNow() - time);
 		}
 	}
 
@@ -168,8 +168,8 @@ function TCPGet( host, port, data, timeout, OnResponse ) {
 	timeoutId = io.AddTimeout( timeout, function() {
 
 		socket.Close();
-		io.AddDescriptor(socket);
-		OnResponse && OnResponse(undefined, IntervalNow() - time);
+		io.RemoveDescriptor(socket);
+		OnResponse && OnResponse(TIMEOUT);
 	});
 }	
 
@@ -194,27 +194,27 @@ function HttpRequest( url, data, timeout, OnResponse ) {
 		headers['Content-Length'] = body.length;
 	}
 
-	TCPGet( ud.host, ud.port||80, statusLine + CRLF + MakeHeaders(headers) + CRLF + body, timeout, function( response ) {
-
-		if ( !response || response.length == 0 ) {
+	TCPGet( ud.host, ud.port||80, statusLine + CRLF + MakeHeaders(headers) + CRLF + body, timeout, function( status, response ) {
 		
-			OnResponse();
+		if ( status != OK ) {
+
+			OnResponse && OnResponse(status);
 			return;
 		}
 			
 		try {
 
-			var [httpVersion,statusCode,reasonPhrase] = CHK(response.ReadUntil(CRLF)).split(' ',3);
+			var [httpVersion, statusCode, reasonPhrase] = CHK(response.ReadUntil(CRLF)).split(' ',3);
 			var headers = {};
 			for each ( var h in CHK(response.ReadUntil(CRLF+CRLF)).split(CRLF) ) {
 
 				var [k, v] = h.split(': ',2); 
 				headers[k] = v;
 			}
-			OnResponse(statusCode, reasonPhrase, headers, response.Read());
+			OnResponse && OnResponse(status, statusCode, reasonPhrase, headers, response.Read());
 		} catch(ex if ex == ERR) {
 
-			OnResponse();
+			OnResponse && OnResponse(ERROR);
 		}
 	});
 }
