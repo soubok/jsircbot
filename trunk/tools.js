@@ -12,6 +12,12 @@
  * License.
  * ***** END LICENSE BLOCK ***** */
 
+const CR = '\r';
+const LF = '\n';
+const CRLF = '\r\n';
+
+
+
 /////////////////////////////////////////////////////// Debug tools
 
 function DPrint() {
