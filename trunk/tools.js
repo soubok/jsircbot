@@ -12,24 +12,37 @@
  * License.
  * ***** END LICENSE BLOCK ***** */
 
+///////////////////////////////////////////////////////
+
 const CR = '\r';
 const LF = '\n';
 const CRLF = '\r\n';
 
+/////////////////////////////////////////////////////// callback functions status
 
+const OK = {};
+const ERROR = {};
+const TIMEOUT = {};
+const NOTFOUND = {};
 
-/////////////////////////////////////////////////////// Debug tools
+/////////////////////////////////////////////////////// start an asynchronus procedure
 
-function DPrint() {
+function StopProcedure() {
 	
-	for ( var i = 0; i < arguments.length; i++ )
-		Print( '{'+arguments[i]+'} ' );
-	Print( '\n' );
+	throw StopIteration;
 }
 
-function DStack() { try { throw Error() } catch(ex) { Print( 'Stack: ', ex.stack, '\n' ) } }
+function StartProcedure( procedure ) {
 
-function DArgs() { Print( 'Arguments: ', Array.slice(DArgs.caller.arguments).toSource(), '\n' ) }
+	try {
+		procedure.next()(function(result) {
+
+			try {
+				procedure.send(arguments)(arguments.callee);
+			} catch(ex if ex instanceof StopIteration) { }
+		});
+	} catch(ex if ex instanceof StopIteration) { }
+}
 
 ///////////////////////////////////////////////////////
 
@@ -53,16 +66,9 @@ var log = new function() {
 	}
 }
 
-/////////////////////////////////////////////////////// callback functions status
-
-const OK = {};
-const ERROR = {};
-const TIMEOUT = {};
-const NOTFOUND = {};
-
 ///////////////////////////////////////////////////////
 
-function ExToText(ex, showStack) ex.name+': '+ex.message+' ('+(showStack ? ex.stack : (ex.fileName+':'+ex.lineNumber))+')';
+function ExToText(ex, showStack) ex instanceof Error ? ex.name+': '+ex.message+' ('+(showStack ? ex.stack : (ex.fileName+':'+ex.lineNumber))+')' : ex.toString();
 
 function ReportError(text) { log.WriteLn(text); Print(text, '\n') }
 
@@ -319,3 +325,19 @@ function decode64(input) {
 
    return output;
 }
+
+
+/////////////////////////////////////////////////////// Debug tools
+
+function DPrint() {
+	
+	for ( var i = 0; i < arguments.length; i++ )
+		Print( '{'+arguments[i]+'} ' );
+	Print( '\n' );
+}
+
+function DStack() { try { throw Error() } catch(ex) { Print( 'Stack: ', ex.stack, '\n' ) } }
+
+function DArgs() { Print( 'Arguments: ', Array.slice(DArgs.caller.arguments).toSource(), '\n' ) }
+
+

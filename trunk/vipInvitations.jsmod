@@ -154,8 +154,43 @@
 	
 
 	var _moduleListeners = {
+
 		
 		botcmd: {
+			test: function( modCmd, cmdName, cmdData, command, from, to, msg ) { 
+
+				StartProcedure( new function() {
+					
+					var nick = StrBefore(from, '!');
+					var replyTo = to[0] == '#' ? to : nick;
+					
+					var [status, info] = yield function(callback) _mod.api.Whois(nick, callback);
+					if ( status != OK )
+						_mod.api.Privmsg( replyTo, 'Unable to get your IRC status.' ), StopProcedure();
+					if ( !info.isIdentified )
+						_mod.api.Privmsg( replyTo, 'You are not identified on IRC.' ), StopProcedure();
+
+					var [status, accessList] = yield function(callback) _mod.api.AccessInfo(pv.vipChannel, callback);
+
+					if ( status != OK )
+						_mod.api.Privmsg( replyTo, 'Unable to get AccessInfo.' ), StopProcedure();
+					
+					var level = [ user.level for each ( user in accessList ) if (user.hostmask.toLowerCase() == nick.toLowerCase()) ][0];
+					
+					if ( level == undefined )
+						_mod.api.Privmsg( replyTo, 'You are not registred on '+pv.vipChannel ), StopProcedure();
+					
+					_mod.api.Privmsg( replyTo, 'Your level on '+pv.vipChannel+' is '+level );
+
+					var [status, response] = yield function(callback) QueryVIPDatabase({ action:'info', nick:nick }, callback);
+					if ( status != OK )
+						_mod.api.Privmsg( replyTo, 'Service unavailable. Please retry later.' ), StopProcedure();
+					if ( response.error )
+						_mod.api.Privmsg( replyTo, nick + ', you are not in the VIP database.' ), StopProcedure();
+					var days = ( (new Date() - new Date(parseInt(response.time)*1000)) / 86400000 ).toFixed(1);
+					_mod.api.Privmsg( replyTo, nick + ', you\'ve been a VIP for '+days+' days and you have ' + response.invitations_left + ' invitation(s) remaining.' );
+				});
+			},
 			
 			help: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 
@@ -169,40 +204,34 @@
 			
 			server: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 				
-				if ( to != pv.vipChannel )
-					return;
+				StartProcedure( new function() {
 
-				var nick = StrBefore(from, '!');
-				var replyTo = to[0] == '#' ? to : nick;
-
-				if ( _mod.lastServerQueryInterval && IntervalNow() - _mod.lastServerQueryInterval < 10000 ) { // anti-flood
-
-					_mod.api.Privmsg( replyTo, 'Please don\'t spam, try again later.' );
-					return;
-				}
-				
-				QueryTremServerStatus( pv.vipTremServer, function(status, result) {
-					
-					if ( status != OK ) {
-					
-						_mod.api.Privmsg( replyTo, 'Sorry, the server does not respond.' );
+					if ( to != pv.vipChannel )
 						return;
-					}						
+						
+					var nick = StrBefore(from, '!');
+					var replyTo = to[0] == '#' ? to : nick;
 
-					var nicePlayerList = [ '\x030,1'+ColorTremToIrc(player)+'\x0F' for each ( player in result.playerList ) ];
-
-					_mod.api.Privmsg( replyTo, ColorTremToIrc(result.info.sv_hostname) + '\x0F is running ' + result.info.mapname + ' with ' + result.playerList.length + ' player(s)' );
+					if ( _mod.lastServerQueryInterval && IntervalNow() - _mod.lastServerQueryInterval < 10000 ) // anti-flood
+						_mod.api.Privmsg( replyTo, 'Please don\'t spam, try again later.' ), StopProcedure();
+					var [status, result] = yield function(callback) QueryTremServerStatus(pv.vipTremServer, callback);
 					
+					if ( status != OK )
+						_mod.api.Privmsg( replyTo, 'Sorry, the server does not respond.' ), StopProcedure();
+						
+						
+					var nicePlayerList = [ '\x030,1'+ColorTremToIrc(player)+'\x0F' for each ( player in result.playerList ) ];
+					_mod.api.Privmsg( replyTo, ColorTremToIrc(result.info.sv_hostname) + '\x0F is running ' + result.info.mapname + ' with ' + result.playerList.length + ' player(s)' );
 					while ( nicePlayerList.length )
 						_mod.api.Privmsg( replyTo, nicePlayerList.splice(0, 8).join('  ') );
+					_mod.lastServerQueryInterval = IntervalNow();
+					
 				});
-
-				_mod.lastServerQueryInterval = IntervalNow();
 			},
 
 
 			invite: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
-
+			
 				if ( to != pv.vipChannel )
 					return;
 
@@ -334,6 +363,7 @@
 				});
 			}
 		}
+		
 	}
 	
 	
@@ -390,9 +420,6 @@
 		}
 	};
 
-	this.InitModule = function() {
-		
-	}
 
 	this.AddModuleListeners = function() {
 		

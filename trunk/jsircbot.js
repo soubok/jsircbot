@@ -102,6 +102,8 @@ function MakeFloodSafeMessageSender( maxMessage, maxData, time, RawDataSender ) 
 	var _timeoutId;
 
 	function Process() {
+		
+//		DPrint( '_count', _count, '_bytes', _bytes, '_messageQueue.length', _messageQueue.length );
 	
 		var buffer = '';
 		while ( _count > 0 && _bytes > 0 && _messageQueue.length ) { // && (buffer + (_messageQueue[0]||'').length < maxData ???
