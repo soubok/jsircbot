@@ -76,7 +76,7 @@
 				callback(connection);
 			}
 			_dccAcceptTimeout = io.AddTimeout( _chatRequestTimeout, function() { server.Close() } );
-			_mod.api.CtcpRequest( nick, 'DCC', 'CHAT chat ' + IpToIntegerp(ip) + ' ' + server.port );
+			_mod.api.CtcpRequest( nick, 'DCC', 'CHAT chat ' + IpToInt(ip) + ' ' + server.port );
 		}	
 	};
 

@@ -109,7 +109,7 @@
 			} catch(ex) {
 			
 				ReportError( ExToText(ex) );
-				OnResult(ERROR);
+				OnResult(INVALID_RESPONSE);
 				return;
 			}
 			OnResult(OK, responseObject); // don't include this in the try ... catch
@@ -130,7 +130,7 @@
 			var lines = buf.split('\n');
 			if ( !lines ) {
 
-				OnResult(ERROR);
+				OnResult(INVALID_RESPONSE);
 				return;
 			}
 
@@ -144,7 +144,7 @@
 				serverStatus.playerList = [ CHK(ParsePlayer(line))[2] for each ( line in lines ) ];
 			} catch(ex if ex == ERR) {
 
-				OnResult(ERROR);
+				OnResult(INVALID_RESPONSE);
 				return;
 			}
 

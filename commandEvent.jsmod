@@ -86,7 +86,7 @@
 						End(OK, result);
 					}
 					events.ERR_NOSUCHSERVER = function() End(NOTFOUND);
-					events.ERR_NONICKNAMEGIVEN = function() End(ERROR);
+					events.ERR_NONICKNAMEGIVEN = function() End(BADREQUEST);
 					events.ERR_NOSUCHNICK = function() End(NOTFOUND);
 				}
 				
@@ -136,7 +136,7 @@
 					events.ERR_NEEDMOREPARAMS = function( command, from, to, erroneousCommand, reasonPhrase ) {
 
 						if ( erroneousCommand == 'USERHOST' )
-							End(ERROR);
+							End(BADREQUEST);
 					};
 				};
 
@@ -169,14 +169,14 @@
 					if ( to == getData( _mod.data.nick ) && nick == StrBefore(from, '!') )
 						End(OK, message);
 				};
-				events.ERR_NORECIPIENT = function() Error(ERROR);
-				events.ERR_NOTEXTTOSEND = function() Error(ERROR);
+				events.ERR_NORECIPIENT = function() Error(BADREQUEST);
+				events.ERR_NOTEXTTOSEND = function() Error(BADREQUEST);
 				events.ERR_CANNOTSENDTOCHAN = function() Error(ERROR);
 				events.ERR_NOTOPLEVEL = function() Error(ERROR);
 				events.ERR_WILDTOPLEVEL = function() Error(ERROR);
 				events.ERR_TOOMANYTARGETS = function() Error(ERROR);
 				events.ERR_NOSUCHNICK = function() End(NOTFOUND);
-				events.RPL_AWAY = function() Error(ERROR);
+//				events.RPL_AWAY = function() Error(ERROR);
 
 				_mod.AddMessageListenerSet(events);
 				_mod.api.Privmsg( nick, message, function() {

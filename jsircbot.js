@@ -29,12 +29,8 @@ function MakeModuleFromUrl( url, callback ) {
 	var args = arguments;
 	HttpRequest( url, '', 2000, function(status, statusCode, reasonPhrase, headers, body ) {
 
-		if ( status != OK || statusCode != 200 ) {
-		
-			ReportError('Failed to load the module from '+url+' (reason:'+reasonPhrase+')' );
-			return;
-		}
-
+		if ( status != OK || statusCode != 200 )
+			return void ReportError('Failed to load the module from '+url+' (reason:'+reasonPhrase+')');
 		try {
 		
 			var mod = new (eval(body));
@@ -42,7 +38,7 @@ function MakeModuleFromUrl( url, callback ) {
 			callback(mod);
 		} catch(ex) {
 
-			ReportError('Failed to make the module '+url+' (error:'+ex.toSource()+')' );
+			ReportError('Failed to make the module '+url+' ('+ExToText(ex)+')');
 		}
 	});
 }
@@ -56,12 +52,11 @@ function MakeModuleFromPath( path, callback ) {
 //		var file = new File(path);
 //		var mod = new (eval(file.content));
 		var mod = new (Exec(path, false));
-
 		mod.Reload = function() args.callee.apply(null, args);
 		callback(mod);
 	} catch(ex) {
 
-		ReportError( 'Failed to make the module from '+path+' (error:'+ex.toSource()+')' );
+		ReportError('Failed to make the module from '+path+' ('+ExToText(ex)+')');
 	}
 }
 
@@ -75,7 +70,7 @@ function LoadRemoteModules( core, baseUrl, moduleList ) {
 	}
 	
 	for each ( var moduleName in moduleList )
-		MakeModuleFromUrl( baseUrl + '/' + moduleName, Load );
+		MakeModuleFromUrl( baseUrl+'/'+moduleName, Load );
 }
 
 
@@ -90,7 +85,7 @@ function LoadLocalModules( core, path, sufix ) {
 	var entry, dir = new Directory(path, Directory.SKIP_BOTH);
 	for ( dir.Open(); (entry = dir.Read()); )
 		if ( StringEnd( entry, sufix ) )
-			MakeModuleFromPath( path + '/' +entry, Load );
+			MakeModuleFromPath( path+'/'+entry, Load );
 }
 
 
@@ -98,24 +93,29 @@ function MakeFloodSafeMessageSender( maxMessage, maxData, time, RawDataSender ) 
 
 	var _count = maxMessage;
 	var _bytes = maxData;
+	var _instantMessageQueue = [];
 	var _messageQueue = [];
 	var _timeoutId;
 
 	function Process() {
 		
-//		DPrint( '_count', _count, '_bytes', _bytes, '_messageQueue.length', _messageQueue.length );
+		log.WriteLn( '_count:'+ _count + ' _bytes:'+ _bytes+' _messageQueue.length:'+_messageQueue.length );
 	
 		var buffer = '';
-		while ( _count > 0 && _bytes > 0 && _messageQueue.length ) { // && (buffer + (_messageQueue[0]||'').length < maxData ???
-			
-			var [messages, OnSent] = _messageQueue.shift();
+		function PrepMessage([messages, OnSent]) {
+		
 			OnSent && void OnSent();
-			
 			_count -= messages.length;
 			var messageString = messages.join(CRLF)+CRLF;
 			_bytes -= messageString.length;
 			buffer += messageString;
 		}
+		
+		while ( _instantMessageQueue.length )
+			PrepMessage(_instantMessageQueue.shift());
+		
+		while ( _messageQueue.length && _count > 0 && _bytes > 0 ) // && (buffer + (_messageQueue[0]||'').length < maxData ???
+			PrepMessage(_messageQueue.shift());
 		
 		buffer.length && RawDataSender(buffer);
 		
@@ -134,27 +134,9 @@ function MakeFloodSafeMessageSender( maxMessage, maxData, time, RawDataSender ) 
 	return function( message, bypassAntiFlood, OnSent ) {
 		
 		if ( message ) { 
-
-			if ( !(message instanceof Array) )
-				message = [message];
-			
-			if ( bypassAntiFlood ) {
-
-				OnSent && void OnSent();
-
-				_count -= message.length;
-				var messageString = message.join(CRLF)+CRLF;
-				_bytes -= messageString.length;
-				RawDataSender(messageString);
-
-				if ( !_timeoutId ) // do not reset the timeout
-					_timeoutId = io.AddTimeout( time, Timeout );
-				
-			} else {
-
-				_messageQueue.push([message,OnSent]);
-				Process();
-			}
+		
+			(bypassAntiFlood ? _instantMessageQueue : _messageQueue).push([message instanceof Array ? message : [message], OnSent]);
+			Process();
 		}
 		return _messageQueue.length / maxMessage; // <1 : ok, messages are send; >1: beware, queue is full.
 	}
