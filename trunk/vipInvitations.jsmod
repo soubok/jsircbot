@@ -82,7 +82,7 @@
 	function TremulousServerCommand( server, command, OnResult ) {
 
 		var [host,port] = pv.vipTremServer.split(':');
-		UDPGet( host, port, tremQueryPrefix + command, 2000, OnResult );
+		UDPGet( host, port, tremQueryPrefix + command, 3000, OnResult );
 	}
 	
 
@@ -152,55 +152,22 @@
 		});
 	}
 	
+	var _ipToSetlevel = [];
+	
 
 	var _moduleListeners = {
 
-		
 		botcmd: {
-			test: function( modCmd, cmdName, cmdData, command, from, to, msg ) { 
-
-				StartProcedure( new function() {
-					
-					var nick = StrBefore(from, '!');
-					var replyTo = to[0] == '#' ? to : nick;
-					
-					var [status, info] = yield function(callback) _mod.api.Whois(nick, callback);
-					if ( status != OK )
-						_mod.api.Privmsg( replyTo, 'Unable to get your IRC status.' ), StopProcedure();
-					if ( !info.isIdentified )
-						_mod.api.Privmsg( replyTo, 'You are not identified on IRC.' ), StopProcedure();
-
-					var [status, accessList] = yield function(callback) _mod.api.AccessInfo(pv.vipChannel, callback);
-
-					if ( status != OK )
-						_mod.api.Privmsg( replyTo, 'Unable to get AccessInfo.' ), StopProcedure();
-					
-					var level = [ user.level for each ( user in accessList ) if (user.hostmask.toLowerCase() == nick.toLowerCase()) ][0];
-					
-					if ( level == undefined )
-						_mod.api.Privmsg( replyTo, 'You are not registred on '+pv.vipChannel ), StopProcedure();
-					
-					_mod.api.Privmsg( replyTo, 'Your level on '+pv.vipChannel+' is '+level );
-
-					var [status, response] = yield function(callback) QueryVIPDatabase({ action:'info', nick:nick }, callback);
-					if ( status != OK )
-						_mod.api.Privmsg( replyTo, 'Service unavailable. Please retry later.' ), StopProcedure();
-					if ( response.error )
-						_mod.api.Privmsg( replyTo, nick + ', you are not in the VIP database.' ), StopProcedure();
-					var days = ( (new Date() - new Date(parseInt(response.time)*1000)) / 86400000 ).toFixed(1);
-					_mod.api.Privmsg( replyTo, nick + ', you\'ve been a VIP for '+days+' days and you have ' + response.invitations_left + ' invitation(s) remaining.' );
-				});
-			},
 			
 			help: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 
 				if ( to != pv.vipChannel )
 					return;
-
 				var nick = StrBefore(from, '!');
 				var replyTo = to[0] == '#' ? to : nick;
-				_mod.api.Privmsg( replyTo, 'Help: !invite [<nick>] / !server' );
+				_mod.api.Privmsg( replyTo, 'Help: !invite [<nick>] || !server' );
 			},
+			
 			
 			server: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 				
@@ -218,160 +185,101 @@
 					
 					if ( status != OK )
 						_mod.api.Privmsg( replyTo, 'Sorry, the server does not respond.' ), StopProcedure();
-						
-						
+
 					var nicePlayerList = [ '\x030,1'+ColorTremToIrc(player)+'\x0F' for each ( player in result.playerList ) ];
 					_mod.api.Privmsg( replyTo, ColorTremToIrc(result.info.sv_hostname) + '\x0F is running ' + result.info.mapname + ' with ' + result.playerList.length + ' player(s)' );
 					while ( nicePlayerList.length )
 						_mod.api.Privmsg( replyTo, nicePlayerList.splice(0, 8).join('  ') );
 					_mod.lastServerQueryInterval = IntervalNow();
-					
 				});
-			},
+			}, // server
 
 
 			invite: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
-			
-				if ( to != pv.vipChannel )
-					return;
 
-				var nick = StrBefore(from, '!');
-				var replyTo = to[0] == '#' ? to : nick;
+				StartProcedure( new function() {
 
-				_mod.api.Whois(nick, function( status, whoisInfo ) {
-
-					if ( status != OK ) {
+					if ( to != pv.vipChannel )
+						StopProcedure();
 						
-						_mod.api.Privmsg( replyTo, 'Unable to get your IRC status.' );
-						return;
-					}
+					function InvitationFailed(message) {
 					
-					if ( !whoisInfo.isIdentified ) {
-						
-						_mod.api.Privmsg( replyTo, 'You are not identified on IRC.' );
-						return;
+						var replyTo = to[0] == '#' ? to : StrBefore(from, '!');
+						_mod.api.Privmsg( replyTo, message );
+						StopProcedure();
 					}
+				
+					var hostNick = StrBefore(from, '!');
 
+					var [status, hostWhois] = yield function(callback) _mod.api.Whois(hostNick, callback);
+					if ( status != OK )
+						InvitationFailed('Unable to get your IRC status '+hostNick+'.');
+					if ( !hostWhois.isIdentified )
+						InvitationFailed('You are not identified on IRC.');
 
-					_mod.api.AccessInfo( pv.vipChannel, function(status, accessList) {
+					var [status, accessList] = yield function(callback) _mod.api.AccessInfo(pv.vipChannel, callback);
+					if ( status != OK )
+						InvitationFailed('Unable to get AccessInfo.');
 
-						if ( status != OK ) {
+					var hostLevel = [ user.level for each ( user in accessList ) if (user.hostmask.toLowerCase() == hostNick.toLowerCase()) ][0];
+					
+					if ( hostLevel == undefined )
+						InvitationFailed('You are not a VIP.');
+					
+					var [status, hostDbInfo] = yield function(callback) QueryVIPDatabase({ action:'info', nick:hostNick }, callback);
+					if ( status != OK )
+						InvitationFailed('Service unavailable. Please retry later.');
+					if ( hostDbInfo.error )
+						InvitationFailed(hostNick+', you are not in the VIP database.');
+					
+					if ( !cmdData ) { // just get the VIP info
 
-							_mod.api.Privmsg( replyTo, 'Unable to get your VIP status.' );
-							return;
-						}
+						var days = ( (new Date() - new Date(parseInt(hostDbInfo.time)*1000)) / 86400000 ).toFixed(1);
+						InvitationFailed(hostNick+', you\'ve been a VIP for '+days+' days and you have '+hostDbInfo.invitations_left+' invitation(s) remaining.' );
+					} else {
 
-						var level = [ user.level for each ( user in accessList ) if (user.hostmask.toLowerCase() == nick.toLowerCase()) ][0];
+						if ( hostDbInfo.invitations_left <= 0 )
+							InvitationFailed('Sorry '+nick+', you have no invitations remaining.');
+					
+						var guestNick = cmdData;
 
-						if ( level == undefined || level < pv.vipChanLevel ) {
+						var [status, guestWhois] = yield function(callback) _mod.api.Whois(guestNick, callback);
+						if ( status != OK )
+							InvitationFailed('Unable to get '+guestNick+' IRC status.');
+						if ( !guestWhois.isIdentified )
+							InvitationFailed(guestNick +' is not identified on IRC.');
 
-							_mod.api.Privmsg( replyTo, 'You must be a VIP to use the bot.' );
-							return;
-						}
+						var guestLevel = [ user.level for each ( user in accessList ) if (user.hostmask.toLowerCase() == guestNick.toLowerCase()) ][0];
 
-						if ( !cmdData ) { // just get info
+						if ( guestLevel != undefined && guestLevel >= pv.vipChanLevel )
+							InvitationFailed(guestNick+' is already a VIP.');
 
-							QueryVIPDatabase( { action:'info', nick:nick }, function(status, response) {
+						var [status, response] = yield function(callback) QueryVIPDatabase({ action:'invite', guest:guest, host:nick }, callback);
+						if ( status != OK )
+							InvitationFailed('Service unavailable. Please retry later.');
+						if ( response.error )
+							InvitationFailed(response.error);
 
-								if ( status != OK ) {
+						_mod.api.SetAccessLevel( pv.vipChannel, guest, pv.vipChanLevel );
+						InvitationFailed(guest+' has been invited. You have '+(hostDbInfo.invitations_left-1)+' invitation(s) remaining.');
+						if ( info.isOnline )
+							_mod.api.Invite( guest, pv.vipChannel );
 
-									_mod.api.Privmsg( replyTo, 'Service unavailable. Please retry later.' );
-									return;
-								}
-
-								if ( response.error ) {
-
-									_mod.api.Privmsg( replyTo, nick + ', you are not in the VIP database.' );
-	//								_mod.api.Privmsg( replyTo, response.error );
-									return;
-								}
-								
-								var days = Math.floor( (new Date() - new Date(parseInt(response.time)*1000)) / 86400000 );
-								_mod.api.Privmsg( replyTo, nick + ', you\'ve been a VIP for '+days+' days and you have ' + response.invitations_left + ' invitation(s) remaining.' );
-							});
-							
-							return;
-						}
-
-						var guest = cmdData;
-
-						var guestLevel = [ user.level for each ( user in accessList ) if (user.hostmask.toLowerCase() == guest.toLowerCase()) ][0];
-
-						if ( guestLevel && guestLevel >= pv.vipChanLevel ) {
-
-							_mod.api.Privmsg( replyTo, guest+' is already a VIP.' );
-							return;
-						}
-
-						_mod.api.NickInfo( guest, function(status, info) {
-
-							if ( status != OK ) {
-
-								_mod.api.Privmsg( replyTo, 'Failed to get information about '+guest );
-								return;
-							}
-
-							if ( STATUS == NOTFOUND ) {
-
-								_mod.api.Privmsg( replyTo, guest+' is not registred on IRC.' );
-								return;
-							}
-
-							QueryVIPDatabase( { action:'info', nick:nick }, function(status, response) {
-
-								if ( status != OK ) {
-
-									_mod.api.Privmsg( replyTo, 'Service unavailable. Please retry later.' );
-									return;
-								}
-
-								if ( response.error ) {
-
-									_mod.api.Privmsg( replyTo, response.error );
-									return;
-								}
-
-								if ( response.invitations_left <= 0 )
-									_mod.api.Privmsg( replyTo, 'Sorry '+nick+', you have no invitations remaining.' );
-
-								var invLeft = response.invitations_left - 1;
-
-								QueryVIPDatabase( { action:'invite', guest:guest, host:nick }, function(status, response) {
-
-									if ( status != OK ) {
-
-										_mod.api.Privmsg( replyTo, 'Service unavailable. Please retry later.' );
-										return;
-									}
-
-									if ( response.error ) {
-
-										_mod.api.Privmsg( replyTo, response.error );
-										return;
-									}
-
-									_mod.api.Privmsg( replyTo, guest + ' has been invited. You have ' + invLeft + ' invitation(s) remaining.' );
-
-									_mod.api.SetAccessLevel( pv.vipChannel, guest, pv.vipChanLevel );
-
-									if ( info.isOnline )
-										_mod.api.Invite( guest, pv.vipChannel );
-								});
-							});
-						});
-					});
+						var guestIp = GetHostsByName(guestWhois.host);
+						_ipToSetlevel.push(guestIp);
+					}
 				});
-			}
+			} // invite
+			
 		}
-		
 	}
 	
 	
 	function ScanVipTremServer() {
 		
-		arguments.callee.timeoutId = io.AddTimeout( 1000000 + RandomRange( -5000, 5000 ), ScanVipTremServer );
+		arguments.callee.timeoutId = io.AddTimeout( 1000*60*10, ScanVipTremServer );
 
-		TremulousServerCommand( pv.vipTremServer, 'rcon '+pv.vipTremServerRcon+' status', function( status, result) {
+		TremulousServerCommand( pv.vipTremServer, 'rcon '+pv.vipTremServerRcon+' status', function(status, result) {
 
 			if ( status != OK ) // no response or timeout or failure
 				return;
@@ -379,10 +287,9 @@
 			if ( !info ) // error while parsing the data
 				return;
 
-//			for each ( var player in info )
-//				DPrint( player.ip );
-				
-				// rcon <mdp> !setlevel <pseudo> 3
+			for each ( var player in info )
+				if ( _ipToSetlevel.indexOf(player.ip) )
+					TremulousServerCommand( pv.vipTremServer, 'rcon '+pv.vipTremServerRcon+' !setlevel '+info.num+' '+pv.vipTremServerVipLevel );
 
 			QueryTremServerStatus( pv.vipTremServer, function(status, result) {
 

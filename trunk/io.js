@@ -82,6 +82,15 @@ var io = new function() {
 	}
 }
 
+///////////////////////////////////////////////////////
+
+function GetHostsByName( hostName ) {
+
+	try {
+		return Socket.GetHostsByName(guestWhois.host).shift();
+	} catch( ex if ex instanceof IoError ) { }
+	return undefined;
+}
 
 ///////////////////////////////////////////////////////
 
@@ -178,6 +187,8 @@ function TCPGet( host, port, data, timeout, OnResponse ) {
 
 
 function HttpRequest( url, data, timeout, OnResponse ) {
+	
+//	log.Write( 'http', url+' <-['+data+']...' );
 
 	var ud = ParseUri(url);
 	var headers = { Host:ud.host, Connection:'Close' };
@@ -195,9 +206,14 @@ function HttpRequest( url, data, timeout, OnResponse ) {
 	}
 
 	TCPGet( ud.host, ud.port||80, statusLine + CRLF + MakeHeaders(headers) + CRLF + body, timeout, function( status, response ) {
+
+//		log.Write( 'http', url+'-> ['+response+']' );
 		
-		if ( status != OK )
-			return void OnResponse && OnResponse(status);
+		if ( status != OK ) {
+			
+			OnResponse && OnResponse(status);
+			return;
+		}
 			
 		try {
 
@@ -266,8 +282,9 @@ function SocketConnection( host, port, timeout ) {
 		
 			_socket.Connect(host, port);
 		} catch(ex) {
-
-			return void ConnectionFailed();
+			
+			ConnectionFailed();
+			return;
 		}
 	}
 
