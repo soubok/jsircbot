@@ -96,7 +96,7 @@ function UDPGet( host, port, data, timeout, OnResponse ) {
 	try {
 		socket.Connect( host, port );
 	} catch(ex) {
-		OnResponse(ERROR);
+		OnResponse(UNREACHABLE);
 	}
 
 	socket.writable = function() {
@@ -122,7 +122,7 @@ function UDPGet( host, port, data, timeout, OnResponse ) {
 		io.RemoveDescriptor(socket);
 		OnResponse && OnResponse(TIMEOUT);
 	});
-}	
+}
 
 
 ///////////////////////////////////////////////////////
@@ -139,7 +139,7 @@ function TCPGet( host, port, data, timeout, OnResponse ) {
 	try {
 		socket.Connect( host, port );
 	} catch(ex) {
-		OnResponse(ERROR);
+		OnResponse(UNREACHABLE);
 	}
 
 	var buffer = new Buffer();
@@ -196,11 +196,8 @@ function HttpRequest( url, data, timeout, OnResponse ) {
 
 	TCPGet( ud.host, ud.port||80, statusLine + CRLF + MakeHeaders(headers) + CRLF + body, timeout, function( status, response ) {
 		
-		if ( status != OK ) {
-
-			OnResponse && OnResponse(status);
-			return;
-		}
+		if ( status != OK )
+			return void OnResponse && OnResponse(status);
 			
 		try {
 
@@ -214,7 +211,7 @@ function HttpRequest( url, data, timeout, OnResponse ) {
 			OnResponse && OnResponse(status, statusCode, reasonPhrase, headers, response.Read());
 		} catch(ex if ex == ERR) {
 
-			OnResponse && OnResponse(ERROR);
+			OnResponse && OnResponse(BADRESPONSE);
 		}
 	});
 }
@@ -238,59 +235,53 @@ function SocketConnection( host, port, timeout ) {
 	
 	var _this = this;
 
-	timeout = timeout||5000;
-	
 	this.OnConnected = Noop;
 	this.OnData = Noop;
 	this.OnDisconnected = Noop;
 	this.OnFailed = Noop;
 	
-	var _socket;	
+	var _connectionTimeout;
+	var _socket;
+
+	function ConnectionFailed() {
+
+		delete _socket.writable;
+		delete _socket.readable;
+		io.RemoveTimeout(_connectionTimeout);
+		_socket.Close();
+		_this.OnFailed();
+	}
+
+	_connectionTimeout = io.AddTimeout( timeout||5000, ConnectionFailed );
+
 	if ( host instanceof Socket ) {
 		
 		_socket = host;
-		_this.sockPort = _socket.sockPort;
-		_this.sockName = _socket.sockName;
-		_this.peerPort = _socket.peerPort;
-		_this.peerName = _socket.peerName;
 	} else {
 	
 		_socket = new Socket(Socket.TCP);
 		_socket.nonblocking = true;
-		_socket.noDelay = true;
 
 		try {
+		
 			_socket.Connect(host, port);
-
 		} catch(ex) {
 
-			ConnectionFailed();
-			return;
+			return void ConnectionFailed();
 		}
+	}
 
-		var _connectionTimeout;
+	_socket.noDelay = true;
 
-		function ConnectionFailed() {
+	_socket.writable = function(s) {
 
-			delete _socket.writable;
-			delete _socket.readable;
-			io.RemoveTimeout(_connectionTimeout);
-			_socket.Close();
-			_this.OnFailed();
-		}
-		
-		_connectionTimeout = io.AddTimeout( timeout, ConnectionFailed );
-
-		_socket.writable = function(s) {
-
-			delete s.writable;
-			io.RemoveTimeout(_connectionTimeout);
-			_this.sockPort = _socket.sockPort;
-			_this.sockName = _socket.sockName;
-			_this.peerPort = _socket.peerPort;
-			_this.peerName = _socket.peerName;
-			_this.OnConnected();
-		}
+		delete s.writable;
+		io.RemoveTimeout(_connectionTimeout);
+		_this.sockPort = _socket.sockPort;
+		_this.sockName = _socket.sockName;
+		_this.peerPort = _socket.peerPort;
+		_this.peerName = _socket.peerName;
+		_this.OnConnected();
 	}
 	
 	io.AddDescriptor(_socket);
@@ -302,10 +293,8 @@ function SocketConnection( host, port, timeout ) {
 
 			delete s.readable;
 			_this.OnDisconnected(true);
-		}	else {
-
+		}	else
 			_this.OnData(buf);
-		}
 	}
 
 	this.Close = function() {

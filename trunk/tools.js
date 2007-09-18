@@ -22,6 +22,9 @@ const CRLF = '\r\n';
 
 const OK = {};
 const ERROR = {};
+const UNREACHABLE = {};
+const BADREQUEST = {};
+const BADRESPONSE = {};
 const TIMEOUT = {};
 const NOTFOUND = {};
 
@@ -44,27 +47,57 @@ function StartProcedure( procedure ) {
 	} catch(ex if ex instanceof StopIteration) { }
 }
 
-///////////////////////////////////////////////////////
+/////////////////////////////////////////////////////// LOG system
 
-var log = new function() {
-
-	var _time0 = IntervalNow();
-
-	var _file = new File('ircbot.log');
+function LogScreen() function(data) {
 	
-	this.Write = function( data ) {
-		
-		var t = IntervalNow() - _time0;
-		_file.Open( File.CREATE_FILE + File.WRONLY + File.APPEND );
-		_file.Write( '{' + StringPad(t, 12, ' ') + '}' +data );
-		_file.Close();
-	}
+	Print(data);
+}
+
+function LogFile(fileName) {
+
+	var file = new File(fileName);
+	return function(data) {
 	
-	this.WriteLn = function( data ) {
-		
-		this.Write( data + '\n' );
+		file.Open(File.CREATE_FILE + File.WRONLY + File.APPEND);
+		file.Write(data);
+		file.Close();
 	}
 }
+
+
+Log.NET = {};
+Log.ERROR = {};
+Log.WARNING = {};
+
+function Log(data) {
+
+	var _outputList = [];
+	
+	var _time0 = IntervalNow();
+	function Time() StringPad((t/1000).toFixed(4), 10, ' ');
+
+	function Write(type, data) {
+		
+		for each ( [output, typeList] in _outputList )
+			typeList.indexOf(type) && output(data);
+	}
+	
+	this.AddFilter = function( output, type ) _outputList.push(arguments);
+
+	this.WriteLn(data) {
+	}
+}
+
+
+var log = new Log();
+
+log.AddFilter( LogFile('jsircbot.log'), [ Log.NET, Log.ERROR, Log.WARNING ] );
+log.AddFilter( LogScreen(), [ Log.NET, Log.ERROR, Log.WARNING ] );
+
+log.WriteLn('log initialized');
+
+
 
 ///////////////////////////////////////////////////////
 
@@ -78,30 +111,29 @@ function Failed(text) { log.WriteLn(text); throw new Error(text) } // fatal erro
 
 function ERR() { throw ERR }
 function CHK(v) v || ERR(); // check that the argument is not !!false
+function CHKN(v) !v || ERR(); // check that the argument is not !!true
 function CHKEQ(value, eq) value == eq ? value : ERR();
 function CHKNEQ(value, neq) value != neq ? value : ERR();
 
 function TRY(fct) {
+
 	try { 
 		void fct();
 		return true;
-	} catch(ex if ex == ERR) {
-		return false;
-	}
+	} catch(ex if ex == ERR) {}
+	return false;
 }
 
 /////////////////////////////////////////////////////// Misc tools
 
 function Noop() {}
 
-
 function IntegerToIp(number) (number>>24 & 255)+'.'+(number>>16 & 255)+'.'+(number>>8 & 255)+'.'+(number & 255);
 
-function IpToIntegerp(ip) { 
+function IpToInt(ip) {
 	
-	var p = 4, res = 0;
-	for each ( n in ip.split('.') )
-		res |= n << (--p)*8;
+	var res = 0;
+	ip.split('.',4).forEach(function(v, i) res |= v << (3-i) * 8 );
 	return res;
 }
 
@@ -125,22 +157,19 @@ function StringPad( str, count, chr ) {
 	return str;
 }
 
-function LTrim(str) {
 
-	for ( var i in str )
-		if ( str[i] != ' ' )
-			return str.substr(i);
-	return '';
-}
+LTrim._regexp = /^\s+/;
+function LTrim(str) str.replace(LTrim._regexp, '');
 
-function RTrim(str) {
+RTrim._regexp = /\s+$/;
+function RTrim(str) str.replace(RTrim._regexp, '');
 
-	var i = str.length;
-	while(str[--i]==' ');
-	return str.substr(0, ++i);
-}
+Trim._regexp = /^\s+|\s+$/g;
+function Trim(str) str.replace(Trim._regexp, '');
 
-function StrBefore( str, sep ) str.split(sep,1)[0];
+
+//function StrBefore( str, sep ) str.split(sep,1)[0];
+function StrBefore( str, sep ) (sep = str.indexOf(sep)) == -1 ? str : str.substr(0, sep);
 
 function StringReplacer(conversionObject) function(s) s.replace(new RegExp([k for (k in conversionObject)].join('|'), 'g'), function(str) conversionObject[str]); // eg. StringReplacer({aa:11})('xxaaxx'); returns 'xx11xx'
 
@@ -170,7 +199,7 @@ function Listener() {
 	var _list = [];
 	this.AddSet = function( set ) void _list.push(set);
 	this.RemoveSet = function( set ) void _list.splice(CHKNEQ(_list.indexOf(set),-1), 1);
-	this.Fire = function() {
+	this.Fire = function Fire() { // beware, Fire is only used for the function name 
 		
 		try {
 			for each ( var set in _list.slice() ) {
