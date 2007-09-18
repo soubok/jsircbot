@@ -21,6 +21,7 @@ Exec('dataObject.js');
 Exec('io.js');
 Exec('ident.js');
 
+
 ///////////////////////////////////////////////// TOOLS /////////////////////////////////////////////
 
 
@@ -29,8 +30,12 @@ function MakeModuleFromUrl( url, callback ) {
 	var args = arguments;
 	HttpRequest( url, '', 2000, function(status, statusCode, reasonPhrase, headers, body ) {
 
-		if ( status != OK || statusCode != 200 )
-			return void ReportError('Failed to load the module from '+url+' (reason:'+reasonPhrase+')');
+		if ( status != OK || statusCode != 200 ) {
+
+			ReportError('Failed to load the module from '+url+' (reason:'+reasonPhrase+')');
+			return;
+		}
+		
 		try {
 		
 			var mod = new (eval(body));
@@ -99,7 +104,7 @@ function MakeFloodSafeMessageSender( maxMessage, maxData, time, RawDataSender ) 
 
 	function Process() {
 		
-		log.WriteLn( '_count:'+ _count + ' _bytes:'+ _bytes+' _messageQueue.length:'+_messageQueue.length );
+		log.WriteLn( 'notice', '_count:'+ _count + ' _bytes:'+ _bytes+' _messageQueue.length:'+_messageQueue.length );
 	
 		var buffer = '';
 		function PrepMessage([messages, OnSent]) {
@@ -162,7 +167,7 @@ function ClientCore( Configurator ) {
 	
 	function RawDataSender(buf) {
 
-		log.WriteLn( '<-' + buf );
+		log.WriteLn( 'irc', '<-' + buf );
 		_connection.Write(buf).length && Failed('Unable to send (more) data.');
 		setData( _data.lastMessageTime, IntervalNow() );
 	}	
@@ -205,7 +210,7 @@ function ClientCore( Configurator ) {
 			var message;
 			while ( (message = _receiveBuffer.ReadUntil(CRLF)) ) {
 			
-				log.WriteLn('->'+message);
+				log.WriteLn( 'irc', '->'+message);
 				var prefix = message.indexOf( ':' );
 				var trailing = message.indexOf( ':', 1 );
 				var args = message.substring( prefix ? 0 : 1, (trailing > 0) ? trailing-1 : message.length ).split(' ');
@@ -297,72 +302,40 @@ function ClientCore( Configurator ) {
 ///////////////////////////////////////////////// MAIN /////////////////////////////////////////////
 
 
+Print( 'Press ctrl-c to exit...', '\n' );
+
 try {
 
-	Print( 'Press ctrl-c to exit...', '\n' );
-
-	function Configurator(data) {
-
-		setData( data.server, 'irc.freenode.net' );
-		setData( data.port, 6667 );
-		setData( data.hostname, '127.0.0.1' ); // try something else
-
-	// bot nick
-		setData(data.nick, 'TremVipBot');
-
-	// ident
-		setData(data.ident.opsys, 'UNIX');
-		setData(data.ident.userid, 'USERID');
-		setData(data.ident.username, 'user_TremVipBot');
-		setData(data.ident.realname, 'real_TremVipBot');
-
-	// configure chans
-		setData(data.ChannelModule.joinList, ['#soubok']);
-
-	// Configure anti-flood system ( in 10 seconds, we can send 5 messages OR 1456 bytes )
-		setData(data.antiflood.maxMessage, 10 );
-		setData(data.antiflood.maxBytes, 1456 );
-		setData(data.antiflood.interval, 10000 );
-
-	// configure DCCReceiver module
-		setData(data.DCCReceiverModule.destinationPath, '.' );
-		
-	// bot operator password
-		setData(data.OperatorManagerModule.password, 's6d5vf4qsd6f5vsqs8dv8q' );
-		
-	}
-
-	var core = new ClientCore(Configurator);
+	var log = new Log();
+	log.AddFilter( MakeLogFile('jsircbot.log', false), 'irc net http error warning crash' );
+	log.AddFilter( MakeLogScreen(), 'irc net http error warning crash' );
+	
+	log.WriteLn( 'notice', 'log initialized @ '+(new Date()));
+	
+	// starting
+	var core = new ClientCore(Exec('configuration.js'));
 	LoadLocalModules( core, '.', '.jsmod' );
-	
 	LoadRemoteModules( core, 'http://jsircbot.googlecode.com/svn/trunk', ['serverQuery.jsmod'] );
-
-	
 	core.Connect();
-	
+
+	// running	
 	io.Process( function() core.hasFinished() || endSignal );
-	
+	// ending
 	if ( endSignal ) {
 
 		core.Disconnect();
 		io.Process( function() core.hasFinished() );
 	}
-		
 	io.Close();
+	log.WriteLn( 'notice', '**************************** Gracefully end.');
 
-	log.WriteLn(' ========================================================= END ========================================================= ');
-
-	Print('\nGracefully end.\n');
-	
 } catch( ex if ex instanceof IoError ) {
 
-	Print( 'IoError: '+ ex.text + ' ('+ex.os+')' );
+	log.WriteLn( 'crash', 'IoError: '+ ex.text + ' ('+ex.os+')' );
 } catch(ex) {
-	
-	Print( ex.toSource(), '\n' );
-	Print( ex.stack, '\n' );
-}
 
+	log.WriteLn( 'crash', ExToText(ex, true) );
+}
 
 
 /*

@@ -23,8 +23,11 @@
 
 	function channelInfoParser(msg, request) {
 	
-		if ( msg.indexOf('is not registered') != -1 )
-			return Done(NOTFOUND);
+		if ( msg.indexOf('is not registered') != -1 ) {
+			
+			Done(NOTFOUND);
+			return;
+		}
 		var [field, data] = LTrim(msg).split(': ',2);
 		switch ( field ) {
 			case 'Channel':
@@ -55,26 +58,34 @@
 	}
 
 	accessInfoParser.accessInfoLine_regexp = /^([0-9]+) +([0-9]+) +([^ ]+) +(.*?) *$/;
+	
 	function accessInfoParser(msg, request) {
 		
 		try {
 	
-			if ( msg.indexOf('End of list') != -1 || msg.indexOf('is not registered') != -1 )
-				return Done(NOTFOUND);
+			if ( msg.indexOf('is not registered') != -1 ) {
+				Done(NOTFOUND);
+				return;
+			}
+
+			if ( msg.indexOf('End of list') != -1 ) {
+			
+				Done(OK);
+				return;
+			}
 			if ( msg.indexOf('Access List for') != -1 ) {
 
 				request.reply = [];
 				return;
 			}
 		
-			var tpl = { num:1, level:2, hostmask:3, time:4 };
 			var parseAccessInfoLine = accessInfoParser.accessInfoLine_regexp;
 			var match = parseAccessInfoLine(msg);
-			match && request.reply.push( MakeObj( tpl, match ) );
+			match && request.reply.push( MakeObj( { num:1, level:2, hostmask:3, time:4 }, match ) );
 
 		} catch(ex if ex == ERR) {
 			
-			log.WriteLn('accessInfoParser: parsing error');
+			log.WriteLn( 'error', 'accessInfoParser: parsing error');
 			Done(BADRESPONSE);
 			return;
 		}
@@ -83,8 +94,11 @@
 	
 	function infoParser(msg, request) {
 		
-		if ( msg.indexOf('is not registered') != -1 )
-			return Done(NOTFOUND);
+		if ( msg.indexOf('is not registered') != -1 ) {
+		
+			Done(NOTFOUND);
+			return;
+		}
 		var [field, data] = LTrim(msg).split(': ',2);
 		switch ( field ) {
 			case 'Nickname':

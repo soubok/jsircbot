@@ -18,8 +18,6 @@
 	this.name = this.constructor.name;
 	var _mod = this;
 	
-	const _lagProbeInterval = 60000;
-
 // [TBD] autodetect max message length ( with a self sent mesage )
 // [TBD] autodetect flood limit
 
@@ -28,14 +26,13 @@
 		RPL_WELCOME: function( command, from, to ) {
 
 			setData( _mod.data.serverHost, from );
-
 			setData( _mod.data.nick, to );
 			_mod.Send( 'USERHOST ' + to );
 			
 			function LagProbe() {
 				
 				_mod.Send( 'PING LAG' + IntervalNow(), true );
-				io.AddTimeout(_lagProbeInterval, arguments.callee );
+				io.AddTimeout(getData( _mod.data[_mod.name].lagProbeInterval ), arguments.callee );
 			}
 			LagProbe();
 		},

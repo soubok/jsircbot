@@ -49,65 +49,72 @@ function StartProcedure( procedure ) {
 
 /////////////////////////////////////////////////////// LOG system
 
-function LogScreen() function(data) {
+function MakeLogScreen() function(data) {
 	
 	Print(data);
 }
 
-function LogFile(fileName) {
+function MakeLogFile(fileName, append) {
 
 	var file = new File(fileName);
+	file.Open(File.CREATE_FILE + File.WRONLY + (append ? File.APPEND : File.TRUNCATE));
 	return function(data) {
 	
-		file.Open(File.CREATE_FILE + File.WRONLY + File.APPEND);
 		file.Write(data);
-		file.Close();
+//		file.Close();
 	}
 }
 
+function MakeLogUDP(host, port) {
 
-Log.NET = {};
-Log.ERROR = {};
-Log.WARNING = {};
+	var socket = new Socket( Socket.UDP );
+	try {
+		socket.Connect( host, port );
+	} catch(ex) {
+		Print( 'Unable to '+arguments.callee.name );
+	}
+	return function(data) socket.Write(data);
+}
+
+function MakeLogEMail(mailTo) {
+
+	return function(data) {
+		// (TBD)
+	}
+}
 
 function Log(data) {
 
 	var _outputList = [];
-	
 	var _time0 = IntervalNow();
-	function Time() StringPad((t/1000).toFixed(4), 10, ' ');
+	function Time() StringPad(((IntervalNow()-_time0)/1000).toFixed(2), 11, ' ');
 
 	function Write(type, data) {
 		
-		for each ( [output, typeList] in _outputList )
-			typeList.indexOf(type) && output(data);
+		for each ( var [output, typeList] in _outputList )
+			(' '+typeList+' ').indexOf(' '+type+' ') != -1 && output(data);
 	}
 	
-	this.AddFilter = function( output, type ) _outputList.push(arguments);
-
-	this.WriteLn(data) {
-	}
+	this.AddFilter = function( output, typeList ) _outputList.push([output, typeList]);
+	this.WriteLn = function(type, data) void Write(type, Time()+data+'\n');
 }
 
+///////////////////////////////////////////////////////
 
-var log = new Log();
-
-log.AddFilter( LogFile('jsircbot.log'), [ Log.NET, Log.ERROR, Log.WARNING ] );
-log.AddFilter( LogScreen(), [ Log.NET, Log.ERROR, Log.WARNING ] );
-
-log.WriteLn('log initialized');
-
-
+function Stringable( obj ) {
+	
+	obj.toString = function() obj.constructor.name;
+}
 
 ///////////////////////////////////////////////////////
 
 function ExToText(ex, showStack) ex instanceof Error ? ex.name+': '+ex.message+' ('+(showStack ? ex.stack : (ex.fileName+':'+ex.lineNumber))+')' : ex.toString();
 
-function ReportError(text) { log.WriteLn(text); Print(text, '\n') }
+function ReportError(text) { log.WriteLn( 'error', text) }
 
-function ReportWarning(text) { log.WriteLn(text); Print(text, '\n') }
+function ReportWarning(text) { log.WriteLn( 'warning', text) }
 
-function Failed(text) { log.WriteLn(text); throw new Error(text) } // fatal error
+function Failed(text) { log.WriteLn( 'crash', text); throw new Error(text) } // fatal error
 
 function ERR() { throw ERR }
 function CHK(v) v || ERR(); // check that the argument is not !!false
