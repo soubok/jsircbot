@@ -42,9 +42,9 @@ function StartProcedure( procedure ) {
 
 			try {
 				procedure.send(arguments)(arguments.callee);
-			} catch(ex if ex instanceof StopIteration) { }
+			} catch(ex if ex == StopIteration) {}
 		});
-	} catch(ex if ex instanceof StopIteration) { }
+	} catch(ex if ex == StopIteration) {}
 }
 
 /////////////////////////////////////////////////////// LOG system
