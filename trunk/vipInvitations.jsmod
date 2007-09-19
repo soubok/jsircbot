@@ -152,7 +152,7 @@
 		});
 	}
 	
-	var _ipToSetlevel = [];
+	var _playerListToSetlevel = [];
 	
 
 	var _moduleListeners = {
@@ -266,7 +266,17 @@
 							_mod.api.Invite( guest, pv.vipChannel );
 
 						var guestIp = GetHostsByName(guestWhois.host);
-						_ipToSetlevel.push(guestIp);
+						
+						if ( guestIp ) {
+
+							var [status, response] = yield function(callback) QueryVIPDatabase({ action:'setIp', nick:guestNick, ip:guestIp }, callback);
+							_playerListToSetlevel.push([guestNick, guestIp, (new Date()).getTime()/1000]);
+						}
+						
+						// { action:'setIp', nick:'irc_nick', ip:'x.x.x.x' }
+						// { action:'setlevelDone', nick:'irc_nick', tremName:'trem_name' }
+						// { action:'getIpList' }
+						
 					}
 				});
 			} // invite
@@ -287,9 +297,18 @@
 			if ( !info ) // error while parsing the data
 				return;
 
-			for each ( var player in info )
-				if ( _ipToSetlevel.indexOf(player.ip) )
-					TremulousServerCommand( pv.vipTremServer, 'rcon '+pv.vipTremServerRcon+' !setlevel '+info.num+' '+pv.vipTremServerVipLevel );
+			for each ( var playerInfo in info )
+				for each ( var [guestNick, guestIp, date] in _playerListToSetlevel )
+				
+					if ( playerInfo.ip == guestIp ) {
+					
+						_playerListToSetlevel[i] = [0,0,0];
+					
+						TremulousServerCommand( pv.vipTremServer, 'rcon '+pv.vipTremServerRcon+' !setlevel '+playerInfo.num+' '+pv.vipTremServerVipLevel );
+					
+					}
+to be done				
+
 
 			QueryTremServerStatus( pv.vipTremServer, function(status, result) {
 
@@ -326,6 +345,14 @@
 			_mod.api.Nick( pv.botNick );
 		}
 	};
+
+
+	this.InitModule = function() {
+	}
+	
+	
+	this.DestroyModule = function() {
+	}
 
 
 	this.AddModuleListeners = function() {
