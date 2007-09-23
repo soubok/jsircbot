@@ -17,7 +17,16 @@ function Ident( io, callback, timeout ) {
 
 	var identServerSocket = new Socket(); // create a server ( rendez-vous ) socket
 	io.AddDescriptor( identServerSocket ); // add the socket to the 'pollable' list
-	identServerSocket.Bind(113);
+	
+	try {	
+	
+		identServerSocket.Bind(113);
+	} catch( ex if ex instanceof IoError ) {
+
+//		log.WriteLn( 'warning', 'Unable to listen on port 113: '+ ex.text + ' ('+ex.os+')' );
+		return false;
+	}	
+	
 	identServerSocket.Listen(); // listen on port 113 (ident)
 	
 	var listenTimeoutId = io.AddTimeout(timeout, function() { // create a timeout to prevent ...
