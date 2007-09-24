@@ -19,7 +19,7 @@
 	
 	const _nameParser = /(@?)(\+?)(.*)/;
 	
-	function NormalizeChannelName(channelName) channelName.toLowerCase();
+	function NormalizeChannelName(channelName) channelName.toLowerCase(); // (TBD) check if we muse use _api.ToIRCLowerString instead !
 
 	function ParseModes( modes, args, chanData ) {
 
