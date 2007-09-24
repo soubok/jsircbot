@@ -225,21 +225,22 @@ function ClientCore( Configurator ) {
 
 
 		var getServer = new function() {
-
-			for each ( let [server, portList] in getData(_data.serverList) )
-				for each ( let [port] in portList )
-					for ( var i = 0; i < getData(data.serverRetry); i++ )
-						yield [server, port];
+			
+			for ( var j = 0; j < getData(_data.serverRetry); j++ )
+				for each ( let [server, portList] in getData(_data.serverList) )
+					for each ( let port in portList )
+						for ( var i = 0; i < getData(_data.serverRetry); i++ )
+							yield [server, port];
 		}
 		
 		function TryNextServer() {
 			
 			try {
 			
-				var [host, port] = getServer.Next();
+				var [host, port] = getServer.next();
 			} catch(ex if ex == StopIteration) {
 			
-				Failed('Unable to connect to a server.');
+				Failed('Unable to connect to any server.');
 			}
 			
 			log.WriteLn('notice', 'Trying to connect to ' + host + ':' + port );
@@ -248,7 +249,7 @@ function ClientCore( Configurator ) {
 
 				log.WriteLn('error', 'Failed to connect to ' + host + ':' + port );
 				
-				var _timeoutId = io.AddTimeout( getData(data.serverRetryPause), function() {
+				var _timeoutId = io.AddTimeout( getData(_data.serverRetryPause), function() {
 				
 					TryNextServer();
 				});
@@ -371,7 +372,7 @@ try {
 	log.WriteLn( 'crash', ExToText(ex, true) );
 }
 
-exitValue;
+
 
 /*
 

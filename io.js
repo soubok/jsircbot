@@ -336,7 +336,7 @@ function SocketConnection( host, port ) {
 			_this.OnDisconnected(false); // locally disconnected
 		}
 		_socket.readable = Disconnected;
-		shutdownTimeout = io.AddTimeout( timeout/2, Disconnected ); // force disconnect after the timeout
+		shutdownTimeout = io.AddTimeout( 2000, Disconnected ); // force disconnect after the timeout
 	}
 
 	this.Write = function(data) _socket.Write(data);
