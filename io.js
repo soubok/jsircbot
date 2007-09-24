@@ -247,73 +247,77 @@ function ProxyHttpConnection( proxyHost, proxyPort ) {
 
 ///////////////////////////////////////////////////////
 
-function SocketConnection( host, port, timeout ) {
+function SocketConnection( host, port ) {
 	
 	var _this = this;
-
 	this.OnConnected = Noop;
 	this.OnData = Noop;
 	this.OnDisconnected = Noop;
 	this.OnFailed = Noop;
-	
 	var _connectionTimeout;
 	var _socket;
+	
+	function Connecting() {
 
-	function ConnectionFailed() {
+		_socket.writable = function(s) {
 
-		delete _socket.writable;
-		delete _socket.readable;
-		io.RemoveTimeout(_connectionTimeout);
-		_socket.Close();
-		_this.OnFailed();
+			delete s.writable;
+			_connectionTimeout && io.RemoveTimeout(_connectionTimeout);
+			_this.sockPort = s.sockPort;
+			_this.sockName = s.sockName;
+			_this.peerPort = s.peerPort;
+			_this.peerName = s.peerName;
+			_this.OnConnected();
+		}
+	
+		_socket.readable = function(s) {
+
+			var buf = s.Read();
+			if ( buf.length == 0 ) {
+
+				delete s.readable;
+				_this.OnDisconnected(true);
+			}	else
+				_this.OnData(buf);
+		}
+
+		io.AddDescriptor(_socket);
 	}
-
-	_connectionTimeout = io.AddTimeout( timeout||5000, ConnectionFailed );
-
+	
 	if ( host instanceof Socket ) {
 		
 		_socket = host;
+		Connecting();
 	} else {
-	
-		_socket = new Socket(Socket.TCP);
-		_socket.nonblocking = true;
-
-		try {
 		
-			_socket.Connect(host, port);
-		} catch(ex) {
-			
-			ConnectionFailed();
-			return;
+		this.Connect = function( timeout ) {
+
+			function ConnectionFailed() {
+
+				delete _socket.writable;
+				delete _socket.readable;
+				io.RemoveTimeout(_connectionTimeout);
+				_socket.Close();
+				_this.OnFailed(host, port);
+			}
+
+			_connectionTimeout = io.AddTimeout( timeout||5000, ConnectionFailed );
+			_socket = new Socket(Socket.TCP);
+			_socket.nonblocking = true;
+			_socket.noDelay = true;
+
+			try {
+
+				_socket.Connect(host, port);
+			} catch( ex if ex instanceof IoError ) {
+
+				ConnectionFailed();
+				return;
+			}
+			Connecting();
 		}
-	}
-
-	_socket.noDelay = true;
-
-	_socket.writable = function(s) {
-
-		delete s.writable;
-		io.RemoveTimeout(_connectionTimeout);
-		_this.sockPort = _socket.sockPort;
-		_this.sockName = _socket.sockName;
-		_this.peerPort = _socket.peerPort;
-		_this.peerName = _socket.peerName;
-		_this.OnConnected();
-	}
+	}	
 	
-	io.AddDescriptor(_socket);
-
-	_socket.readable = function(s) {
-
-		var buf = s.Read();
-		if ( buf.length == 0 ) {
-
-			delete s.readable;
-			_this.OnDisconnected(true);
-		}	else
-			_this.OnData(buf);
-	}
-
 	this.Close = function() {
 
 		io.RemoveDescriptor(_socket); // no more read/write notifications are needed
@@ -349,7 +353,7 @@ function SocketServer( port, ip ) {
 	_server.nonblocking = true;
 	if ( port instanceof Array ) {
 		
-		for ( var [p, portMax] = port; !_server.Bind( p, ip ) && p <= portMax; p++ );
+		for ( let [p, portMax] = port; !_server.Bind( p, ip ) && p <= portMax; p++ );
 	} else {
 	
 		_server.reuseAddr = true; // if we have a port range, we can work without this option

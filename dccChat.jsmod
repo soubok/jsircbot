@@ -40,6 +40,7 @@
 				}
 				
 				var connection = new SocketConnection( IntegerToIp(nip), nport );
+				
 				connection.OnData = function( buf ) {
 					
 					_mod.FireModuleListener( 'dcc', 'chatData', from, buf, connection );
@@ -59,6 +60,7 @@
 				}
 				
 				connection.OnFailed = function() ReportError('DCC CHAT Connection failed.');
+				connection.Connect();
 			}
 		}
 	};

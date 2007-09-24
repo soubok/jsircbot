@@ -101,10 +101,10 @@ function Log(data) {
 
 ///////////////////////////////////////////////////////
 
-function Stringable( obj ) {
-	
-	obj.toString = function() obj.constructor.name;
-}
+//function Stringable( obj ) {
+//	
+//	obj.toString = function() obj.constructor.name;
+//}
 
 ///////////////////////////////////////////////////////
 

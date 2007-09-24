@@ -181,30 +181,7 @@ function ClientCore( Configurator ) {
 		
 		var _receiveBuffer = new Buffer();
 
-		_connection = new SocketConnection( getData(_data.server), getData(_data.port) );
-		
-		_connection.OnConnected = function() {
-			
-			setData( _data.sockName, _connection.sockName );
-			setData( _data.sockPort, _connection.sockPort );
-			setData( _data.peerPort, _connection.peerPort );
-			setData( _data.peerName, _connection.peerName );
-			_coreListener.Fire('OnConnected');
-		}
-
-		_connection.OnDisconnected = function( remotelyDisconnected ) {
-
-			_coreListener.Fire('RemoveModuleListeners');
-			_coreListener.Fire('RemoveModuleAPI');
-			_coreListener.Fire('OnDisconnected');
-			_hasFinished = true;
-			_connection.Close();
-			// (TBD) retry if remotelyDisconnected ?
-		}
-		
-		_connection.OnFailed = _connection.OnDisconnected; // (TBD) try another server
-
-		_connection.OnData = function(buf) {
+		function OnData(buf) {
 
 			_receiveBuffer.Write(buf);
 			var message;
@@ -224,7 +201,64 @@ function ClientCore( Configurator ) {
 				_messageListener.Fire.apply( null, args );
 			}
 		}
-		setData( _data.connectTime, IntervalNow() );
+
+		function OnDisconnected( remotelyDisconnected ) {
+
+			_coreListener.Fire('RemoveModuleListeners');
+			_coreListener.Fire('RemoveModuleAPI');
+			_coreListener.Fire('OnDisconnected');
+			_hasFinished = true;
+			_connection.Close();
+			// (TBD) retry if remotelyDisconnected ?
+		}
+		
+		function OnConnected() {
+			
+			setData( _data.sockName, _connection.sockName );
+			setData( _data.sockPort, _connection.sockPort );
+			setData( _data.peerPort, _connection.peerPort );
+			setData( _data.peerName, _connection.peerName );
+			_connection.OnData = OnData;
+			_connection.OnDisconnected = OnDisconnected;
+			_coreListener.Fire('OnConnected');
+		}
+
+
+		var getServer = new function() {
+
+			for each ( let [server, portList] in getData(_data.serverList) )
+				for each ( let [port] in portList )
+					for ( var i = 0; i < getData(data.serverRetry); i++ )
+						yield [server, port];
+		}
+		
+		function TryNextServer() {
+			
+			try {
+			
+				var [host, port] = getServer.Next();
+			} catch(ex if ex == StopIteration) {
+			
+				Failed('Unable to connect to a server.');
+			}
+			
+			log.WriteLn('notice', 'Trying to connect to ' + host + ':' + port );
+			_connection = new SocketConnection(host, port);
+			_connection.OnFailed = function() {
+
+				log.WriteLn('error', 'Failed to connect to ' + host + ':' + port );
+				
+				var _timeoutId = io.AddTimeout( getData(data.serverRetryPause), function() {
+				
+					TryNextServer();
+				});
+			}
+			_connection.OnConnected = OnConnected;
+			_connection.Connect();
+			setData( _data.connectTime, IntervalNow() );
+		}
+
+		TryNextServer();
 		_coreListener.Fire('OnConnecting');
 	}
 		
@@ -337,6 +371,7 @@ try {
 	log.WriteLn( 'crash', ExToText(ex, true) );
 }
 
+exitValue;
 
 /*
 
@@ -349,6 +384,12 @@ CTCP Protocol (Client-To-Client Protocol)
   http://www.irchelp.org/irchelp/rfc/ctcpspec.html
   http://mathieu-lemoine.developpez.com/tutoriels/irc/ctcp/
 
+misc links:
+	modes infos/servers: http://www.alien.net.au/irc/chanmodes.html
+	http://www.irchelp.org/irchelp/rfc/rfc2811.txt
+	http://www.croczilla.com/~alex/reference/javascript_ref/object.html
+	http://www.js-examples.com/javascript/core_js15/obj.php
+	CTCP: http://www.irchelp.org/irchelp/rfc/ctcpspec.html
 
 6.9 Characters on IRC
 	For chatting in channels, anything that can be translated to ASCII gets through. (ASCII is a standard way to express characters) Note however, 
@@ -369,42 +410,45 @@ CTCP Protocol (Client-To-Client Protocol)
 
 	A weird side-effect happens when trying to ban people with these characters in the name.
 	Trying to ban the nick “ac\dc”, *|*!*@* will work where *\*!*@* fails. *ac\dc*!*@* works just fine too.
-
-notes:
-
-
-	// user mode message: <nickname> *( ( "+" / "-" ) *( "i" / "w" / "o" / "O" / "r" ) )
-	// channel mode message: <channel> *( ( "-" / "+" ) *<modes> *<modeparams> )
-
-	:cdd_etf_bot!~cdd_etf_b@host.com MODE cdd_etf_bot +i
-	:soubok!~chatzilla@host.com MODE #soubok +vo soubok cdd_etf_bot
-	:soubok!~chatzilla@host.com MODE #soubok -v soubok
-	:soubok!~chatzilla@host.com MODE #soubok -o+v cdd_etf_bot soubok
-	:soubok!~chatzilla@host.com MODE #soubok +k pass
-	:soubok!~chatzilla@host.com MODE #soubok -k pass
-	:soubok!~chatzilla@host.com MODE #soubok +tk pass
-	:soubok!~chatzilla@host.com MODE #soubok +u
-	:soubok!~chatzilla@host.com MODE #soubok -v soubok
-	:soubok!~chatzilla@host.com MODE #soubok -v cdd_etf_bot
-	:soubok!~chatzilla@host.com MODE #soubok +v soubok
-	:soubok!~chatzilla@host.com MODE #soubok +tv soubok
-	:soubok!~chatzilla@host.com MODE #soubok +kv password soubok
-
-	:soubok!~chatzilla@host.com MODE #soubok +b aa!bb@cc
-	:soubok!~chatzilla@host.com MODE #soubok +l 1337
-	:soubok!~chatzilla@host.com MODE #soubok -l
+*/
 
 
-	quakenet +r flag: you must be authed to join (+r)
-
-	  353    RPL_NAMREPLY "( "=" / "*" / "@" ) <channel> :[ "@" / "+" ] <nick> *( " " [ "@" / "+" ] <nick> )
-			  - "@" is used for secret channels, "*" for private channels, and "=" for others (public channels).
-
-	modes infos/servers: http://www.alien.net.au/irc/chanmodes.html
-
-	http://www.irchelp.org/irchelp/rfc/rfc2811.txt
-	http://www.croczilla.com/~alex/reference/javascript_ref/object.html
-	http://www.js-examples.com/javascript/core_js15/obj.php
-	CTCP: http://www.irchelp.org/irchelp/rfc/ctcpspec.html
+/* Character codes
+   
+   ...
+   Because of IRC's Scandinavian origin, the characters {}|^ are
+   considered to be the lower case equivalents of the characters []\~,
+   respectively. This is a critical issue when determining the
+   equivalence of two nicknames or channel names.
 
 */
+
+
+/* IRC Messages
+
+   Each IRC message may consist of up to three main parts: the prefix
+   (OPTIONAL), the command, and the command parameters (maximum of
+   fifteen (15)).  The prefix, command, and all parameters are separated
+   by one ASCII space character (0x20) each.
+
+   The presence of a prefix is indicated with a single leading ASCII
+   colon character (':', 0x3b), which MUST be the first character of the
+   message itself.  There MUST be NO gap (whitespace) between the colon
+   and the prefix.  The prefix is used by servers to indicate the true
+   origin of the message.  If the prefix is missing from the message, it
+   is assumed to have originated from the connection from which it was
+   received from.  Clients SHOULD NOT use a prefix when sending a
+   message; if they use one, the only valid prefix is the registered
+   nickname associated with the client.
+
+   The command MUST either be a valid IRC command or a three (3) digit
+   number represented in ASCII text.
+
+   IRC messages are always lines of characters terminated with a CR-LF
+   (Carriage Return - Line Feed) pair, and these messages SHALL NOT
+   exceed 512 characters in length, counting all characters including
+   the trailing CR-LF. Thus, there are 510 characters maximum allowed
+   for the command and its parameters.  There is no provision for
+   continuation of message lines.  See section 6 for more details about
+   current implementations.
+*/   

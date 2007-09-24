@@ -1,13 +1,25 @@
 function(data) {
 
-	setData( data.server, 'irc.freenode.net' );
-	setData( data.port, 6667 );
+	setData( data.serverList,
+		[
+			['irc.freenode.net', [6666, 6667, 6668, 6669]],
+			['chat.eu.freenode.net', [6666, 6667, 6668, 6669]]
+		]
+	);
+	setData( data.serverRetry, 3 );
+	setData( data.serverRetryPause, 2000 );
+
+
+//	setData( data.server, 'irc.freenode.net' );
+//	setData( data.port, 6667 );
+
 	setData( data.hostname, '127.0.0.1' ); // try something else
 
 // bot nick
 	setData(data.nick, 'TremVipBot');
 
 // ident
+	setData(data.ident, true);
 	setData(data.ident.opsys, 'UNIX');
 	setData(data.ident.userid, 'USERID');
 	setData(data.ident.username, 'user_TremVipBot');
