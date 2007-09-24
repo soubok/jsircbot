@@ -37,7 +37,9 @@ function MakeModuleFromUrl( url, callback ) {
 		}
 		
 		try {
-		
+			
+			var relativeLineNumber;
+			try { throw new Error() } catch(ex) { relativeLineNumber = ex.lineNumber }		
 			var mod = new (eval(body));
 			mod.Reload = function() args.callee.apply(null, args);
 			callback(mod);
@@ -54,9 +56,7 @@ function MakeModuleFromPath( path, callback ) {
 	var args = arguments;
 	try {
 		
-//		var file = new File(path);
-//		var mod = new (eval(file.content));
-		var mod = new (Exec(path, false));
+		var mod = new (Exec(path, false)); // do not save compiled version of the script
 		mod.Reload = function() args.callee.apply(null, args);
 		callback(mod);
 	} catch(ex) {
@@ -65,32 +65,25 @@ function MakeModuleFromPath( path, callback ) {
 	}
 }
 
+function InstallLoadedModule( mod ) {
+
+	core.RemoveModuleByName(mod.name); // remove existing module with the same name
+	core.AddModule(mod);
+}
 
 function LoadRemoteModules( core, baseUrl, moduleList ) {
 	
-	function Load( mod ) {
-
-		core.RemoveModuleByName(mod.name); // remove existing module with the same name
-		core.AddModule(mod);
-	}
-	
 	for each ( var moduleName in moduleList )
-		MakeModuleFromUrl( baseUrl+'/'+moduleName, Load );
+		MakeModuleFromUrl( baseUrl+'/'+moduleName, InstallLoadedModule );
 }
 
 
 function LoadLocalModules( core, path, sufix ) {
 	
-	function Load( mod ) {
-
-		core.RemoveModuleByName(mod.name); // remove existing module with the same name
-		core.AddModule(mod);
-	}
-
 	var entry, dir = new Directory(path, Directory.SKIP_BOTH);
 	for ( dir.Open(); (entry = dir.Read()); )
 		if ( StringEnd( entry, sufix ) )
-			MakeModuleFromPath( path+'/'+entry, Load );
+			MakeModuleFromPath( path+'/'+entry, InstallLoadedModule );
 }
 
 
@@ -312,7 +305,7 @@ function ClientCore( Configurator ) {
 
 	this.ReloadModule = function( mod ) {
 
-		if ( 'Reload' in mod )
+		if ( 'Reload' in mod && mod.Reload instanceof Function )
 			mod.Reload();
 		else
 			ReportWarning('Unable to reload the module '+mod.name+': Reload function not found.');
