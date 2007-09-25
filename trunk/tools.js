@@ -18,6 +18,7 @@ const CR = '\r';
 const LF = '\n';
 const CRLF = CR+LF;
 const SPC = ' ';
+//const SPC = '\040'; // space
 
 /////////////////////////////////////////////////////// callback functions status
 
@@ -40,7 +41,6 @@ function StopProcedure() {
 
 function StartProcedure( procedure ) {
 	
-	procedure = new procedure;
 	try {
 		procedure.next()(function(result) {
 
@@ -223,8 +223,8 @@ function Listener() {
 		
 		try {
 			for each ( let set in _list.slice() ) {
-
-				for ( let it = 0, n = set; n instanceof Object && it in arguments && arguments[it] in n; n = n[arguments[it++]] );
+				
+				for ( var it = 0, n = set; n instanceof Object && it in arguments && arguments[it] in n; n = n[arguments[it++]] );
 				n instanceof Function && void n.apply(null, arguments);
 			}
 		} catch(ex) {
