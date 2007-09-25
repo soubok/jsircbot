@@ -76,6 +76,21 @@
 				}
 			},
 
+
+			log: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+				
+				if ( !_mod.api.IsBotOp(from) )
+					return;
+				var nick = StrBefore(from, '!');
+				_mod.api.OpenDCCChat( nick, function(connection) {
+
+					function LogFilter(data) connection.Write(data);
+					log.AddFilter( LogFilter, 'irc net http error warning failure notice' ); // or cmdData
+					connection.OnDisconnected = function() log.RemoveFilter( LogFilter );
+				});
+			},
+
+
 			eval: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 				
 				if ( !_mod.api.IsBotOp(from) )

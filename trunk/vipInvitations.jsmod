@@ -88,6 +88,8 @@
 	function QueryVIPDatabase( data, OnResult ) {
 
 		HttpRequest( pv.invitationURL, data, 3000, function(status, statusCode, reasonPhrase, headers, body) {
+			
+			ReportNotice( 'QueryVIPDatabase:: STATUS:'+OK+' REQUEST:'+data.toSource()+' RESPONSE:'+body );
 
 			if ( status != OK ) {
 				
@@ -170,7 +172,7 @@
 			
 			server: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 				
-				StartProcedure( new function() {
+				StartAsyncProc( new function() {
 
 					if ( to != pv.vipChannel )
 						return;
@@ -179,12 +181,12 @@
 					var replyTo = to[0] == '#' ? to : nick;
 
 					if ( _mod.lastServerQueryInterval && IntervalNow() - _mod.lastServerQueryInterval < 10000 ) // anti-flood
-						_mod.api.Privmsg( replyTo, 'Please don\'t spam, try again later.' ), StopProcedure();
+						_mod.api.Privmsg( replyTo, 'Please don\'t spam, try again later.' ), StopAsyncProc();
 					var [status, result] = yield function(callback) QueryTremServerStatus(pv.vipTremServer, callback);
 					
 					if ( status != OK ) {
 					
-						_mod.api.Privmsg( replyTo, 'Sorry, the server does not respond.' ), StopProcedure();
+						_mod.api.Privmsg( replyTo, 'Sorry, the server does not respond.' ), StopAsyncProc();
 						return;
 					}
 
@@ -197,18 +199,71 @@
 			}, // server
 
 
+			forceinvite: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+			
+				StartAsyncProc( new function() {
+
+					function forceinviteFailed(message) {
+					
+						var replyTo = to[0] == '#' ? to : StrBefore(from, '!');
+						_mod.api.Privmsg( replyTo, message );
+						StopAsyncProc();
+					}
+
+					if ( !_mod.api.IsBotOp(from) )
+						forceinviteFailed('need bot auth.');
+
+					var replyTo = to[0] == '#' ? to : StrBefore(from, '!');
+
+					if ( !cmdData )
+						forceinviteFailed( 'use: !forceinvite <guest> by <host>' );
+
+					var [guestNick, byWord, hostNick] = cmdData.split(' ');
+					
+					if ( byWord != 'by' )
+						forceinviteFailed( 'use: !forceinvite <guest> by <host>' );
+					
+					
+					var [status, hostWhois] = yield function(callback) _mod.api.Whois(hostNick, callback);
+					if ( status != OK )
+						forceinviteFailed('Unable to get '+hostNick+' IRC status.');
+					if ( !hostWhois.isIdentified )
+						forceinviteFailed( hostWhois+' is not identified on IRC.');
+
+					var [status, guestWhois] = yield function(callback) _mod.api.Whois(guestNick, callback);
+					if ( status != OK )
+						forceinviteFailed('Unable to get '+guestNick+' IRC status.');
+					if ( !guestWhois.isIdentified )
+						forceinviteFailed( guestNick+' is not identified on IRC.');
+					
+					var [status, response] = yield function(callback) QueryVIPDatabase({ action:'invite', guest:guestNick, host:hostNick }, callback);
+					if ( status != OK )
+						forceinviteFailed('Service unavailable. Please retry later.');
+					if ( response.error )
+						forceinviteFailed(response.error);
+						
+						
+					var guestIp = GetHostsByName(guestWhois.host);
+					if ( guestIp ) {
+
+						var [status, response] = yield function(callback) QueryVIPDatabase({ action:'setIp', nick:guestNick, ip:guestIp }, callback);
+						_playerListToSetlevel.push([guestIp, guestNick, Time()]);
+					}
+				});
+			},
+
 			invite: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 
-				StartProcedure( new function() {
+				StartAsyncProc( new function() {
 
 					if ( to != pv.vipChannel )
-						StopProcedure();
+						StopAsyncProc();
 						
 					function InvitationFailed(message) {
 					
 						var replyTo = to[0] == '#' ? to : StrBefore(from, '!');
 						_mod.api.Privmsg( replyTo, message );
-						StopProcedure();
+						StopAsyncProc();
 					}
 				
 					var hostNick = StrBefore(from, '!');
@@ -271,9 +326,8 @@
 						
 						if ( guestIp ) {
 
-//TV							var [status, response] = yield function(callback) QueryVIPDatabase({ action:'setIp', nick:guestNick, ip:guestIp }, callback);
-
-							_playerListToSetlevel.push([guestNick, guestIp, Time()]);
+							var [status, response] = yield function(callback) QueryVIPDatabase({ action:'setIp', nick:guestNick, ip:guestIp }, callback);
+							_playerListToSetlevel.push([guestIp, guestNick, Time()]);
 						}
 						
 						// { action:'setIp', nick:'irc_nick', ip:'x.x.x.x' }
@@ -298,17 +352,14 @@
 				if ( status != OK ) // no response or timeout or failure
 					return;
 				for each ( var playerStatusInfo in ParseRconStatus(result) )
-					for each ( var [i, [guestNick, guestIp, date]] in Iterator(_playerListToSetlevel) )
+					for each ( var [i, [guestIp, guestNick, date]] in Iterator(_playerListToSetlevel) )
 						if ( playerStatusInfo.ip == guestIp ) {
 
 							TremulousServerCommand( pv.vipTremServer, 'rcon '+pv.vipTremServerRcon+' !setlevel '+playerStatusInfo.num+' '+pv.vipTremServerVipLevel, Noop );
-							TremulousServerCommand( pv.vipTremServer, 'rcon '+pv.vipTremServerRcon+' m Now your level is '+pv.vipTremServerVipLevel+', try !help command.', Noop );
-							TremulousServerCommand( pv.vipTremServer, 'rcon '+pv.vipTremServerRcon+' say Welcome to '+guestNick+'^7 the new VIP !', Noop );
+							TremulousServerCommand( pv.vipTremServer, 'rcon '+pv.vipTremServerRcon+' m '+ playerStatusInfo.num +' Now your level is '+pv.vipTremServerVipLevel+', try !help command.', Noop );
+							guestNick && TremulousServerCommand( pv.vipTremServer, 'rcon '+pv.vipTremServerRcon+' say Welcome to '+guestNick+'^7 the new VIP !', Noop );
 							_playerListToSetlevel.splice(i, 1); // remove processed item
-
-//TV							QueryVIPDatabase({ action:'setlevelDone', nick:guestNick, tremName:guestNick }, callback);
-
-							return;
+							QueryVIPDatabase({ action:'setlevelDone', nick:guestNick, tremName:guestNick }, callback);
 						}
 			});
 			
@@ -334,8 +385,15 @@
 
 		RPL_WELCOME: function( command, from, to, msg ) {
 
-			StartProcedure( new ScanVipTremServer );
-			// { action:'getIpList' }
+			StartAsyncProc( new ScanVipTremServer );
+			
+			QueryVIPDatabase({ action:'getIpList' }, function(status, response) {
+
+				if ( status != OK ) // ???
+					return;
+				for each ( let ip in response )
+					_playerListToSetlevel.push([ip, '', 0]);
+			});
 			
 			_mod.api.Nick( pv.botNick );
 			_mod.api.Privmsg( pv.nickServ, 'IDENTIFY '+pv.password );
