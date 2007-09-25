@@ -16,7 +16,8 @@
 
 const CR = '\r';
 const LF = '\n';
-const CRLF = '\r\n';
+const CRLF = CR+LF;
+const SPC = ' ';
 
 /////////////////////////////////////////////////////// callback functions status
 
@@ -30,13 +31,16 @@ const NOTFOUND = {};
 
 /////////////////////////////////////////////////////// start an asynchronus procedure
 
+function Time() (new Date).getTime();
+
 function StopProcedure() {
 	
 	throw StopIteration;
 }
 
 function StartProcedure( procedure ) {
-
+	
+	procedure = new procedure;
 	try {
 		procedure.next()(function(result) {
 
@@ -91,7 +95,7 @@ function Log(data) {
 
 	function Write(type, data) {
 		
-		for each ( var [output, typeList] in _outputList )
+		for each ( let [output, typeList] in _outputList )
 			(' '+typeList+' ').indexOf(' '+type+' ') != -1 && output(data);
 	}
 	
@@ -110,11 +114,13 @@ function Log(data) {
 
 function ExToText(ex, showStack) ex instanceof Error ? ex.name+': '+ex.message+' ('+(showStack ? ex.stack : (ex.fileName+':'+ex.lineNumber))+')' : ex.toString();
 
-function ReportError(text) { log.WriteLn( 'error', text) }
 
+function ReportNotice(text) { log.WriteLn( 'notice', text) }
 function ReportWarning(text) { log.WriteLn( 'warning', text) }
+function ReportError(text) { log.WriteLn( 'error', text) }
+function ReportFailure(text) { log.WriteLn( 'failure', text) }
 
-function Failed(text) { log.WriteLn( 'crash', text); throw new Error(text) } // fatal error
+function Failed(text) { ReportFailure(text); throw new Error(text) } // fatal error
 
 function ERR() { throw ERR }
 function CHK(v) v || ERR(); // check that the argument is not !!false
@@ -157,7 +163,7 @@ function RandomRange( min, max )	min + Math.random() * (max - min);
 function StringPad( str, count, chr ) {
 	
 	str += '';
-	chr = chr || ' ';
+	chr = chr || SPC;
 	var diff = count - str.length;
 		while( diff-- > 0 )
 			str = chr + str;  
@@ -186,17 +192,24 @@ function MakeObj( tpl, arr ) {
 	
 	var obj = {};
 	if ( arr )
-		for ( var p in tpl ) obj[p] = arr[tpl[p]];
+		for ( let p in tpl ) obj[p] = arr[tpl[p]];
 	return obj;
 }
 
-/*
-function CachedRegex(regex) {
 
-	var regexList = arguments.callee.regexList || (arguments.callee.regexList={});
-	return regexList[regex] || (regexList[regex] = new Regex(regex);
+function ExpandStringRanges(rangesStr) {
+
+    for each (let range in rangesStr.split(",")) {
+
+        var minmax = range.split("-", 2);
+        if (minmax.length == 2)
+            for (let i = parseInt(minmax[0]); i <= parseInt(minmax[1]); i++)
+                yield i;
+        else
+            yield parseInt(minmax[0]);
+    }
 }
-*/
+
 
 /////////////////////////////////////////////////////// Event Listener
 
@@ -209,9 +222,9 @@ function Listener() {
 	this.Fire = function Fire() { // beware, Fire is only used for the function name 
 		
 		try {
-			for each ( var set in _list.slice() ) {
+			for each ( let set in _list.slice() ) {
 
-				for ( var it = 0, n = set; n instanceof Object && it in arguments && arguments[it] in n; n = n[arguments[it++]] );
+				for ( let it = 0, n = set; n instanceof Object && it in arguments && arguments[it] in n; n = n[arguments[it++]] );
 				n instanceof Function && void n.apply(null, arguments);
 			}
 		} catch(ex) {
@@ -250,7 +263,7 @@ ParseUri.options = {
 function MakeHeaders( list ) {
 
 	var headers = '';
-	for ( var k in list )
+	for ( let k in list )
 		headers += k + ': ' + list[k] + CRLF;
 	return headers;
 }
@@ -259,7 +272,7 @@ function MakeHeaders( list ) {
 function FormURLEncode( list ) {
 
 	var data = '';
-	for ( var k in list )
+	for ( let k in list )
 		data += '&' + encodeURIComponent(k) + '=' + encodeURIComponent(list[k]);
 	return data.substr(1);
 }
@@ -267,7 +280,7 @@ function FormURLEncode( list ) {
 
 function MakeStatusLine( method, path, version ) {
 
-	return method + ' ' + path + ' ' + (version||'HTTP/1.0');
+	return method + SPC + path + SPC + (version||'HTTP/1.0');
 }
 
 
@@ -302,6 +315,7 @@ function FileExtension(filename) {
 var keyStr = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
 
 function encode64(input) {
+
    var output = "";
    var chr1, chr2, chr3;
    var enc1, enc2, enc3, enc4;
@@ -317,20 +331,18 @@ function encode64(input) {
       enc3 = ((chr2 & 15) << 2) | (chr3 >> 6);
       enc4 = chr3 & 63;
 
-      if (isNaN(chr2)) {
+      if (isNaN(chr2))
          enc3 = enc4 = 64;
-      } else if (isNaN(chr3)) {
+      else if (isNaN(chr3))
          enc4 = 64;
-      }
 
-      output = output + keyStr.charAt(enc1) + keyStr.charAt(enc2) + 
-         keyStr.charAt(enc3) + keyStr.charAt(enc4);
+      output = output + keyStr.charAt(enc1) + keyStr.charAt(enc2) + keyStr.charAt(enc3) + keyStr.charAt(enc4);
    } while (i < input.length);
-   
    return output;
 }
 
 function decode64(input) {
+
    var output = "";
    var chr1, chr2, chr3;
    var enc1, enc2, enc3, enc4;
@@ -351,23 +363,24 @@ function decode64(input) {
 
       output = output + String.fromCharCode(chr1);
 
-      if (enc3 != 64) {
+      if (enc3 != 64)
          output = output + String.fromCharCode(chr2);
-      }
-      if (enc4 != 64) {
+      if (enc4 != 64)
          output = output + String.fromCharCode(chr3);
-      }
    } while (i < input.length);
-
    return output;
 }
+
+
+// try: http://www.webtoolkit.info/
+
 
 
 /////////////////////////////////////////////////////// Debug tools
 
 function DPrint() {
 	
-	for ( var i = 0; i < arguments.length; i++ )
+	for ( let i = 0; i < arguments.length; i++ )
 		Print( '{'+arguments[i]+'} ' );
 	Print( '\n' );
 }

@@ -40,14 +40,14 @@ var io = new function() {
 		
 			var now = IntervalNow();
 			if ( _min <= now )
-				for ( var w in _tlist )
+				for ( let w in _tlist )
 					if ( w <= now ) {
 
 						void _tlist[w]();
 						delete _tlist[w];
 					}
 			_min = Number.POSITIVE_INFINITY;
-			for ( var w in _tlist )
+			for ( let w in _tlist )
 				if ( w < _min )
 					_min = w;
 			var t = _min - now;
@@ -77,7 +77,7 @@ var io = new function() {
 	
 	this.Close = function() {
 		
-		for each ( var d in _descriptorList )
+		for each ( let d in _descriptorList )
 			d.Close();
 	}
 }
@@ -91,6 +91,19 @@ function GetHostsByName( hostName ) {
 	} catch( ex if ex instanceof IoError ) { }
 	return undefined;
 }
+
+
+///////////////////////////////////////////////////////
+
+
+function TryBindSocket( Socket, portRange, ip ) {
+
+	for each ( let port in ExpandStringRanges(portRange) )
+		if ( _server.Bind( port, ip ) )
+			return true;
+	return false;
+}
+
 
 ///////////////////////////////////////////////////////
 
@@ -206,9 +219,9 @@ function HttpRequest( url, data, timeout, OnResponse ) {
 	}
 
 	TCPGet( ud.host, ud.port||80, statusLine + CRLF + MakeHeaders(headers) + CRLF + body, timeout, function( status, response ) {
-
-//		log.Write( 'http', url+'-> ['+response+']' );
 		
+		ReportNotice( 'HTTP GET: ' + url+' = ['+response+']'
+
 		if ( status != OK ) {
 			
 			OnResponse && OnResponse(status);
@@ -217,11 +230,11 @@ function HttpRequest( url, data, timeout, OnResponse ) {
 			
 		try {
 
-			var [httpVersion, statusCode, reasonPhrase] = CHK(response.ReadUntil(CRLF)).split(' ',3);
+			var [httpVersion, statusCode, reasonPhrase] = CHK(response.ReadUntil(CRLF)).split(SPC, 3);
 			var headers = {};
-			for each ( var h in CHK(response.ReadUntil(CRLF+CRLF)).split(CRLF) ) {
+			for each ( let h in CHK(response.ReadUntil(CRLF+CRLF)).split(CRLF) ) {
 
-				var [k, v] = h.split(': ',2); 
+				var [k, v] = h.split(': ', 2); 
 				headers[k] = v;
 			}
 			OnResponse && OnResponse(status, statusCode, reasonPhrase, headers, response.Read());
@@ -247,7 +260,7 @@ function ProxyHttpConnection( proxyHost, proxyPort ) {
 
 ///////////////////////////////////////////////////////
 
-function SocketConnection( host, port ) {
+function TCPConnection( host, port ) {
 	
 	var _this = this;
 	this.OnConnected = Noop;
@@ -291,6 +304,8 @@ function SocketConnection( host, port ) {
 	} else {
 		
 		this.Connect = function( timeout ) {
+		
+			ReportNotice( 'TCP CONNECTING TO: ' + host+':'+port );
 
 			function ConnectionFailed() {
 
@@ -343,30 +358,29 @@ function SocketConnection( host, port ) {
 }
 
 
-function SocketServer( port, ip ) {
+function TCPServer( portRange, ip ) {
 
 	var _this = this;
-	
 	this.OnIncoming = Noop;
-
-	var _server = new Socket(Socket.TCP);
-	_server.nonblocking = true;
-	if ( port instanceof Array ) {
-		
-		for ( let [p, portMax] = port; !_server.Bind( p, ip ) && p <= portMax; p++ );
-	} else {
+	var _socket = new Socket(Socket.TCP);
+	_socket.nonblocking = true;
+	_socket.reuseAddr = true;
+	if ( !TryBindSocket( _socket, portRange, ip ) )
+		ReportError('Unable to create the TCPServer, cannot bind to '+ip+':'+portRange );
+	_socket.Listen();
+	this.port = _socket.sockPort;
+	this.name = _socket.sockName;
+	_socket.readable = function(s) {
 	
-		_server.reuseAddr = true; // if we have a port range, we can work without this option
-		_server.Bind(port, ip);
+		ReportNotice( 'TCP CONNECTION REQUEST on '+this.port+' from '+s.peerName );
+		_this.OnIncoming(new TCPConnection(s.Accept()));
 	}
-	_server.Listen();
-	this.port = _server.sockPort;
-	this.name = _server.sockName;
-	_server.readable = function(s) _this.OnIncoming(new SocketConnection( s.Accept() ));
 	this.Close = function() {
 
-		io.RemoveDescriptor(_server);
-		_server.Close();
+		io.RemoveDescriptor(_socket);
+		_socket.Close();
 	}
-	io.AddDescriptor(_server);
+	io.AddDescriptor(_socket);
+
+	ReportNotice( 'TCP LISTENING: ' + this.name+':'+this.port );
 }
