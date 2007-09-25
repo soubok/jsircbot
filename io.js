@@ -220,7 +220,7 @@ function HttpRequest( url, data, timeout, OnResponse ) {
 
 	TCPGet( ud.host, ud.port||80, statusLine + CRLF + MakeHeaders(headers) + CRLF + body, timeout, function( status, response ) {
 		
-		ReportNotice( 'HTTP GET: ' + url+' = ['+response+']'
+		ReportNotice( 'HTTP GET: ' + url+' = ['+response+']' );
 
 		if ( status != OK ) {
 			

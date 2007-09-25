@@ -59,7 +59,7 @@
 
 	function ParseRconStatus( data ) {
 		
-		var parser = /^ *([0-9]+) *(-?[0-9]+) *([0-9]+) (.*?) *([0-9]+) *([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+):([0-9]+) *([0-9]+) *([0-9]+)$/ ); // regexp are compiled and cached automatically
+		var parser = /^ *([0-9]+) *(-?[0-9]+) *([0-9]+) (.*?) *([0-9]+) *([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+):([0-9]+) *([0-9]+) *([0-9]+)$/; // regexp are compiled and cached automatically
 		var tpl = {num:1, score:2, ping:3, name:4, lastmsg:5, ip:6, port:7, qport:8, rate:9};
 		try {
 		
@@ -170,7 +170,7 @@
 			
 			server: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 				
-				StartProcedure( function() {
+				StartProcedure( new function() {
 
 					if ( to != pv.vipChannel )
 						return;
@@ -182,8 +182,11 @@
 						_mod.api.Privmsg( replyTo, 'Please don\'t spam, try again later.' ), StopProcedure();
 					var [status, result] = yield function(callback) QueryTremServerStatus(pv.vipTremServer, callback);
 					
-					if ( status != OK )
+					if ( status != OK ) {
+					
 						_mod.api.Privmsg( replyTo, 'Sorry, the server does not respond.' ), StopProcedure();
+						return;
+					}
 
 					var nicePlayerList = [ '\x030,1'+ColorTremToIrc(player)+'\x0F' for each ( player in result.playerList ) ];
 					_mod.api.Privmsg( replyTo, ColorTremToIrc(result.info.sv_hostname) + '\x0F is running ' + result.info.mapname + ' with ' + result.playerList.length + ' player(s)' );
@@ -196,7 +199,7 @@
 
 			invite: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 
-				StartProcedure( function() {
+				StartProcedure( new function() {
 
 					if ( to != pv.vipChannel )
 						StopProcedure();
@@ -331,7 +334,7 @@
 
 		RPL_WELCOME: function( command, from, to, msg ) {
 
-			StartProcedure( ScanVipTremServer );
+			StartProcedure( new ScanVipTremServer );
 			// { action:'getIpList' }
 			
 			_mod.api.Nick( pv.botNick );
