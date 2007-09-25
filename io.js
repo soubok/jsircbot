@@ -99,7 +99,7 @@ function GetHostsByName( hostName ) {
 function TryBindSocket( Socket, portRange, ip ) {
 
 	for each ( let port in ExpandStringRanges(portRange) )
-		if ( _server.Bind( port, ip ) )
+		if ( Socket.Bind( port, ip ) )
 			return true;
 	return false;
 }
@@ -219,8 +219,8 @@ function HttpRequest( url, data, timeout, OnResponse ) {
 	}
 
 	TCPGet( ud.host, ud.port||80, statusLine + CRLF + MakeHeaders(headers) + CRLF + body, timeout, function( status, response ) {
-		
-		ReportNotice( 'HTTP GET: ' + url+' = ['+response+']' );
+	
+//		ReportNotice( 'HTTP GET: ' + url+' = \n'+response+'\n' ); // cannot read the response because this empty the buffer :)
 
 		if ( status != OK ) {
 			
@@ -371,9 +371,10 @@ function TCPServer( portRange, ip ) {
 	this.port = _socket.sockPort;
 	this.name = _socket.sockName;
 	_socket.readable = function(s) {
-	
-		ReportNotice( 'TCP CONNECTION REQUEST on '+this.port+' from '+s.peerName );
-		_this.OnIncoming(new TCPConnection(s.Accept()));
+		
+		var incomingConnection = s.Accept();
+		ReportNotice( 'TCP CONNECTION REQUEST on '+this.port+' from '+incomingConnection.peerName );
+		_this.OnIncoming(new TCPConnection(incomingConnection));
 	}
 	this.Close = function() {
 

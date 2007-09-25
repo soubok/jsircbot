@@ -22,24 +22,24 @@ const SPC = ' ';
 
 /////////////////////////////////////////////////////// callback functions status
 
-const OK = {};
-const ERROR = {};
-const UNREACHABLE = {};
-const BADREQUEST = {};
-const BADRESPONSE = {};
-const TIMEOUT = {};
-const NOTFOUND = {};
+const OK = { toString:function() 'OK' };
+const ERROR = { toString:function() 'ERROR' };
+const UNREACHABLE = { toString:function() 'UNREACHABLE' };
+const BADREQUEST = { toString:function() 'BADREQUEST' };
+const BADRESPONSE = { toString:function() 'BADRESPONSE' };
+const TIMEOUT = { toString:function() 'TIMEOUT' };
+const NOTFOUND = { toString:function() 'NOTFOUND' };
 
 /////////////////////////////////////////////////////// start an asynchronus procedure
 
 function Time() (new Date).getTime();
 
-function StopProcedure() {
+function StopAsyncProc() {
 	
 	throw StopIteration;
 }
 
-function StartProcedure( procedure ) {
+function StartAsyncProc( procedure ) {
 	
 	try {
 		procedure.next()(function(result) {
@@ -100,6 +100,15 @@ function Log(data) {
 	}
 	
 	this.AddFilter = function( output, typeList ) _outputList.push([output, typeList]);
+	this.RemoveFilter = function( outputToRemove ) {
+	
+		for each ( let [i, [output]] in Iterator(_outputList) )
+			if ( output == outputToRemove ) {
+				
+				_outputList.splice( i, 1 );
+				return; // done.
+			}
+	}
 	this.WriteLn = function(type, data) void Write(type, Time()+data+'\n');
 }
 

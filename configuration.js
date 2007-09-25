@@ -1,5 +1,10 @@
 function(data) {
 
+	setData( data.moduleList, [
+		'file:///./',
+		'http://jsircbot.googlecode.com/svn/trunk/serverQuery.jsmod'
+	]);
+
 	setData( data.serverList, [
 		'irc.freenode.net:6666-6667',
 		'chat.eu.freenode.net:6666-6667',

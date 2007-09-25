@@ -65,26 +65,40 @@ function MakeModuleFromPath( path, callback ) {
 	}
 }
 
-function InstallLoadedModule( mod ) {
 
-	core.RemoveModuleByName(mod.name); // remove existing module with the same name
-	core.AddModule(mod);
-}
+function LoadModuleFromURL( core, url ) {
 
-function LoadRemoteModules( core, baseUrl, moduleList ) {
+	function InstallLoadedModule( mod ) {
+
+		core.RemoveModuleByName(mod.name); // remove existing module with the same name
+		core.AddModule(mod);
+	}
+
+	const defaultSufix = '.jsmod';
+	var ud = ParseUri(url);
 	
-	for each ( var moduleName in moduleList )
-		MakeModuleFromUrl( baseUrl+'/'+moduleName, InstallLoadedModule );
+	switch (ud.protocol) {
+		case 'file':
+			var path = ud.path.substr(1);
+			if ( path.substr(-1) == '/' ) {
+				
+				var entry, dir = new Directory(path, Directory.SKIP_BOTH);
+				for ( dir.Open(); (entry = dir.Read()); )
+					if ( StringEnd( entry, defaultSufix ) )
+						MakeModuleFromPath( path+'/'+entry, InstallLoadedModule );
+			} else {
+
+				MakeModuleFromPath( path, InstallLoadedModule );
+			}
+			break;
+		case 'http':
+			MakeModuleFromUrl( url, InstallLoadedModule );
+			break;
+		default:
+			ReportError('Invalid module source: '+url);
+	}	
 }
 
-
-function LoadLocalModules( core, path, sufix ) {
-	
-	var entry, dir = new Directory(path, Directory.SKIP_BOTH);
-	for ( dir.Open(); (entry = dir.Read()); )
-		if ( StringEnd( entry, sufix ) )
-			MakeModuleFromPath( path+'/'+entry, InstallLoadedModule );
-}
 
 
 function MakeFloodSafeMessageSender( maxMessage, maxData, time, RawDataSender ) {
@@ -148,7 +162,6 @@ function ClientCore( Configurator ) {
 
 	var _data = newDataNode();
 	Configurator(_data);
-
 	var _numericCommand = Exec('NumericCommand.js');
 	var _connection;
 	var _modules = [];
@@ -325,6 +338,9 @@ function ClientCore( Configurator ) {
 
 	this.ModuleList = function() [ m.name for each ( m in _modules ) ];
 
+	for each ( let moduleURL in getData(_data.moduleList) )
+		LoadModuleFromURL( this, moduleURL );
+
 	Seal(this);
 }
 
@@ -337,17 +353,12 @@ Print( 'Press ctrl-c to exit...', '\n' );
 try {
 
 	var log = new Log();
-	log.AddFilter( MakeLogFile('jsircbot.log', false), 'irc net http error warning failure' );
-	log.AddFilter( MakeLogScreen(), 'irc net http error warning failure' );
-	
+	log.AddFilter( MakeLogFile('jsircbot.log', false), 'irc net http error warning failure notice' );
+	log.AddFilter( MakeLogScreen(), 'irc net http error warning failure notice' );
 	ReportNotice('log initialized @ '+(new Date()));
-	
 	// starting
 	var core = new ClientCore(Exec('configuration.js'));
-	LoadLocalModules( core, '.', '.jsmod' );
-	LoadRemoteModules( core, 'http://jsircbot.googlecode.com/svn/trunk', ['serverQuery.jsmod'] );
 	core.Connect();
-
 	// running	
 	io.Process( function() core.hasFinished() || endSignal );
 	// ending
@@ -364,7 +375,7 @@ try {
 	ReportFailure( 'IoError: '+ ex.text + ' ('+ex.os+')' );
 } catch(ex) {
 
-	ReportFailure( 'failure', ExToText(ex, true) );
+	ReportFailure( 'Failure', ExToText(ex, true) );
 }
 
 
