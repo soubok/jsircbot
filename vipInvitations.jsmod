@@ -59,9 +59,8 @@
 
 	function ParseRconStatus( data ) {
 		
-		var parser = /^ *([0-9]+) *(-?[0-9]+) *([0-9]+) (.*?) *([0-9]+) *([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+):([0-9]+) *([0-9]+) *([0-9]+)$/;
+		var parser = /^ *([0-9]+) *(-?[0-9]+) *([0-9]+) (.*?) *([0-9]+) *([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+):([0-9]+) *([0-9]+) *([0-9]+)$/ ); // regexp are compiled and cached automatically
 		var tpl = {num:1, score:2, ping:3, name:4, lastmsg:5, ip:6, port:7, qport:8, rate:9};
-		
 		try {
 		
 			var lines = data.split('\n');
@@ -81,7 +80,7 @@
 
 	function TremulousServerCommand( server, command, OnResult ) {
 
-		var [host,port] = pv.vipTremServer.split(':');
+		var [host,port] = pv.vipTremServer.split(':', 2);
 		UDPGet( host, port, tremQueryPrefix + command, 3000, OnResult );
 	}
 	
@@ -171,7 +170,7 @@
 			
 			server: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 				
-				StartProcedure( new function() {
+				StartProcedure( function() {
 
 					if ( to != pv.vipChannel )
 						return;
@@ -197,7 +196,7 @@
 
 			invite: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 
-				StartProcedure( new function() {
+				StartProcedure( function() {
 
 					if ( to != pv.vipChannel )
 						StopProcedure();
@@ -270,7 +269,8 @@
 						if ( guestIp ) {
 
 //TV							var [status, response] = yield function(callback) QueryVIPDatabase({ action:'setIp', nick:guestNick, ip:guestIp }, callback);
-							_playerListToSetlevel.push([guestNick, guestIp, (new Date()).getTime()/1000]);
+
+							_playerListToSetlevel.push([guestNick, guestIp, Time()]);
 						}
 						
 						// { action:'setIp', nick:'irc_nick', ip:'x.x.x.x' }
@@ -284,44 +284,46 @@
 		}
 	}
 	
-	
 	function ScanVipTremServer() {
 		
-		arguments.callee.timeoutId = io.AddTimeout( 1000*60*10, ScanVipTremServer );
+		var prevDisplayedStatusDate = 0;
+		
+		for (;;) {
+		
+			TremulousServerCommand( pv.vipTremServer, 'rcon '+pv.vipTremServerRcon+' status', function(status, result) {
 
-		TremulousServerCommand( pv.vipTremServer, 'rcon '+pv.vipTremServerRcon+' status', function(status, result) {
-
-			if ( status != OK ) // no response or timeout or failure
-				return;
-			var info = ParseRconStatus(result);
-			if ( !info ) // error while parsing the data
-				return;
-			
-			findPlayerToSetlevel:
-				for each ( var playerInfo in info )
+				if ( status != OK ) // no response or timeout or failure
+					return;
+				for each ( var playerStatusInfo in ParseRconStatus(result) )
 					for each ( var [i, [guestNick, guestIp, date]] in Iterator(_playerListToSetlevel) )
-						if ( playerInfo.ip == guestIp ) {
+						if ( playerStatusInfo.ip == guestIp ) {
 
-							_playerListToSetlevel.splice(i, 1);
+							TremulousServerCommand( pv.vipTremServer, 'rcon '+pv.vipTremServerRcon+' !setlevel '+playerStatusInfo.num+' '+pv.vipTremServerVipLevel, Noop );
+							TremulousServerCommand( pv.vipTremServer, 'rcon '+pv.vipTremServerRcon+' m Now your level is '+pv.vipTremServerVipLevel+', try !help command.', Noop );
+							TremulousServerCommand( pv.vipTremServer, 'rcon '+pv.vipTremServerRcon+' say Welcome to '+guestNick+'^7 the new VIP !', Noop );
+							_playerListToSetlevel.splice(i, 1); // remove processed item
 
-							TremulousServerCommand( pv.vipTremServer, 'rcon '+pv.vipTremServerRcon+' !setlevel '+playerInfo.num+' '+pv.vipTremServerVipLevel );
-							break findPlayerToSetlevel;
+//TV							QueryVIPDatabase({ action:'setlevelDone', nick:guestNick, tremName:guestNick }, callback);
+
+							return;
 						}
-
-
-			QueryTremServerStatus( pv.vipTremServer, function(status, result) {
-
-				if ( status != OK )
-					return;
-				if ( result.playerList.length < 3 || result.playerList.length > 10 )
-					return;
-				var nicePlayerList = [ '\x030,1'+ColorTremToIrc(player)+'\x0F' for each ( player in result.playerList ) ];
-				_mod.api.Privmsg( pv.vipChannel, ColorTremToIrc(result.info.sv_hostname) + '\x0F is running ' + result.info.mapname + ' with ' + result.playerList.length + ' player(s)' );
-				while ( nicePlayerList.length )
-					_mod.api.Privmsg( pv.vipChannel, nicePlayerList.splice(0, 8).join('  ') );
 			});
+			
+			
+			if ( Time() - 1000*60*10 > prevDisplayedStatusDate )
+				QueryTremServerStatus( pv.vipTremServer, function(status, result) {
 
-		});
+					if ( status != OK || result.playerList.length < 3 || result.playerList.length > 10 )
+						return;
+					var nicePlayerList = [ '\x030,1'+ColorTremToIrc(player)+'\x0F' for each ( player in result.playerList ) ];
+					_mod.api.Privmsg( pv.vipChannel, ColorTremToIrc(result.info.sv_hostname) + '\x0F is running ' + result.info.mapname + ' with ' + result.playerList.length + ' player(s)' );
+					while ( nicePlayerList.length )
+						_mod.api.Privmsg( pv.vipChannel, nicePlayerList.splice(0, 8).join('  ') ); // avoid long lines
+					prevDisplayedStatusDate = Time();
+				});
+
+			yield function(callback) io.AddTimeout( 1000*60*1, callback );
+		}
 	}
 
 
@@ -329,7 +331,8 @@
 
 		RPL_WELCOME: function( command, from, to, msg ) {
 
-			ScanVipTremServer();
+			StartProcedure( ScanVipTremServer );
+			// { action:'getIpList' }
 			
 			_mod.api.Nick( pv.botNick );
 			_mod.api.Privmsg( pv.nickServ, 'IDENTIFY '+pv.password );

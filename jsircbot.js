@@ -97,7 +97,7 @@ function MakeFloodSafeMessageSender( maxMessage, maxData, time, RawDataSender ) 
 
 	function Process() {
 		
-		log.WriteLn( 'notice', '_count:'+ _count + ' _bytes:'+ _bytes+' _messageQueue.length:'+_messageQueue.length );
+		ReportNotice( '_count:'+ _count + ' _bytes:'+ _bytes+' _messageQueue.length:'+_messageQueue.length );
 	
 		var buffer = '';
 		function PrepMessage([messages, OnSent]) {
@@ -216,14 +216,16 @@ function ClientCore( Configurator ) {
 			_coreListener.Fire('OnConnected');
 		}
 
-
 		var getServer = new function() {
 			
 			for ( var j = 0; j < getData(_data.serverRetry); j++ )
-				for each ( let [server, portList] in getData(_data.serverList) )
-					for each ( let port in portList )
+				for each ( let serverInfo in getData(_data.serverList) ) {
+					
+					var [server, ports] = serverInfo.split(':', 2);
+					for each ( let port in ExpandStringRanges(ports) )
 						for ( var i = 0; i < getData(_data.serverRetry); i++ )
 							yield [server, port];
+				}
 		}
 		
 		function TryNextServer() {
@@ -236,11 +238,11 @@ function ClientCore( Configurator ) {
 				Failed('Unable to connect to any server.');
 			}
 			
-			log.WriteLn('notice', 'Trying to connect to ' + host + ':' + port );
-			_connection = new SocketConnection(host, port);
+			ReportNotice( 'Trying to connect to ' + host + ':' + port );
+			_connection = new TCPConnection(host, port);
 			_connection.OnFailed = function() {
 
-				log.WriteLn('error', 'Failed to connect to ' + host + ':' + port );
+				ReportError('Failed to connect to ' + host + ':' + port );
 				
 				var _timeoutId = io.AddTimeout( getData(_data.serverRetryPause), function() {
 				
@@ -335,10 +337,10 @@ Print( 'Press ctrl-c to exit...', '\n' );
 try {
 
 	var log = new Log();
-	log.AddFilter( MakeLogFile('jsircbot.log', false), 'irc net http error warning crash' );
-	log.AddFilter( MakeLogScreen(), 'irc net http error warning crash' );
+	log.AddFilter( MakeLogFile('jsircbot.log', false), 'irc net http error warning failure' );
+	log.AddFilter( MakeLogScreen(), 'irc net http error warning failure' );
 	
-	log.WriteLn( 'notice', 'log initialized @ '+(new Date()));
+	ReportNotice('log initialized @ '+(new Date()));
 	
 	// starting
 	var core = new ClientCore(Exec('configuration.js'));
@@ -355,14 +357,14 @@ try {
 		io.Process( function() core.hasFinished() );
 	}
 	io.Close();
-	log.WriteLn( 'notice', '**************************** Gracefully end.');
+	ReportNotice('**************************** Gracefully end.');
 
 } catch( ex if ex instanceof IoError ) {
 
-	log.WriteLn( 'crash', 'IoError: '+ ex.text + ' ('+ex.os+')' );
+	ReportFailure( 'IoError: '+ ex.text + ' ('+ex.os+')' );
 } catch(ex) {
 
-	log.WriteLn( 'crash', ExToText(ex, true) );
+	ReportFailure( 'failure', ExToText(ex, true) );
 }
 
 

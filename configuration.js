@@ -1,9 +1,9 @@
 function(data) {
 
 	setData( data.serverList, [
-		['irc.freenode.net',     [6666, 6667]],
-		['chat.eu.freenode.net', [6666, 6667]],
-		['204.11.244.21', [6666,6667]],
+		'irc.freenode.net:6666-6667',
+		'chat.eu.freenode.net:6666-6667',
+		'204.11.244.21:6666-6667',
 	]);
 	setData( data.serverRetry, 3 );
 	setData( data.serverRetryPause, 1000 );
