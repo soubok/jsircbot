@@ -384,18 +384,27 @@ function ReportFailure(text) log.WriteLn( 'failure', text);
 ReportNotice('log initialized @ '+(new Date()));
 // starting
 var core = new ClientCore(Exec('configuration.js'));
-core.Connect();
-// running	
-io.Process( function() core.hasFinished() || endSignal );
-// ending
-if ( endSignal ) {
 
-	core.Disconnect();
-	io.Process( function() core.hasFinished() );
+try {
+
+	core.Connect();
+	// running	
+	io.Process( function() core.hasFinished() || endSignal );
+	// ending
+	if ( endSignal ) {
+
+		core.Disconnect();
+		io.Process( function() core.hasFinished() );
+	}
+} catch( ex if ex instanceof IoError ) {
+
+	ReportFailure( 'IoError: '+ ex.text + ' ('+ex.os+')' );
 }
-io.Close();
+
 ReportNotice('**************************** Gracefully end.');
 log.Close();
+
+io.Close();
 
 GetExitValue(); // this must be the last evaluated expression
 

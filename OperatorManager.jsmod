@@ -117,7 +117,7 @@
 					function LogFilter(data) {
 						
 						if ( data === LOG_CLOSE_FILTER )
-							connection.Cloase();
+							connection.Close();
 						else
 							connection.Write(data);
 					}

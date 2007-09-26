@@ -112,7 +112,7 @@ function Log(data) {
 	function Write(type, data) {
 		
 		for each ( let [output, typeList] in _outputList )
-			(' '+typeList+' ').indexOf(' '+type+' ') != -1 && output(data);
+			(' '+typeList+' ').indexOf(' '+type+' ') != -1 && void output(data);
 	}
 
 	this.Close = function() {
@@ -128,6 +128,7 @@ function Log(data) {
 		for each ( let [i, [output]] in Iterator(_outputList) )
 			if ( output == outputToRemove ) {
 				
+				output(LOG_CLOSE_FILTER);
 				_outputList.splice( i, 1 );
 				return; // done.
 			}
