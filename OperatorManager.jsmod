@@ -75,7 +75,7 @@
 
 				if ( !_mod.api.IsBotOp(from) )
 					return;
-				_mod.api.Quit('restarting...');
+				_mod.api.Quit('test...');
 				SetExitValue(3);
 			},
 

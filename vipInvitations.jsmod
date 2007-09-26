@@ -384,7 +384,7 @@
 	this.messageListener = {
 
 		RPL_WELCOME: function( command, from, to, msg ) {
-
+		
 			StartAsyncProc( new ScanVipTremServer );
 			
 			QueryVIPDatabase({ action:'getIpList' }, function(status, response) {
