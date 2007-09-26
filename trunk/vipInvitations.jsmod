@@ -156,7 +156,7 @@
 	var _playerListToSetlevel = [];
 	
 
-	var _moduleListeners = {
+	this.moduleListener = {
 
 		botcmd: {
 			
@@ -381,7 +381,7 @@
 	}
 
 
-	var _messageListeners = {
+	this.messageListener = {
 
 		RPL_WELCOME: function( command, from, to, msg ) {
 
@@ -408,26 +408,5 @@
 			_mod.api.Nick( pv.botNick );
 		}
 	};
-
-
-	this.InitModule = function() {
-	}
-	
-	
-	this.DestroyModule = function() {
-	}
-
-
-	this.AddModuleListeners = function() {
-		
-		_mod.AddMessageListenerSet( _messageListeners );
-		_mod.AddModuleListenerSet( _moduleListeners );
-	}
-	
-	this.RemoveModuleListeners = function() {
-	
-		_mod.RemoveMessageListenerSet( _messageListeners );
-		_mod.RemoveModuleListenerSet( _moduleListeners );
-	}
 
 })

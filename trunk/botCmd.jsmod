@@ -18,8 +18,9 @@
 	this.name = this.constructor.name;
 	var _mod = this;
 
-	var messages = {
-		PRIVMSG:function( command, from, to, msg ) {
+	this.messageListener = {
+	
+		PRIVMSG: function( command, from, to, msg ) {
 						
 			if ( msg[0] != '!' ) // not a bot command
 				return;
@@ -36,8 +37,4 @@
 			_mod.FireModuleListener( 'botcmd', cmdName.toLowerCase(), cmdData, command, from, to, msg );
 		}
 	}
-	
-	this.AddModuleListeners = function() _mod.AddMessageListenerSet( messages );
-	this.RemoveModuleListeners = function() _mod.RemoveMessageListenerSet( messages );
 })
-

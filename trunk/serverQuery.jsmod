@@ -18,7 +18,7 @@
 	this.name = this.constructor.name;
 	var _mod = this;
 	
-	var _moduleListeners = {
+	this.moduleListener = {
 	
 		botcmd: {
 
@@ -52,6 +52,4 @@
 		}
 	}
 
-	this.AddModuleListeners = function() _mod.AddModuleListenerSet( _moduleListeners );
-	this.RemoveModuleListeners = function() _mod.RemoveModuleListenerSet( _moduleListeners );
 })

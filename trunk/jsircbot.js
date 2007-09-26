@@ -35,7 +35,6 @@ function MakeModuleFromUrl( url, callback ) {
 			ReportError('Failed to load the module from '+url+' (reason:'+reasonPhrase+')');
 			return;
 		}
-		
 		try {
 			
 			var relativeLineNumber;
@@ -69,8 +68,10 @@ function MakeModuleFromPath( path, callback ) {
 function LoadModuleFromURL( core, url ) {
 
 	function InstallLoadedModule( mod ) {
-
-		core.RemoveModuleByName(mod.name); // remove existing module with the same name
+		
+		var module = core.ModuleByName(mod.name);
+		if ( module )
+			core.RemoveModule(module); // remove existing module with the same name
 		core.AddModule(mod);
 	}
 
@@ -85,11 +86,9 @@ function LoadModuleFromURL( core, url ) {
 				var entry, dir = new Directory(path, Directory.SKIP_BOTH);
 				for ( dir.Open(); (entry = dir.Read()); )
 					if ( StringEnd( entry, defaultSufix ) )
-						MakeModuleFromPath( path+'/'+entry, InstallLoadedModule );
-			} else {
-
+						MakeModuleFromPath( path+entry, InstallLoadedModule );
+			} else
 				MakeModuleFromPath( path, InstallLoadedModule );
-			}
 			break;
 		case 'http':
 			MakeModuleFromUrl( url, InstallLoadedModule );
@@ -111,7 +110,7 @@ function MakeFloodSafeMessageSender( maxMessage, maxData, time, RawDataSender ) 
 
 	function Process() {
 		
-		ReportNotice( '_count:'+ _count + ' _bytes:'+ _bytes+' _messageQueue.length:'+_messageQueue.length );
+		ReportNotice( 'MakeFloodSafeMessageSender:: COUNT:'+ _count + ' BYTES:'+ _bytes+' QUEUE_LENGTH:'+_messageQueue.length );
 	
 		var buffer = '';
 		function PrepMessage([messages, OnSent]) {
@@ -160,6 +159,7 @@ function MakeFloodSafeMessageSender( maxMessage, maxData, time, RawDataSender ) 
 
 function ClientCore( Configurator ) {
 
+	var _core = this;
 	var _data = newDataNode();
 	Configurator(_data);
 	var _numericCommand = Exec('NumericCommand.js');
@@ -192,26 +192,49 @@ function ClientCore( Configurator ) {
 			_receiveBuffer.Write(buf);
 			var message;
 			while ( (message = _receiveBuffer.ReadUntil(CRLF)) ) {
-			
+				
 				log.WriteLn( 'irc', '->'+message);
-				var prefix = message.indexOf( ':' );
-				var trailing = message.indexOf( ':', 1 );
-				var args = message.substring( prefix ? 0 : 1, (trailing > 0) ? trailing-1 : message.length ).split(' ');
-				if ( prefix )
-					args.unshift( undefined );
-				if ( trailing > 0 )
-					args.push( message.substring( trailing + 1 ) );
-				if ( !isNaN(args[1]) )
-					args[1] = _numericCommand[parseInt(args[1])]||parseInt(args[1]);
-				args.splice(1, 0, args.shift()); // move the command name to the first place.
-				_messageListener.Fire.apply( null, args );
+				try {
+/*
+    message    =  [ ":" prefix SPACE ] command [ params ] crlf
+    prefix     =  servername / ( nickname [ [ "!" user ] "@" host ] )
+    command    =  1*letter / 3digit
+    params     =  *14( SPACE middle ) [ SPACE ":" trailing ]
+               =/ 14( SPACE middle ) [ SPACE [ ":" ] trailing ]
+
+    nospcrlfcl =  %x01-09 / %x0B-0C / %x0E-1F / %x21-39 / %x3B-FF
+                    ; any octet except NUL, CR, LF, " " and ":"
+    middle     =  nospcrlfcl *( ":" / nospcrlfcl )
+    trailing   =  *( ":" / " " / nospcrlfcl )					
+*/
+					// The prefix is used by servers to indicate the true origin of the message.
+					var prefix = message.indexOf( ':' );
+					var trailing = message.indexOf( ':', 1 );
+					var args = message.substring( prefix ? 0 : 1, (trailing > 0) ? trailing-1 : message.length ).split(' ');
+					if ( prefix != 0 ) // If the prefix is missing from the message, it is assumed to have originated from the connection from which it was received from.
+						args.unshift( undefined );
+					if ( trailing != 0 )
+						args.push( message.substring( trailing + 1 ) );
+					if ( !isNaN(args[1]) )
+						args[1] = _numericCommand[parseInt(args[1])]||parseInt(args[1]);
+					args.splice(1, 0, args.shift()); // move the command name to the first place.
+				
+					_messageListener.Fire.apply( null, args );
+
+				} catch (ex if ex == ERR) {
+				
+					ReportError('Invalid IRC server message');
+				}
 			}
 		}
 
 		function OnDisconnected( remotelyDisconnected ) {
+			
+			ReportWarning( remotelyDisconnected ? 'Remotely disconnected' : 'Locally disconnected' );
 
-			_coreListener.Fire('RemoveModuleListeners');
-			_coreListener.Fire('RemoveModuleAPI');
+			for each ( mod in _core.ModuleList() ) 
+				_core.RemoveModule( mod );
+
 			_coreListener.Fire('OnDisconnected');
 			_hasFinished = true;
 			_connection.Close();
@@ -273,22 +296,26 @@ function ClientCore( Configurator ) {
 		
 	this.AddModule = function( mod ) {
 		
-		_coreListener.AddSet(mod);
+		if ( mod.moduleApi )
+			for ( let f in mod.moduleApi )
+				_api[f] = mod.moduleApi[f];
+		
+		mod.moduleListener && _moduleListener.AddSet( mod.moduleListener );
+		mod.messageListener && _messageListener.AddSet( mod.moduleListener );
+
 		mod.AddMessageListenerSet = _messageListener.AddSet;
 		mod.RemoveMessageListenerSet = _messageListener.RemoveSet;
 		mod.AddModuleListenerSet = _moduleListener.AddSet;
 		mod.RemoveModuleListenerSet = _moduleListener.RemoveSet;
 		mod.FireModuleListener = _moduleListener.Fire;
-		
-		if ( mod.moduleApi )
-			for ( var f in mod.moduleApi )
-				_api[f] = mod.moduleApi[f];
-		
+
 		mod.Send = this.Send;
 		mod.data = _data;
 		mod.api = _api;
 		_modules.push(mod);
-		mod.AddModuleListeners && mod.AddModuleListeners();
+
+		_coreListener.AddSet(mod);
+
 		mod.InitModule && mod.InitModule();
 		return mod;
 	}
@@ -298,45 +325,38 @@ function ClientCore( Configurator ) {
 		var pos = _modules.indexOf(mod);
 		if ( pos == -1 ) return;
 		_modules.splice(pos, 1);
-		mod.RemoveModuleListeners && mod.RemoveModuleListeners();
-		
+
+		mod.messageListener && _messageListener.RemoveSet( mod.moduleListener );
+		mod.moduleListener && _moduleListener.RemoveSet( mod.moduleListener );
+
 		if ( mod.moduleApi )
 			for ( var f in mod.moduleApi )
 				delete _api[f];
-		
+
 		mod.DestroyModule && mod.DestroyModule();
 		_coreListener.RemoveSet(mod);
-		delete mod.data;
-		delete mod.api;
 		Clear(mod);
 	}
 	
-	this.RemoveModuleByName = function( name ) {
-
-		for each ( mod in _modules.slice() ) // slice() to prevent dead-loop
-			if ( mod.name == name )
-				this.RemoveModule( mod );
-	}
-
 	this.ReloadModule = function( mod ) {
 
 		if ( 'Reload' in mod && mod.Reload instanceof Function )
 			mod.Reload();
 		else
-			ReportWarning('Unable to reload the module '+mod.name+': Reload function not found.');
+			ReportError('Unable to reload the module '+mod.name+': Reload function not found.');
 	}
-
-	this.ReloadModuleByName = function( name ) {
-		
-		for each ( mod in _modules.slice() ) // slice() to prevent dead-loop
-			if ( mod.name == name )
-				this.ReloadModule( mod );
-	}
-
 	
-	this.HasModuleName = function( name ) _modules.some(function(mod) mod.name == name);
+	this.ModuleByName = function( name ) {
 
-	this.ModuleList = function() [ m.name for each ( m in _modules ) ];
+		for each ( mod in _modules )
+			if ( mod.name == name )
+				return mod;
+		return undefined;
+	}
+
+//	this.HasModuleName = function( name ) _modules.some(function(mod) mod.name == name);
+
+	this.ModuleList() = function() _modules.slice(); // slice() to prevent dead-loop
 
 	for each ( let moduleURL in getData(_data.moduleList) )
 		LoadModuleFromURL( this, moduleURL );
@@ -352,9 +372,15 @@ Print( 'Press ctrl-c to exit...', '\n' );
 
 try {
 
-	var log = new Log();
+	var log = new Log;
 	log.AddFilter( MakeLogFile('jsircbot.log', false), 'irc net http error warning failure notice' );
 	log.AddFilter( MakeLogScreen(), 'irc net http error warning failure notice' );
+
+	function ReportNotice(text) log.WriteLn( 'notice', text);
+	function ReportWarning(text) log.WriteLn( 'warning', text)
+	function ReportError(text) log.WriteLn( 'error', text);
+	function ReportFailure(text) log.WriteLn( 'failure', text);
+
 	ReportNotice('log initialized @ '+(new Date()));
 	// starting
 	var core = new ClientCore(Exec('configuration.js'));
@@ -369,7 +395,7 @@ try {
 	}
 	io.Close();
 	ReportNotice('**************************** Gracefully end.');
-
+	log.Close();
 } catch( ex if ex instanceof IoError ) {
 
 	ReportFailure( 'IoError: '+ ex.text + ' ('+ex.os+')' );
@@ -378,7 +404,7 @@ try {
 	ReportFailure( 'Failure', ExToText(ex, true) );
 }
 
-
+GetExitValue(); // this must be the last evaluated expression
 
 /*
 
@@ -458,4 +484,4 @@ misc links:
    for the command and its parameters.  There is no provision for
    continuation of message lines.  See section 6 for more details about
    current implementations.
-*/   
+*/

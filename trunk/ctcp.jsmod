@@ -25,13 +25,13 @@ const X_QUOTE = '\134'; // back slash
 		var out='';
 		for each ( var c in data )
 			switch (c) {
-				case '\0':
+				case NUL:
 					out += '\0200';
 					break;
-				case '\r':
+				case CR:
 					out += '\020r';
 					break;
-				case '\n':
+				case LF:
 					out += '\020n';
 					break;
 				case '\020':
@@ -51,13 +51,13 @@ const X_QUOTE = '\134'; // back slash
 			if ( data[i]=='\020' )
 				switch (data[++i]) {
 				case '0':
-					out += '\0';
+					out += NUL;
 					break;
 				case 'r':
-					out += '\r';
+					out += CR;
 					break;
 				case 'n':
-					out += '\n';
+					out += LF;
 					break;
 				case '\020':
 					out += '\020';
@@ -118,7 +118,7 @@ const X_QUOTE = '\134'; // back slash
 	}
 
 
-	var _serverMessageListener = {
+	this.messageListener = {
 	
 		NOTICE: function( command, from, to, msg ) { // ctcp response
 		},
@@ -129,9 +129,6 @@ const X_QUOTE = '\134'; // back slash
 		}
 	}
 
-	this.AddModuleListeners = function() _mod.AddMessageListenerSet( _serverMessageListener );
-	this.RemoveModuleListeners = function() _mod.RemoveMessageListenerSet( _serverMessageListener );
-	
 	_mod.moduleApi = {
 		
 		CtcpRequest:function(who, tag, data) _mod.Send( 'PRIVMSG ' + who + ' :' + lowLevelCtcpDequote( X_DELIM + ctcpLevelQuote(tag + SPC + data) + X_DELIM ) ),

@@ -14,11 +14,11 @@
 
 ///////////////////////////////////////////////////////
 
+const NUL = '\0';
 const CR = '\r';
 const LF = '\n';
 const CRLF = CR+LF;
 const SPC = ' ';
-//const SPC = '\040'; // space
 
 /////////////////////////////////////////////////////// callback functions status
 
@@ -51,7 +51,15 @@ function StartAsyncProc( procedure ) {
 	} catch(ex if ex == StopIteration) {}
 }
 
+/////////////////////////////////////////////////////// Manage exit value
+
+var _exitValue;
+function SetExitValue(val) _exitValue = val;
+function GetExitValue() _exitValue;
+
 /////////////////////////////////////////////////////// LOG system
+
+const LOG_CLOSE_FILTER = { toString:function() '' };
 
 function MakeLogScreen() function(data) {
 	
@@ -63,9 +71,11 @@ function MakeLogFile(fileName, append) {
 	var file = new File(fileName);
 	file.Open(File.CREATE_FILE + File.WRONLY + (append ? File.APPEND : File.TRUNCATE));
 	return function(data) {
-	
-		file.Write(data);
-//		file.Close();
+
+		if ( data === LOG_CLOSE_FILTER )
+			file.Close();
+		else
+			file.Write(data);
 	}
 }
 
@@ -77,7 +87,12 @@ function MakeLogUDP(host, port) {
 	} catch(ex) {
 		Print( 'Unable to '+arguments.callee.name );
 	}
-	return function(data) socket.Write(data);
+	return function(data) {
+		
+		if ( data === LOG_CLOSE_FILTER )
+			socket.Close();
+		else
+			socket.Write(data);
 }
 
 function MakeLogEMail(mailTo) {
@@ -91,12 +106,19 @@ function Log(data) {
 
 	var _outputList = [];
 	var _time0 = IntervalNow();
-	function Time() StringPad(((IntervalNow()-_time0)/1000).toFixed(2), 11, ' ');
-
+	function Time() StringPad(((IntervalNow()-_time0)/1000).toFixed(2), 6, ' ');
+	
 	function Write(type, data) {
 		
 		for each ( let [output, typeList] in _outputList )
 			(' '+typeList+' ').indexOf(' '+type+' ') != -1 && output(data);
+	}
+
+	this.Close = function() {
+
+		for each ( let [output] in _outputList )
+			output(LOG_CLOSE_FILTER);
+		_outputList.splice(0);
 	}
 	
 	this.AddFilter = function( output, typeList ) _outputList.push([output, typeList]);
@@ -112,6 +134,7 @@ function Log(data) {
 	this.WriteLn = function(type, data) void Write(type, Time()+data+'\n');
 }
 
+
 ///////////////////////////////////////////////////////
 
 //function Stringable( obj ) {
@@ -122,12 +145,6 @@ function Log(data) {
 ///////////////////////////////////////////////////////
 
 function ExToText(ex, showStack) ex instanceof Error ? ex.name+': '+ex.message+' ('+(showStack ? ex.stack : (ex.fileName+':'+ex.lineNumber))+')' : ex.toString();
-
-
-function ReportNotice(text) { log.WriteLn( 'notice', text) }
-function ReportWarning(text) { log.WriteLn( 'warning', text) }
-function ReportError(text) { log.WriteLn( 'error', text) }
-function ReportFailure(text) { log.WriteLn( 'failure', text) }
 
 function Failed(text) { ReportFailure(text); throw new Error(text) } // fatal error
 

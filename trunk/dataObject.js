@@ -14,15 +14,9 @@
 
 LoadModule('jsobjex');
 
-function newDataNode(parent) {
+function newDataNode(parent) new ObjEx(undefined,undefined,newDataNode.get,undefined,{listenerList:[],parent:parent});
 
-	return new ObjEx(undefined,undefined,get,undefined,{listenerList:[],parent:parent});
-}
-
-function get( name, value, aux ) {
-	
-	return (name in this) ? value : (this[name] = newDataNode(this));
-}
+newDataNode.get = function( name, value, aux ) (name in this) ? value : (this[name] = newDataNode(this));
 
 function addDataListener( path, listener ) {
 
