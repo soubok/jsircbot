@@ -75,7 +75,7 @@
 
 				if ( !_mod.api.IsBotOp(from) )
 					return;
-				_mod.api.Quit('test...');
+				_mod.api.Quit('Restarting...');
 				SetExitValue(3);
 			},
 
@@ -114,7 +114,13 @@
 				var nick = StrBefore(from, '!');
 				_mod.api.OpenDCCChat( nick, function(connection) {
 
-					function LogFilter(data) connection.Write(data);
+					function LogFilter(data) {
+						
+						if ( data === LOG_CLOSE_FILTER )
+							connection.Cloase();
+						else
+							connection.Write(data);
+					}
 					log.AddFilter( LogFilter, 'irc net http error warning failure notice' ); // or cmdData
 					connection.OnDisconnected = function() log.RemoveFilter( LogFilter );
 				});
