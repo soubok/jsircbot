@@ -93,6 +93,7 @@ function MakeLogUDP(host, port) {
 			socket.Close();
 		else
 			socket.Write(data);
+	}
 }
 
 function MakeLogEMail(mailTo) {
@@ -408,7 +409,7 @@ function DPrint() {
 	
 	for ( let i = 0; i < arguments.length; i++ )
 		Print( '{'+arguments[i]+'} ' );
-	Print( '\n' );
+	Print('\n');
 }
 
 function DStack() { try { throw Error() } catch(ex) { Print( 'Stack: ', ex.stack, '\n' ) } }

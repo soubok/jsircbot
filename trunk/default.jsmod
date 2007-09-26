@@ -143,6 +143,7 @@
 			_mod.Send( [ 'PRIVMSG '+StrBefore(to,'!')+' :'+message for each ( message in messages ) ], false, OnSent )
 		},
 
+		// freenode network do not send a quit message if the client is connected for less than 5 mimutes
 		Quit: function(quitMessage) _mod.Send( 'QUIT :'+quitMessage, true ) // true = force the message to be post ASAP
 	}
 

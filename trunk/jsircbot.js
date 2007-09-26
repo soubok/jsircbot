@@ -26,6 +26,8 @@ Exec('ident.js');
 
 
 function MakeModuleFromUrl( url, callback ) {
+
+	ReportNotice( 'Loading module from: '+url );
 	
 	var args = arguments;
 	HttpRequest( url, '', 2000, function(status, statusCode, reasonPhrase, headers, body ) {
@@ -52,6 +54,8 @@ function MakeModuleFromUrl( url, callback ) {
 
 function MakeModuleFromPath( path, callback ) {
 
+	ReportNotice( 'Loading module from: '+path );
+
 	var args = arguments;
 	try {
 		
@@ -66,7 +70,7 @@ function MakeModuleFromPath( path, callback ) {
 
 
 function LoadModuleFromURL( core, url ) {
-
+	
 	function InstallLoadedModule( mod ) {
 		
 		var module = core.ModuleByName(mod.name);
@@ -218,7 +222,7 @@ function ClientCore( Configurator ) {
 					if ( !isNaN(args[1]) )
 						args[1] = _numericCommand[parseInt(args[1])]||parseInt(args[1]);
 					args.splice(1, 0, args.shift()); // move the command name to the first place.
-				
+
 					_messageListener.Fire.apply( null, args );
 
 				} catch (ex if ex == ERR) {
@@ -301,7 +305,7 @@ function ClientCore( Configurator ) {
 				_api[f] = mod.moduleApi[f];
 		
 		mod.moduleListener && _moduleListener.AddSet( mod.moduleListener );
-		mod.messageListener && _messageListener.AddSet( mod.moduleListener );
+		mod.messageListener && _messageListener.AddSet( mod.messageListener );
 
 		mod.AddMessageListenerSet = _messageListener.AddSet;
 		mod.RemoveMessageListenerSet = _messageListener.RemoveSet;
@@ -326,7 +330,7 @@ function ClientCore( Configurator ) {
 		if ( pos == -1 ) return;
 		_modules.splice(pos, 1);
 
-		mod.messageListener && _messageListener.RemoveSet( mod.moduleListener );
+		mod.messageListener && _messageListener.RemoveSet( mod.messageListener );
 		mod.moduleListener && _moduleListener.RemoveSet( mod.moduleListener );
 
 		if ( mod.moduleApi )
@@ -356,7 +360,7 @@ function ClientCore( Configurator ) {
 
 //	this.HasModuleName = function( name ) _modules.some(function(mod) mod.name == name);
 
-	this.ModuleList() = function() _modules.slice(); // slice() to prevent dead-loop
+	this.ModuleList = function() _modules.slice(); // slice() to prevent dead-loop
 
 	for each ( let moduleURL in getData(_data.moduleList) )
 		LoadModuleFromURL( this, moduleURL );
@@ -368,41 +372,30 @@ function ClientCore( Configurator ) {
 ///////////////////////////////////////////////// MAIN /////////////////////////////////////////////
 
 
-Print( 'Press ctrl-c to exit...', '\n' );
+var log = new Log;
+log.AddFilter( MakeLogFile('jsircbot.log', false), 'irc net http error warning failure notice' );
+log.AddFilter( MakeLogScreen(), 'irc net http error warning failure notice' );
 
-try {
+function ReportNotice(text) log.WriteLn( 'notice', text);
+function ReportWarning(text) log.WriteLn( 'warning', text)
+function ReportError(text) log.WriteLn( 'error', text);
+function ReportFailure(text) log.WriteLn( 'failure', text);
 
-	var log = new Log;
-	log.AddFilter( MakeLogFile('jsircbot.log', false), 'irc net http error warning failure notice' );
-	log.AddFilter( MakeLogScreen(), 'irc net http error warning failure notice' );
+ReportNotice('log initialized @ '+(new Date()));
+// starting
+var core = new ClientCore(Exec('configuration.js'));
+core.Connect();
+// running	
+io.Process( function() core.hasFinished() || endSignal );
+// ending
+if ( endSignal ) {
 
-	function ReportNotice(text) log.WriteLn( 'notice', text);
-	function ReportWarning(text) log.WriteLn( 'warning', text)
-	function ReportError(text) log.WriteLn( 'error', text);
-	function ReportFailure(text) log.WriteLn( 'failure', text);
-
-	ReportNotice('log initialized @ '+(new Date()));
-	// starting
-	var core = new ClientCore(Exec('configuration.js'));
-	core.Connect();
-	// running	
-	io.Process( function() core.hasFinished() || endSignal );
-	// ending
-	if ( endSignal ) {
-
-		core.Disconnect();
-		io.Process( function() core.hasFinished() );
-	}
-	io.Close();
-	ReportNotice('**************************** Gracefully end.');
-	log.Close();
-} catch( ex if ex instanceof IoError ) {
-
-	ReportFailure( 'IoError: '+ ex.text + ' ('+ex.os+')' );
-} catch(ex) {
-
-	ReportFailure( 'Failure', ExToText(ex, true) );
+	core.Disconnect();
+	io.Process( function() core.hasFinished() );
 }
+io.Close();
+ReportNotice('**************************** Gracefully end.');
+log.Close();
 
 GetExitValue(); // this must be the last evaluated expression
 

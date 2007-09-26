@@ -373,7 +373,7 @@ function TCPServer( portRange, ip ) {
 	_socket.readable = function(s) {
 		
 		var incomingConnection = s.Accept();
-		ReportNotice( 'TCP CONNECTION REQUEST on '+this.port+' from '+incomingConnection.peerName );
+		ReportNotice( 'TCP CONNECTION REQUEST on '+incomingConnection.sockPort+' from '+incomingConnection.peerName );
 		_this.OnIncoming(new TCPConnection(incomingConnection));
 	}
 	this.Close = function() {
