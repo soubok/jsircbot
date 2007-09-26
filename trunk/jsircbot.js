@@ -404,7 +404,9 @@ try {
 ReportNotice('**************************** Gracefully end.');
 log.Close();
 
-io.Close();
+
+var remainingOpenDescriptors = io.Close(); // this must be done at the very end
+Print( 'remaining open descriptors: '+remainingOpenDescriptors );
 
 GetExitValue(); // this must be the last evaluated expression
 
