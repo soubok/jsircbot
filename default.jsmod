@@ -134,6 +134,8 @@
 			return str.toUpperCase();
 		},
 
+		Topic: function( channel, topic ) void _mod.Send( 'TOPIC '+channel+' :'+topic ),
+		
 		Nick: function( nick ) void _mod.Send( 'NICK '+nick ),
 		
 		Privmsg: function( to, messages, OnSent ) {
