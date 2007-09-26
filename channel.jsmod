@@ -67,7 +67,7 @@
 		}		
 	}
 	
-	var listenerSet = {
+	this.messageListener = {
 
 		RPL_WELCOME: function () {
 			
@@ -205,6 +205,4 @@
 		Invite: function(nick, channel) _mod.Send( 'INVITE ' + nick + ' ' + channel )
 	}
 
-	this.AddModuleListeners = function() _mod.AddMessageListenerSet( listenerSet ); // listeners table , context (this)
-	this.RemoveModuleListeners = function() _mod.RemoveMessageListenerSet( listenerSet ); // listeners table , context (this)
 })

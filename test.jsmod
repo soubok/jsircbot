@@ -18,7 +18,7 @@
 	this.name = this.constructor.name;
 	var _mod = this;
 	
-	var _moduleListeners = {
+	this.moduleListener = {
 		
 		ctcp: {
 		
@@ -45,122 +45,15 @@
 				});
 			},
 
-			quit: function( modCmd, cmdName, cmdData, command, from ) {
-
-				if ( !_mod.api.IsBotOp(from) )
-					return;
-
-				_mod.api.Quit('bye...');
-			},
-			
-			reload: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
-
-				if ( !_mod.api.IsBotOp(from) )
-					return;
-
-				var nick = from.split('!',1)[0];
-				var replyTo = to[0] == '#' ? to : nick;
-				
-				if ( cmdData ) {
-				
-					var matchName = new RegExp(cmdData, 'i');
-					for each ( var moduleName in core.ModuleList() )
-						if ( matchName(moduleName) ) {
-						
-							_mod.api && _mod.api.Privmsg && _mod.api.Privmsg( replyTo, 'Reloading '+moduleName );
-							core.ReloadModuleByName(moduleName);
-						}
-				} else {
-
-					_mod.api.Privmsg && _mod.api.Privmsg( replyTo, 'list: '+core.ModuleList().join('  ') );
-				}
-			},
 
 
-			log: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
-				
-				if ( !_mod.api.IsBotOp(from) )
-					return;
-				var nick = StrBefore(from, '!');
-				_mod.api.OpenDCCChat( nick, function(connection) {
-
-					function LogFilter(data) connection.Write(data);
-					log.AddFilter( LogFilter, 'irc net http error warning failure notice' ); // or cmdData
-					connection.OnDisconnected = function() log.RemoveFilter( LogFilter );
-				});
-			},
-
-
-			eval: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
-				
-				if ( !_mod.api.IsBotOp(from) )
-					return;
-
-				var nick = StrBefore(from, '!');
-				_mod.api.OpenDCCChat( nick, function(connection) {
-					
-					var code = '';
-					
-					connection.OnData = function(buf) {
-
-						if ( buf.substr(-1) == LF )
-							buf = buf.substr(0, buf.length-1);
-						if ( buf.substr(-1) == CR )
-							buf = buf.substr(0, buf.length-1);
-						
-						code += buf;
-						if ( IsStatementValid(code) ) {
-							
-							var res;
-							try {
-
-								res = eval( buf );
-							} catch(ex) {
-
-								res = ex;
-							}
-							connection.Write(res + LF);
-							code = '';
-						}
-					}
-				});
-			},
-			
-			raw: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
-
-				if ( !_mod.api.IsBotOp(from) )
-					return;
-
-				var nick = StrBefore(from, '!');
-
-				function CreateSpy(connection) function() {
-
-					connection.Write( Array.slice(arguments).toSource() + LF );
-				}
-				
-				_mod.api.OpenDCCChat( nick, function(connection) {
-
-					var spy = CreateSpy(connection);
-					_mod.AddMessageListenerSet(spy);
-					connection.OnData = function(buf) {
-						
-						if ( buf.substr(-1) == LF )
-							buf = buf.substr(0, buf.length-1);
-						if ( buf.substr(-1) == CR )
-							buf = buf.substr(0, buf.length-1);
-						_mod.Send(buf);
-					}
-
-					connection.OnDisconnected = function() _mod.RemoveMessageListenerSet(spy);
-				});
-			},
 
 			echo: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 
 				if ( !_mod.api.IsBotOp(from) )
 					return;
 
-				var nick = from.split('!',1)[0];
+				var nick = StrBefore(from, '!');
 				var replyTo = to[0] == '#' ? to : nick;
 				
 				_mod.api.Privmsg( replyTo, cmdData );
@@ -171,7 +64,7 @@
 				if ( !_mod.api.IsBotOp(from) )
 					return;
 
-				var nick = from.split('!',1)[0];
+				var nick = StrBefore(from, '!');
 				var replyTo = to[0] == '#' ? to : nick;
 
 /* getUserIp
@@ -220,9 +113,6 @@
 			}
 		}
 	}
-
-	this.AddModuleListeners = function() _mod.AddModuleListenerSet( _moduleListeners );
-	this.RemoveModuleListeners = function() _mod.RemoveModuleListenerSet( _moduleListeners );
 
 /*
 		addDataListener( _module.data.channel['#jslibs'].names['soubok'], function(info) {

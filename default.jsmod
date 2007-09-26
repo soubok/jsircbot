@@ -21,7 +21,7 @@
 // [TBD] autodetect max message length ( with a self sent mesage )
 // [TBD] autodetect flood limit
 
-	var listenerSet = {
+	this.messageListener = {
 
 		RPL_WELCOME: function( command, from, to ) {
 
@@ -146,14 +146,5 @@
 		Quit: function(quitMessage) _mod.Send( 'QUIT :'+quitMessage, true ) // true = force the message to be post ASAP
 	}
 
-	this.AddModuleListeners = function() {
-		
-		_mod.AddMessageListenerSet( listenerSet );
-	}
-	
-	this.RemoveModuleListeners = function() {
-		
-		_mod.RemoveMessageListenerSet( listenerSet );
-	}
 })
 

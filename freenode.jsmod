@@ -57,8 +57,6 @@
 		}
 	}
 
-	accessInfoParser.accessInfoLine_regexp = /^([0-9]+) +([0-9]+) +([^ ]+) +(.*?) *$/;
-	
 	function accessInfoParser(msg, request) {
 		
 		try {
@@ -79,8 +77,7 @@
 				return;
 			}
 		
-			var parseAccessInfoLine = accessInfoParser.accessInfoLine_regexp;
-			var match = parseAccessInfoLine(msg);
+			var match = /^([0-9]+) +([0-9]+) +([^ ]+) +(.*?) *$/(msg);
 			match && request.reply.push( MakeObj( { num:1, level:2, hostmask:3, time:4 }, match ) );
 
 		} catch(ex if ex == ERR) {
@@ -164,7 +161,7 @@
 		_requestList.length == 1 && ProcessRequest();
 	}
 	
-	var _messageListeners = {
+	this.messageListener = {
 
 		NOTICE: function( command, from, to, msg ) {
 		
@@ -175,23 +172,19 @@
 	
 // we can sync the NickServ or ChanServ with a bad TEST command. The response will be:  ["NOTICE", "NickServ!NickServ@services.", "TremVipBot", "Unknown command [TEST]"]
 	
-	_mod.moduleApi = {
+	this.moduleApi = {
+
+		SetAccessLevel: function(channel, nick, level) void _mod.api.Privmsg( 'ChanServ!ChanServ@services.', 'ACCESS '+channel+' ADD '+nick+' '+level ),
 
 		// Syntax: INFO <nickname>	
-		NickInfo:function(nick, callback) StartRequest( 'NickServ!NickServ@services.', 'INFO '+nick, infoParser, callback ),
+		NickInfo: function(nick, callback) StartRequest( 'NickServ!NickServ@services.', 'INFO '+nick, infoParser, callback ),
 
 		// Syntax: INFO <channel>
-		ChanInfo:function(channel, callback) StartRequest( 'ChanServ!ChanServ@services.', 'INFO '+channel, channelInfoParser, callback ),
+		ChanInfo: function(channel, callback) StartRequest( 'ChanServ!ChanServ@services.', 'INFO '+channel, channelInfoParser, callback ),
 		
 		// Syntax: ACCESS <channel> LIST [FULL|mask]
-		AccessInfo:function(channel, callback) StartRequest( 'ChanServ!ChanServ@services.', 'ACCESS '+channel+' LIST', accessInfoParser, callback ),
-		
-		
-		SetAccessLevel:function(channel, nick, level) void _mod.api.Privmsg( 'ChanServ!ChanServ@services.', 'ACCESS '+channel+' ADD '+nick+' '+level )
+		AccessInfo: function(channel, callback) StartRequest( 'ChanServ!ChanServ@services.', 'ACCESS '+channel+' LIST', accessInfoParser, callback )
 	}
-	
-	this.AddModuleListeners = function() _mod.AddMessageListenerSet( _messageListeners );
-	this.RemoveModuleListeners = function() _mod.RemoveMessageListenerSet( _messageListeners );
 })
 
 

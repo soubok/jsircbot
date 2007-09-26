@@ -79,7 +79,7 @@
 		}
 	}
 	
-	var _moduleListeners = {
+	this.moduleListener = {
 	
 		ctcp: {
 			DCC: function( moduleCmd, tag, from, to, data ) {
@@ -96,6 +96,4 @@
 		}
 	};
 
-	this.AddModuleListeners = function() _mod.AddModuleListenerSet( _moduleListeners );
-	this.RemoveModuleListeners = function() _mod.RemoveModuleListenerSet( _moduleListeners );
 })

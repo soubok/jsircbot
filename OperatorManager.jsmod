@@ -23,7 +23,7 @@
 		setData( _mod.data[_mod.name].list, [] );
 	}
 
-	var _moduleListeners = {
+	this.moduleListener = {
 		
 		botcmd: {
 
@@ -31,28 +31,26 @@
 
 				if ( !_mod.api.IsBotOp(from) )
 					return;
-			
-				setData( _mod.data[_mod.name].password, undefined );
+				delData( _mod.data[_mod.name].password );
 				setData( _mod.data[_mod.name].list, [] );
-
 				var replyTo = to[0] == '#' ? to : StrBefore(from, '!');
 				_mod.api.Privmsg( replyTo, 'Operator functions are locked.' );
 			},
+
 
 			isop: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 
 				var replyTo = to[0] == '#' ? to : StrBefore(from, '!');
 				_mod.api.Privmsg( replyTo, _mod.api.IsBotOp(from) ? 'yes' : 'no' );
 			},
-			
+
+
 			op: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 				
 				var replyTo = to[0] == '#' ? to : StrBefore(from, '!');
-				
 				if ( !_mod.api.IsBotOp(from) ) {
 	
 					var password = getData( _mod.data[_mod.name].password );
-				
 					if ( password && cmdData == password ) {
 
 						getData( _mod.data[_mod.name].list ).push(from);
@@ -62,17 +60,123 @@
 
 					_mod.api.Privmsg( replyTo, 'Already done.' );
 				}
+			},
+
+
+			quit: function( modCmd, cmdName, cmdData, command, from ) {
+
+				if ( !_mod.api.IsBotOp(from) )
+					return;
+				_mod.api.Quit('bye.');
+			},
+
+
+			restart: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+
+				if ( !_mod.api.IsBotOp(from) )
+					return;
+				_mod.api.Quit('restarting...');
+				SetExitValue(3);
+			},
+
+
+			reload: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+
+				if ( !_mod.api.IsBotOp(from) )
+					return;
+				var nick = StrBefore(from, '!');
+				var replyTo = to[0] == '#' ? to : nick;
+				
+				var moduleNameList = [ m.name for each ( m in core.ModuleList() ) ];
+				
+				if ( cmdData ) {
+				
+					var matchName = new RegExp(cmdData, 'i');
+					for each ( var moduleName in moduleNameList )
+						if ( matchName(moduleName) ) {
+						
+							_mod.api && _mod.api.Privmsg && _mod.api.Privmsg( replyTo, 'Reloading '+moduleName );
+							
+							var mod = core.ModuleByName(moduleName);
+							core.ReloadModule(mod);
+						}
+				} else {
+
+					_mod.api.Privmsg && _mod.api.Privmsg( replyTo, 'list: '+moduleNameList.join('  ') );
+				}
+			},
+
+
+			log: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+				
+				if ( !_mod.api.IsBotOp(from) )
+					return;
+				var nick = StrBefore(from, '!');
+				_mod.api.OpenDCCChat( nick, function(connection) {
+
+					function LogFilter(data) connection.Write(data);
+					log.AddFilter( LogFilter, 'irc net http error warning failure notice' ); // or cmdData
+					connection.OnDisconnected = function() log.RemoveFilter( LogFilter );
+				});
+			},
+
+
+			eval: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+				
+				if ( !_mod.api.IsBotOp(from) )
+					return;
+
+				var nick = StrBefore(from, '!');
+				_mod.api.OpenDCCChat( nick, function(connection) {
+					
+					var code = '';
+					connection.OnData = function(buf) {
+
+						code += buf.replace(/\r?\n?$/,''); // remove trailing CR LF
+						if ( IsStatementValid(code) ) {
+							
+							var res;
+							try {
+
+								res = eval( code );
+							} catch(ex) {
+
+								res = ex;
+							}
+							connection.Write(res + LF);
+							code = '';
+						}
+					}
+				});
+			},
+
+
+			raw: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+
+				if ( !_mod.api.IsBotOp(from) )
+					return;
+				var nick = StrBefore(from, '!');
+
+				function CreateSpy(connection) function() connection.Write( Array.slice(arguments).toSource() + LF );
+
+				_mod.api.OpenDCCChat( nick, function(connection) {
+
+					var spy = CreateSpy(connection);
+					_mod.AddMessageListenerSet(spy);
+					connection.OnData = function(buf) {
+						
+						_mod.Send( buf.replace(/\r?\n?$/,'') );
+					}
+					connection.OnDisconnected = function() _mod.RemoveMessageListenerSet(spy);
+				});
 			}
+			
 		}
 	}
 	
-	_mod.moduleApi = {
+	this.moduleApi = {
 	
 		IsBotOp:function(from) getData( _mod.data[_mod.name].list ).indexOf(from) != -1
 	}
-	
-	this.AddModuleListeners = function() _mod.AddModuleListenerSet( _moduleListeners );
-	this.RemoveModuleListeners = function() _mod.RemoveModuleListenerSet( _moduleListeners );
-
 })
 
