@@ -79,6 +79,7 @@ var io = new function() {
 		
 		for each ( let d in _descriptorList )
 			d.Close();
+		return _descriptorList.splice(0).length; // empty the descriptor list and returns the count of remaining open descriptor
 	}
 }
 
