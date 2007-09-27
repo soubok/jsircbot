@@ -31,7 +31,7 @@
 		var [field, data] = LTrim(msg).split(': ',2);
 		switch ( field ) {
 			case 'Channel':
-				request.reply = {};
+				request.reply = NewDataObj();
 				request.reply.channel = data;
 				break;
 			case 'Contact':
@@ -99,7 +99,7 @@
 		var [field, data] = LTrim(msg).split(': ',2);
 		switch ( field ) {
 			case 'Nickname':
-				request.reply = {};
+				request.reply = NewDataObj();
 				request.reply.nick = StrBefore(data,' ');
 				request.reply.isOnline = (data.indexOf('ONLINE') != -1);
 				break;

@@ -17,7 +17,7 @@ var io = new function() {
 
 	var _timeout = new function() {
 
-		var _min, _tlist = {};
+		var _min, _tlist = NewDataObj();
 		
 		this.Add = function( time, func ) {
 
@@ -89,7 +89,7 @@ function GetHostsByName( hostName ) {
 
 	try {
 		return Socket.GetHostsByName(guestWhois.host).shift();
-	} catch( ex if ex instanceof IoError ) { }
+	} catch( ex if ex instanceof IoError ) {}
 	return undefined;
 }
 
@@ -232,7 +232,7 @@ function HttpRequest( url, data, timeout, OnResponse ) {
 		try {
 
 			var [httpVersion, statusCode, reasonPhrase] = CHK(response.ReadUntil(CRLF)).split(SPC, 3);
-			var headers = {};
+			var headers = NewDataObj();
 			for each ( let h in CHK(response.ReadUntil(CRLF+CRLF)).split(CRLF) ) {
 
 				var [k, v] = h.split(': ', 2); 

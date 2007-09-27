@@ -44,7 +44,7 @@
 			ScheduleCall(function() {
 
 				var pingData = RandomString(16);
-				var timeoutId, events = {}, result = {};
+				var timeoutId, events = NewDataObj(), result = NewDataObj();
 				
 				_mod.AddMessageListenerSet(events);
 
@@ -103,7 +103,7 @@
 			ScheduleCall(function() {
 
 				var pingData = RandomString(16);
-				var timeoutId, events = {};
+				var timeoutId, events = NewDataObj();
 				
 				function End(status, reply) {
 
@@ -120,7 +120,7 @@
 					delete events.PONG;
 					events.RPL_USERHOST = function( command, from, to, hostList ) {
 
-						var result = {};
+						var result = NewDataObj();
 						for each ( var userhost in hostList.split(' ') ) {
 
 							var match = _userHostParser(userhost);
@@ -154,7 +154,7 @@
 			
 			ScheduleCall(function() {
 
-				var timeoutId, events = {};
+				var timeoutId, events = NewDataObj();
 
 				function End(status, message) {
 
