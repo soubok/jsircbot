@@ -49,7 +49,7 @@
 	
 	function ParseStatus( statusLine ) {
 
-		var status = {}, split = statusLine.split('\\');
+		var status = NewDataObj(), split = statusLine.split('\\');
 		split.shift(); // first is empty
 		while (split.length)
 			status[split.shift()] = split.shift();
@@ -135,7 +135,7 @@
 				return;
 			}
 
-			var serverStatus = {};
+			var serverStatus = NewDataObj();
 
 			try {
 

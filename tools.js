@@ -42,10 +42,10 @@ function StopAsyncProc() {
 function StartAsyncProc( procedure ) {
 	
 	try {
-		procedure.next()(function(result) {
+		void procedure.next()(function(result) {
 
 			try {
-				procedure.send(arguments)(arguments.callee);
+				void procedure.send(arguments)(arguments.callee);
 			} catch(ex if ex == StopIteration) {}
 		});
 	} catch(ex if ex == StopIteration) {}
@@ -107,7 +107,7 @@ function Log(data) {
 
 	var _outputList = [];
 	var _time0 = IntervalNow();
-	function Time() StringPad(((IntervalNow()-_time0)/1000).toFixed(2), 6, ' ');
+	function Time() StringPad(((IntervalNow()-_time0)/1000).toFixed(2), 7, ' ');
 	
 	function Write(type, data) {
 		
@@ -169,6 +169,8 @@ function TRY(fct) {
 
 function Noop() {}
 
+function NewDataObj() ({ __proto__: null });
+
 function IntegerToIp(number) (number>>24 & 255)+'.'+(number>>16 & 255)+'.'+(number>>8 & 255)+'.'+(number & 255);
 
 function IpToInt(ip) {
@@ -218,7 +220,7 @@ function Switch(i) arguments[++i];
 
 function MakeObj( tpl, arr ) {
 	
-	var obj = {};
+	var obj = NewDataObj();
 	if ( arr )
 		for ( let p in tpl ) obj[p] = arr[tpl[p]];
 	return obj;
