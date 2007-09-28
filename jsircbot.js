@@ -16,6 +16,8 @@ LoadModule('jsstd');
 LoadModule('jsio');
 LoadModule('jsobjex');
 
+var DBG = true;
+
 Exec('tools.js');
 Exec('dataObject.js');
 Exec('io.js');
@@ -30,7 +32,7 @@ function MakeModuleFromUrl( url, callback ) {
 	DBG && ReportNotice( 'Loading module from: '+url );
 	
 	var args = arguments;
-	HttpRequest( url, '', 2000, function(status, statusCode, reasonPhrase, headers, body ) {
+	HttpRequest( url, '', 3000, function(status, statusCode, reasonPhrase, headers, body ) {
 
 		if ( status != OK || statusCode != 200 ) {
 
@@ -173,9 +175,8 @@ function ClientCore( Configurator ) {
 	var _modules = [];
 	var _messageListener = new Listener();
 	var _moduleListener = new Listener();
-	var _coreListener = new Listener();
 	var _api = new SetOnceObject();
-	var _hasFinished = false;
+	var _state = new StateKeeper();
 	
 	function RawDataSender(buf) {
 
@@ -186,7 +187,7 @@ function ClientCore( Configurator ) {
 
 	this.Send = MakeFloodSafeMessageSender( getData(_data.antiflood.maxMessage), getData(_data.antiflood.maxBytes), getData(_data.antiflood.interval), RawDataSender );
 
-	this.hasFinished = function() _hasFinished;
+	this.hasFinished = function() !_connection;
 	this.Disconnect = function() _connection.Disconnect(); // make a Gracefully disconnect ( disconnect != close )
 	
 	this.Connect = function() {
@@ -224,7 +225,10 @@ function ClientCore( Configurator ) {
 					if ( !isNaN(args[1]) )
 						args[1] = _numericCommand[parseInt(args[1])]||parseInt(args[1]);
 					args.splice(1, 0, args.shift()); // move the command name to the first place.
-
+					
+					if ( args[1] == 'RPL_WELCOME' )
+						_state.Enter('interactive');
+						
 					_messageListener.Fire.apply( null, args );
 
 				} catch (ex if ex == ERR) {
@@ -240,9 +244,11 @@ function ClientCore( Configurator ) {
 
 			for each ( mod in _core.ModuleList() ) 
 				_core.RemoveModule( mod );
-			_coreListener.Fire('OnDisconnected');
-			_hasFinished = true;
+				
+			_state.Leave('interactive');
+			_state.Leave('connected');
 			_connection.Close();
+			_connection = undefined; // this is the end
 			// (TBD) retry if remotelyDisconnected ?
 		}
 		
@@ -254,7 +260,9 @@ function ClientCore( Configurator ) {
 			setData( _data.peerName, _connection.peerName );
 			_connection.OnData = OnData;
 			_connection.OnDisconnected = OnDisconnected;
-			_coreListener.Fire('OnConnected');
+			_state.Leave('connecting');
+			_state.Enter('connected');
+			
 		}
 
 		var getServer = new function() {
@@ -296,7 +304,7 @@ function ClientCore( Configurator ) {
 		}
 
 		TryNextServer();
-		_coreListener.Fire('OnConnecting');
+		_state.Enter('connecting');
 	}
 		
 	this.AddModule = function( mod ) {
@@ -307,7 +315,6 @@ function ClientCore( Configurator ) {
 		
 		mod.moduleListener && _moduleListener.AddSet( mod.moduleListener );
 		mod.messageListener && _messageListener.AddSet( mod.messageListener );
-		_coreListener.AddSet(mod);
 
 		mod.AddMessageListenerSet = _messageListener.AddSet;
 		mod.RemoveMessageListenerSet = _messageListener.RemoveSet;
@@ -319,8 +326,8 @@ function ClientCore( Configurator ) {
 		mod.data = _data;
 		mod.api = _api;
 		_modules.push(mod);
-
 		mod.InitModule && mod.InitModule();
+		_state.AddListener(mod);
 		return mod;
 	}
 	
@@ -330,17 +337,13 @@ function ClientCore( Configurator ) {
 		if ( pos == -1 )
 			return;
 		_modules.splice(pos, 1);
-
-		_coreListener.RemoveSet(mod);
+		_state.RemoveListener(mod);
 		mod.messageListener && _messageListener.RemoveSet( mod.messageListener );
 		mod.moduleListener && _moduleListener.RemoveSet( mod.moduleListener );
-
 		if ( mod.moduleApi )
 			for ( var f in mod.moduleApi )
 				delete _api[f];
-
 		mod.DestroyModule && mod.DestroyModule();
-
 		Clear(mod);
 	}
 	
@@ -352,15 +355,13 @@ function ClientCore( Configurator ) {
 			DBG && ReportError('Unable to reload the module '+mod.name+': Reload function not found.');
 	}
 	
-	this.ModuleByName = function( name ) {
+	this.ModuleByName = function( name ) { // note: this.HasModuleName = function( name ) _modules.some(function(mod) mod.name == name);
 
 		for each ( mod in _modules )
 			if ( mod.name == name )
 				return mod;
 		return undefined;
 	}
-
-//	this.HasModuleName = function( name ) _modules.some(function(mod) mod.name == name);
 
 	this.ModuleList = function() _modules.slice(); // slice() to prevent dead-loop
 
@@ -373,7 +374,6 @@ function ClientCore( Configurator ) {
 
 ///////////////////////////////////////////////// MAIN /////////////////////////////////////////////
 
-DBG = true;
 
 var log = new Log;
 log.AddFilter( MakeLogFile('jsircbot.log', false), 'irc net http error warning failure notice' );

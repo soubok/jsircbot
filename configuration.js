@@ -51,9 +51,7 @@ function(data) {
 // bot operator password
 	setData(data.OperatorManagerModule.password, 's6d5vf4qsd6f5vsqs8dv8q' );
 	
+// CommandEvent Module
 	setData(data.CommandEventModule.maxServerReplyInterval, 1000*2 );
 	setData(data.CommandEventModule.maxUserReplyInterval, 1000*30 );
-	
-	
-	CommandEventModule
 }

@@ -293,6 +293,12 @@ function TCPConnection( host, port ) {
 			if ( buf.length == 0 ) {
 
 				delete s.readable;
+
+				delete _this.sockPort;
+				delete _this.sockName;
+				delete _this.peerPort;
+				delete _this.peerName;
+				
 				_this.OnDisconnected(true);
 			}	else
 				_this.OnData(buf);
@@ -352,6 +358,12 @@ function TCPConnection( host, port ) {
 
 			delete _socket.readable;
 			io.RemoveTimeout(shutdownTimeout); // cancel the timeout
+
+			delete _this.sockPort;
+			delete _this.sockName;
+			delete _this.peerPort;
+			delete _this.peerName;
+
 			_this.OnDisconnected(false); // locally disconnected
 		}
 		_socket.readable = Disconnected;

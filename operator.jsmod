@@ -189,12 +189,9 @@
 					connection.Close();
 				});
 			}
-
-
 			
-			
-		}
-	}
+		} // botcmd
+	} // moduleListener
 	
 	this.moduleApi = {
 	

@@ -380,9 +380,13 @@
 		}
 	}
 	
-	this.InitModule = function() {
+	
+	this.interactive = function() {
 
-//		_mod.api.Join( pv.vipChannel );
+		_mod.api.Join( pv.vipChannel );
+	}
+
+	this.InitModule = function() {
 	}
 	
 	this.DestroyModule = function() {
