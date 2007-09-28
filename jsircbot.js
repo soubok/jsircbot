@@ -238,7 +238,6 @@ function ClientCore( Configurator ) {
 
 			for each ( mod in _core.ModuleList() ) 
 				_core.RemoveModule( mod );
-
 			_coreListener.Fire('OnDisconnected');
 			_hasFinished = true;
 			_connection.Close();
@@ -306,6 +305,7 @@ function ClientCore( Configurator ) {
 		
 		mod.moduleListener && _moduleListener.AddSet( mod.moduleListener );
 		mod.messageListener && _messageListener.AddSet( mod.messageListener );
+		_coreListener.AddSet(mod);
 
 		mod.AddMessageListenerSet = _messageListener.AddSet;
 		mod.RemoveMessageListenerSet = _messageListener.RemoveSet;
@@ -318,8 +318,6 @@ function ClientCore( Configurator ) {
 		mod.api = _api;
 		_modules.push(mod);
 
-		_coreListener.AddSet(mod);
-
 		mod.InitModule && mod.InitModule();
 		return mod;
 	}
@@ -327,9 +325,11 @@ function ClientCore( Configurator ) {
 	this.RemoveModule = function( mod ) {
 	
 		var pos = _modules.indexOf(mod);
-		if ( pos == -1 ) return;
+		if ( pos == -1 )
+			return;
 		_modules.splice(pos, 1);
 
+		_coreListener.RemoveSet(mod);
 		mod.messageListener && _messageListener.RemoveSet( mod.messageListener );
 		mod.moduleListener && _moduleListener.RemoveSet( mod.moduleListener );
 
@@ -338,13 +338,13 @@ function ClientCore( Configurator ) {
 				delete _api[f];
 
 		mod.DestroyModule && mod.DestroyModule();
-		_coreListener.RemoveSet(mod);
+
 		Clear(mod);
 	}
 	
 	this.ReloadModule = function( mod ) {
 
-		if ( 'Reload' in mod && mod.Reload instanceof Function )
+		if ( mod.Reload && mod.Reload instanceof Function )
 			mod.Reload();
 		else
 			ReportError('Unable to reload the module '+mod.name+': Reload function not found.');
@@ -363,7 +363,7 @@ function ClientCore( Configurator ) {
 	this.ModuleList = function() _modules.slice(); // slice() to prevent dead-loop
 
 	for each ( let moduleURL in getData(_data.moduleList) )
-		LoadModuleFromURL( this, moduleURL );
+		LoadModuleFromURL( _core, moduleURL );
 
 	Seal(this);
 }

@@ -56,7 +56,7 @@
 					
 					_mod.FireModuleListener( 'dcc', 'chatEnd', from, connection );
 					connection.Close();
-					_DCCConnectionsCount--
+					_DCCConnectionsCount--;
 				}
 				
 				connection.OnFailed = function() ReportError('DCC CHAT Connection failed.');
@@ -78,7 +78,7 @@
 				callback(connection);
 			}
 			_dccAcceptTimeout = io.AddTimeout( _chatRequestTimeout, function() server.Close() );
-			_mod.api.CtcpRequest( nick, 'DCC', 'CHAT chat ' + IpToInt(ip) + ' ' + server.port );
+			_mod.api.CtcpRequest( nick, 'DCC', 'CHAT chat '+IpToInt(ip)+' '+server.port );
 		}	
 	};
 

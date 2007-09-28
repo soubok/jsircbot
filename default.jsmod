@@ -110,8 +110,8 @@
 		
 		var data = _mod.data;
 		getData(data.ident) && Ident( io, function(identRequest) identRequest + ' : '+getData(data.ident.userid)+' : '+getData(data.ident.opsys)+' : '+getData(data.nick)+CRLF, 2000 ); // let 2 seconds to the server to make the IDENT request
-		_mod.Send( 'USER '+getData(data.ident.username)+' '+getData(data.hostname)+' '+getData(data.server)+' :'+getData(data.ident.realname) );
 		_mod.Send( 'NICK '+getData(data.nick) );
+		_mod.Send( 'USER '+getData(data.ident.username)+' '+getData(data.hostname)+' '+getData(data.server)+' :'+getData(data.ident.realname) );
 	} 
 
 	_mod.moduleApi = {
