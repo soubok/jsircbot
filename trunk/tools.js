@@ -242,6 +242,34 @@ function ExpandStringRanges(rangesStr) {
 }
 
 
+/////////////////////////////////////////////////////// State Keeper
+
+
+function StateKeeper() {
+
+	var _stateListener = new Listener();
+	
+	var _stateList = NewDataObj();
+	
+	this.Enter = function(stateName) {
+		
+		_stateList[stateName] = true;
+		_stateListener.Fire(stateName);
+	}
+
+	this.Leave = function(stateName) void delete _stateList[stateName];
+
+	this.AddListener = function(listener) {
+		
+		_stateListener.AddSet(listener);
+		for ( let stateNAme in _stateList )
+			stateNAme in listener && listener[stateName] instanceof Function && listener[stateName]();
+	}
+
+	this.RemoveListener = function(listener) void _stateListener.RemoveSet(listener);
+}
+
+
 /////////////////////////////////////////////////////// Event Listener
 
 
@@ -408,8 +436,6 @@ function decode64(input) {
 
 
 /////////////////////////////////////////////////////// Debug tools
-
-var DBG
 
 function DPrint() {
 	
