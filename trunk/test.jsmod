@@ -31,23 +31,6 @@
 		
 		botcmd: {
 
-			dump: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
-
-				if ( !_mod.api.IsBotOp(from) )
-					return;
-
-				var nick = StrBefore(from, '!');
-				
-				_mod.api.OpenDCCChat( nick, function(connection) {
-					
-					connection.Write( dumpData(_mod.data) + '\n' );
-					connection.Close();
-				});
-			},
-
-
-
-
 			echo: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 
 				if ( !_mod.api.IsBotOp(from) )

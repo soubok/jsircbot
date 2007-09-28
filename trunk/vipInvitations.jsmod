@@ -27,7 +27,7 @@
 		
 		var color = arguments.callee.color || ( arguments.callee.color = { 0:1, 1:4, 2:9, 3:8, 4:12, 5:11, 6:13, 7:0 } );
 		var out = '';
-		for ( var i = 0; i < str.length; i++ ) {
+		for ( let i = 0; i < str.length; i++ ) {
 			switch (str[i]) {
 				case '^':
 					out += '\x03' + color[String.charCodeAt(str[++i]) % 8];
@@ -351,8 +351,8 @@
 
 				if ( status != OK ) // no response or timeout or failure
 					return;
-				for each ( var playerStatusInfo in ParseRconStatus(result) )
-					for each ( var [i, [guestIp, guestNick, date]] in Iterator(_playerListToSetlevel) )
+				for each ( let playerStatusInfo in ParseRconStatus(result) )
+					for each ( let [i, [guestIp, guestNick, date]] in Iterator(_playerListToSetlevel) )
 						if ( playerStatusInfo.ip == guestIp ) {
 
 							TremulousServerCommand( pv.vipTremServer, 'rcon '+pv.vipTremServerRcon+' !setlevel '+playerStatusInfo.num+' '+pv.vipTremServerVipLevel, Noop );
@@ -379,6 +379,17 @@
 			yield function(callback) io.AddTimeout( 1000*60*1, callback );
 		}
 	}
+	
+	this.InitModule = function() {
+
+//		_mod.api.Join( pv.vipChannel );
+	}
+	
+	this.DestroyModule = function() {
+
+//		_mod.api.Part( pv.vipChannel );
+	}
+	
 
 
 	this.messageListener = {

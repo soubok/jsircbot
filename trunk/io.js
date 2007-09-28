@@ -77,8 +77,11 @@ var io = new function() {
 	
 	this.Close = function() {
 		
-		for each ( let d in _descriptorList )
+		for each ( let d in _descriptorList ) {
+			
+//			Print( 'peer:'+d.peerName+':'+d.peerPort+' sock:'+d.sockName+':'+d.sockPort );
 			d.Close();
+		}
 		return _descriptorList.splice(0).length; // empty the descriptor list and returns the count of remaining open descriptor
 	}
 }

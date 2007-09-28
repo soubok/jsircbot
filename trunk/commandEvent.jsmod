@@ -77,7 +77,7 @@
 						result.server = server;
 						result.serverInfo = serverInfo;
 					}
-					events[320] = function( command, from, to, nick ) { // is identified to services (freenode only)
+					events[320] = function( command, from, to, nick ) { // is identified to services (freenode only ?)
 					
 						result.isIdentified = true;
 					}

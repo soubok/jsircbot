@@ -158,7 +158,7 @@ function CHKNEQ(value, neq) value != neq ? value : ERR();
 
 function TRY(fct) {
 
-	try { 
+	try {
 		void fct();
 		return true;
 	} catch(ex if ex == ERR) {}
@@ -169,7 +169,7 @@ function TRY(fct) {
 
 function Noop() {}
 
-function NewDataObj() ({ __proto__: null });
+function NewDataObj() ({ __proto__: null }); // create a really empty object ( without __parent__, __count__, __proto__, ... )
 
 function IntegerToIp(number) (number>>24 & 255)+'.'+(number>>16 & 255)+'.'+(number>>8 & 255)+'.'+(number & 255);
 
@@ -184,7 +184,8 @@ function NumberToUint32NetworkOrderString(number) String.fromCharCode(number>>24
 
 function RandomString(length) {
 	
-	for ( var str = ''; str.length < length; str += Math.random().toString().substr(2) );
+	var str = '';
+	for ( ; str.length < length; str += Math.random().toString().substr(2) );
 	return str.substr(0, length);
 }
 
@@ -196,7 +197,7 @@ function StringPad( str, count, chr ) {
 	chr = chr || SPC;
 	var diff = count - str.length;
 		while( diff-- > 0 )
-			str = chr + str;  
+			str = chr + str;
 	return str;
 }
 
@@ -249,12 +250,13 @@ function Listener() {
 	var _list = [];
 	this.AddSet = function( set ) void _list.push(set);
 	this.RemoveSet = function( set ) void _list.splice(CHKNEQ(_list.indexOf(set),-1), 1);
-	this.Fire = function Fire() { // beware, Fire is only used for the function name 
-		
+	this.Fire = function Fire() { // beware, Fire is only used for the function name
+	
 		try {
 			for each ( let set in _list.slice() ) {
 				
-				for ( var it = 0, n = set; n instanceof Object && it in arguments && arguments[it] in n; n = n[arguments[it++]] );
+				var n = set;
+				for ( let it = 0; typeof(n) == 'object' && it in arguments && arguments[it] in n; n = n[arguments[it++]] );
 				n instanceof Function && void n.apply(null, arguments);
 			}
 		} catch(ex) {
@@ -405,7 +407,6 @@ function decode64(input) {
 // try: http://www.webtoolkit.info/
 
 
-
 /////////////////////////////////////////////////////// Debug tools
 
 function DPrint() {
@@ -418,5 +419,3 @@ function DPrint() {
 function DStack() { try { throw Error() } catch(ex) { Print( 'Stack: ', ex.stack, '\n' ) } }
 
 function DArgs() { Print( 'Arguments: ', Array.slice(DArgs.caller.arguments).toSource(), '\n' ) }
-
-
