@@ -261,7 +261,7 @@ function Listener() {
 			}
 		} catch(ex) {
 			
-			ReportError( ExToText(ex) );
+			DBG && ReportError( ExToText(ex) );
 		}
 	}
 }
@@ -408,6 +408,8 @@ function decode64(input) {
 
 
 /////////////////////////////////////////////////////// Debug tools
+
+var DBG
 
 function DPrint() {
 	

@@ -27,14 +27,14 @@ Exec('ident.js');
 
 function MakeModuleFromUrl( url, callback ) {
 
-	ReportNotice( 'Loading module from: '+url );
+	DBG && ReportNotice( 'Loading module from: '+url );
 	
 	var args = arguments;
 	HttpRequest( url, '', 2000, function(status, statusCode, reasonPhrase, headers, body ) {
 
 		if ( status != OK || statusCode != 200 ) {
 
-			ReportError('Failed to load the module from '+url+' (reason:'+reasonPhrase+')');
+			DBG && ReportError('Failed to load the module from '+url+' (reason:'+reasonPhrase+')');
 			return;
 		}
 		try {
@@ -44,10 +44,10 @@ function MakeModuleFromUrl( url, callback ) {
 			var mod = new (eval(body));
 			mod.Reload = function() args.callee.apply(null, args);
 			callback(mod);
-			ReportNotice( 'Module '+url+ ' loaded.' );
+			DBG && ReportNotice( 'Module '+url+ ' loaded.' );
 		} catch(ex) {
 
-			ReportError('Failed to make the module '+url+' ('+ExToText(ex)+')');
+			DBG && ReportError('Failed to make the module '+url+' ('+ExToText(ex)+')');
 		}
 	});
 }
@@ -55,7 +55,7 @@ function MakeModuleFromUrl( url, callback ) {
 
 function MakeModuleFromPath( path, callback ) {
 
-	ReportNotice( 'Loading module from: '+path );
+	DBG && ReportNotice( 'Loading module from: '+path );
 
 	var args = arguments;
 	try {
@@ -63,10 +63,10 @@ function MakeModuleFromPath( path, callback ) {
 		var mod = new (Exec(path, false)); // do not save compiled version of the script
 		mod.Reload = function() args.callee.apply(null, args);
 		callback(mod);
-		ReportNotice( 'Module '+path+ ' loaded.' );
+		DBG && ReportNotice( 'Module '+path+ ' loaded.' );
 	} catch(ex) {
 
-		ReportError('Failed to make the module from '+path+' ('+ExToText(ex)+')');
+		DBG && ReportError('Failed to make the module from '+path+' ('+ExToText(ex)+')');
 	}
 }
 
@@ -100,7 +100,7 @@ function LoadModuleFromURL( core, url ) {
 			MakeModuleFromUrl( url, InstallLoadedModule );
 			break;
 		default:
-			ReportError('Invalid module source: '+url);
+			DBG && ReportError('Invalid module source: '+url);
 	}	
 }
 
@@ -116,7 +116,7 @@ function MakeFloodSafeMessageSender( maxMessage, maxData, time, RawDataSender ) 
 
 	function Process() {
 		
-		ReportNotice( 'MakeFloodSafeMessageSender:: COUNT:'+ _count + ' BYTES:'+ _bytes+' QUEUE_LENGTH:'+_messageQueue.length );
+		DBG && ReportNotice( 'MakeFloodSafeMessageSender:: COUNT:'+ _count + ' BYTES:'+ _bytes+' QUEUE_LENGTH:'+_messageQueue.length );
 	
 		var buffer = '';
 		function PrepMessage([messages, OnSent]) {
@@ -229,14 +229,14 @@ function ClientCore( Configurator ) {
 
 				} catch (ex if ex == ERR) {
 				
-					ReportError('Invalid IRC server message');
+					DBG && ReportError('Invalid IRC server message');
 				}
 			}
 		}
 
 		function OnDisconnected( remotelyDisconnected ) {
 			
-			ReportWarning( remotelyDisconnected ? 'Remotely disconnected' : 'Locally disconnected' );
+			DBG && ReportWarning( remotelyDisconnected ? 'Remotely disconnected' : 'Locally disconnected' );
 
 			for each ( mod in _core.ModuleList() ) 
 				_core.RemoveModule( mod );
@@ -279,11 +279,11 @@ function ClientCore( Configurator ) {
 				Failed('Unable to connect to any server.');
 			}
 			
-			ReportNotice( 'Trying to connect to ' + host + ':' + port );
+			DBG && ReportNotice( 'Trying to connect to ' + host + ':' + port );
 			_connection = new TCPConnection(host, port);
 			_connection.OnFailed = function() {
 
-				ReportError('Failed to connect to ' + host + ':' + port );
+				DBG && ReportError('Failed to connect to ' + host + ':' + port );
 				
 				var _timeoutId = io.AddTimeout( getData(_data.serverRetryPause), function() {
 				
@@ -349,7 +349,7 @@ function ClientCore( Configurator ) {
 		if ( mod.Reload && mod.Reload instanceof Function )
 			mod.Reload();
 		else
-			ReportError('Unable to reload the module '+mod.name+': Reload function not found.');
+			DBG && ReportError('Unable to reload the module '+mod.name+': Reload function not found.');
 	}
 	
 	this.ModuleByName = function( name ) {
@@ -373,6 +373,7 @@ function ClientCore( Configurator ) {
 
 ///////////////////////////////////////////////// MAIN /////////////////////////////////////////////
 
+DBG = true;
 
 var log = new Log;
 log.AddFilter( MakeLogFile('jsircbot.log', false), 'irc net http error warning failure notice' );
@@ -383,7 +384,7 @@ function ReportWarning(text) log.WriteLn( 'warning', text)
 function ReportError(text) log.WriteLn( 'error', text);
 function ReportFailure(text) log.WriteLn( 'failure', text);
 
-ReportNotice('log initialized @ '+(new Date()));
+DBG && ReportNotice('log initialized @ '+(new Date()));
 // starting
 var core = new ClientCore(Exec('configuration.js'));
 
@@ -400,10 +401,10 @@ try {
 	}
 } catch( ex if ex instanceof IoError ) {
 
-	ReportFailure( 'IoError: '+ ex.text + ' ('+ex.os+')' );
+	DBG && ReportFailure( 'IoError: '+ ex.text + ' ('+ex.os+')' );
 }
 
-ReportNotice('**************************** Gracefully end.');
+DBG && ReportNotice('**************************** Gracefully end.');
 log.Close();
 
 

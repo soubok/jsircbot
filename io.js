@@ -224,7 +224,7 @@ function HttpRequest( url, data, timeout, OnResponse ) {
 
 	TCPGet( ud.host, ud.port||80, statusLine + CRLF + MakeHeaders(headers) + CRLF + body, timeout, function( status, response ) {
 	
-//		ReportNotice( 'HTTP GET: ' + url+' = \n'+response+'\n' ); // cannot read the response because this empty the buffer :)
+//		DBG && ReportNotice( 'HTTP GET: ' + url+' = \n'+response+'\n' ); // cannot read the response because this empty the buffer :)
 
 		if ( status != OK ) {
 			
@@ -309,7 +309,7 @@ function TCPConnection( host, port ) {
 		
 		this.Connect = function( timeout ) {
 		
-			ReportNotice( 'TCP CONNECTING TO: ' + host+':'+port );
+			DBG && ReportNotice( 'TCP CONNECTING TO: ' + host+':'+port );
 
 			function ConnectionFailed() {
 
@@ -370,14 +370,14 @@ function TCPServer( portRange, ip ) {
 	_socket.nonblocking = true;
 	_socket.reuseAddr = true;
 	if ( !TryBindSocket( _socket, portRange, ip ) )
-		ReportError('Unable to create the TCPServer, cannot bind to '+ip+':'+portRange );
+		DBG && ReportError('Unable to create the TCPServer, cannot bind to '+ip+':'+portRange );
 	_socket.Listen();
 	this.port = _socket.sockPort;
 	this.name = _socket.sockName;
 	_socket.readable = function(s) {
 		
 		var incomingConnection = s.Accept();
-		ReportNotice( 'TCP CONNECTION REQUEST on '+incomingConnection.sockPort+' from '+incomingConnection.peerName );
+		DBG && ReportNotice( 'TCP CONNECTION REQUEST on '+incomingConnection.sockPort+' from '+incomingConnection.peerName );
 		_this.OnIncoming(new TCPConnection(incomingConnection));
 	}
 	this.Close = function() {
@@ -387,5 +387,5 @@ function TCPServer( portRange, ip ) {
 	}
 	io.AddDescriptor(_socket);
 
-	ReportNotice( 'TCP LISTENING: ' + this.name+':'+this.port );
+	DBG && ReportNotice( 'TCP LISTENING: ' + this.name+':'+this.port );
 }

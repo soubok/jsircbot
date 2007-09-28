@@ -89,7 +89,7 @@
 
 		HttpRequest( pv.invitationURL, data, 3000, function(status, statusCode, reasonPhrase, headers, body) {
 			
-			ReportNotice( 'QueryVIPDatabase:: STATUS:'+OK+' REQUEST:'+data.toSource()+' RESPONSE:'+body );
+			DBG && ReportNotice( 'QueryVIPDatabase:: STATUS:'+OK+' REQUEST:'+data.toSource()+' RESPONSE:'+body );
 
 			if ( status != OK ) {
 				
@@ -109,7 +109,7 @@
 				responseObject = eval('('+body+')');
 			} catch(ex) {
 			
-				ReportError( ExToText(ex) );
+				DBG && ReportError( ExToText(ex) );
 				OnResult(INVALID_RESPONSE);
 				return;
 			}

@@ -18,11 +18,6 @@
 	this.name = this.constructor.name;
 	var _mod = this;
 	
-	const _maxServerReplyInterval = 2000;
-	const _maxUserReplyInterval = 10000;
-	
-	var _userHostParser = /(.+?)(\*?)=(\+?)(?:.*?)@(.*)/;
-	
 	var _callList = [];
 	function ScheduleCall(fct) {
 		
@@ -92,7 +87,7 @@
 				
 				_mod.Send( ['PING '+pingData, 'WHOIS '+nick], false, function() { // PING to sync the request
 
-					timeoutId = io.AddTimeout(_maxServerReplyInterval, function() End(TIMEOUT) );
+					timeoutId = io.AddTimeout(getData(_mod.data[_mod.name].maxServerReplyInterval), function() End(TIMEOUT) );
 				});
 			});		
 		},
@@ -123,7 +118,7 @@
 						var result = NewDataObj();
 						for each ( var userhost in hostList.split(' ') ) {
 
-							var match = _userHostParser(userhost);
+							var match = /(.+?)(\*?)=(\+?)(?:.*?)@(.*)/(userhost);
 							if ( userhost && match ) {
 
 								var [, nick, ircOp, hasAwayMsg, host] = match;
@@ -144,7 +139,7 @@
 				
 				_mod.Send( ['PING '+pingData, 'USERHOST '+nickList.join(' ')], false, function() {
 
-					timeoutId = io.AddTimeout(_maxServerReplyInterval, function() End(TIMEOUT) ); // start the timeout ONLY vhen the message has been sent
+					timeoutId = io.AddTimeout(getData(_mod.data[_mod.name].maxServerReplyInterval), function() End(TIMEOUT) ); // start the timeout ONLY vhen the message has been sent
 				});
 			});
 		},
@@ -181,7 +176,7 @@
 				_mod.AddMessageListenerSet(events);
 				_mod.api.Privmsg( nick, message, function() {
 
-					timeoutId = io.AddTimeout(_maxUserReplyInterval, function() End(TIMEOUT) ); // start the timeout ONLY vhen the message has been sent
+					timeoutId = io.AddTimeout(getData(_mod.data[_mod.name].maxUserReplyInterval), function() End(TIMEOUT) ); // start the timeout ONLY vhen the message has been sent
 				});
 			});
 		},
@@ -209,7 +204,7 @@
 				_mod.AddMessageListenerSet(events);
 				_mod.Send( 'PING '+pingData, false, function() {
 
-					timeoutId = io.AddTimeout(_maxServerReplyInterval, End ); // start the timeout ONLY vhen the message has been sent
+					timeoutId = io.AddTimeout(getData(_mod.data[_mod.name].maxServerReplyInterval), End ); // start the timeout ONLY vhen the message has been sent
 				});
 			});
 		}

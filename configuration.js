@@ -40,9 +40,20 @@ function(data) {
 	setData(data.antiflood.maxBytes, 1456 );
 	setData(data.antiflood.interval, 5000 );
 
+// configure DCC
+	setData(data.DCC.maxDCCConnections, 32 );
+	setData(data.DCC.portRange, '1024-2048' );
+	setData(data.DCC.requestTimeout, 1000*30 );
+
 // configure DCCReceiver module
 	setData(data.DCCReceiverModule.destinationPath, '.' );
 
 // bot operator password
 	setData(data.OperatorManagerModule.password, 's6d5vf4qsd6f5vsqs8dv8q' );
+	
+	setData(data.CommandEventModule.maxServerReplyInterval, 1000*2 );
+	setData(data.CommandEventModule.maxUserReplyInterval, 1000*30 );
+	
+	
+	CommandEventModule
 }

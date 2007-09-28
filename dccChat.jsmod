@@ -20,10 +20,6 @@
 	
 	var _DCCConnectionsCount = 0;
 	
-	const _maxDCCConnections = 32; // (TBD) move to configuration
-	const _DCCPortRange = '1024-2048';
-	const _chatRequestTimeout = 1000*30;
-
 	this.moduleListener = {
 	
 		ctcp: {
@@ -33,9 +29,9 @@
 				var [type,protocol,nip,nport] = data.split(' ');
 				if ( type != 'CHAT' )
 					return;
-				if ( _DCCConnectionsCount >= _maxDCCConnections ) {
+				if ( _DCCConnectionsCount >= getData( _mod.data.DCC.maxDCCConnections ) ) {
 					
-					ReportError('Too many DCC CHAT connections.');
+					DBG && ReportError('Too many DCC CHAT connections.');
 					return;
 				}
 				
@@ -59,7 +55,7 @@
 					_DCCConnectionsCount--;
 				}
 				
-				connection.OnFailed = function() ReportError('DCC CHAT Connection failed.');
+				connection.OnFailed = function() DBG && ReportError('DCC CHAT Connection failed.');
 				connection.Connect();
 			}
 		}
@@ -70,14 +66,14 @@
 		OpenDCCChat: function( nick, callback ) {
 
 			var _dccAcceptTimeout, ip = getData( _mod.data.sockName );
-			var server = new TCPServer( _DCCPortRange, ip );
+			var server = new TCPServer( getData( _mod.data.DCC.portRange ), ip );
 			server.OnIncoming = function(connection) {
 
 				io.RemoveTimeout(_dccAcceptTimeout);
 				server.Close(); // we accept only one connection
 				callback(connection);
 			}
-			_dccAcceptTimeout = io.AddTimeout( _chatRequestTimeout, function() server.Close() );
+			_dccAcceptTimeout = io.AddTimeout( getData( _mod.data.DCC.requestTimeout ) , function() server.Close() );
 			_mod.api.CtcpRequest( nick, 'DCC', 'CHAT chat '+IpToInt(ip)+' '+server.port );
 		}	
 	};
