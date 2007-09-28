@@ -44,6 +44,7 @@ function MakeModuleFromUrl( url, callback ) {
 			var mod = new (eval(body));
 			mod.Reload = function() args.callee.apply(null, args);
 			callback(mod);
+			ReportNotice( 'Module '+url+ ' loaded.' );
 		} catch(ex) {
 
 			ReportError('Failed to make the module '+url+' ('+ExToText(ex)+')');
@@ -62,6 +63,7 @@ function MakeModuleFromPath( path, callback ) {
 		var mod = new (Exec(path, false)); // do not save compiled version of the script
 		mod.Reload = function() args.callee.apply(null, args);
 		callback(mod);
+		ReportNotice( 'Module '+path+ ' loaded.' );
 	} catch(ex) {
 
 		ReportError('Failed to make the module from '+path+' ('+ExToText(ex)+')');
