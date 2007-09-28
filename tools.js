@@ -262,8 +262,8 @@ function StateKeeper() {
 	this.AddListener = function(listener) {
 		
 		_stateListener.AddSet(listener);
-		for ( let stateNAme in _stateList )
-			stateNAme in listener && listener[stateName] instanceof Function && listener[stateName]();
+		for ( let stateName in _stateList )
+			stateName in listener && listener[stateName] instanceof Function && listener[stateName]();
 	}
 
 	this.RemoveListener = function(listener) void _stateListener.RemoveSet(listener);
