@@ -262,7 +262,6 @@ function ClientCore( Configurator ) {
 			_connection.OnDisconnected = OnDisconnected;
 			_state.Leave('connecting');
 			_state.Enter('connected');
-			
 		}
 
 		var getServer = new function() {
