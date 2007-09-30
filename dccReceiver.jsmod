@@ -82,6 +82,7 @@
 	this.moduleListener = {
 	
 		ctcp: {
+		
 			DCC: function( moduleCmd, tag, from, to, data ) {
 				
 				// DCC <space> <type> <space> <protocol> <space> <ip> <space> <port> [<space> <arg> [<space> <arg> [...]]] (optional)

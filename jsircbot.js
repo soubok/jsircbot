@@ -242,11 +242,12 @@ function ClientCore( Configurator ) {
 			
 			DBG && ReportWarning( remotelyDisconnected ? 'Remotely disconnected' : 'Locally disconnected' );
 
-			for each ( mod in _core.ModuleList() ) 
-				_core.RemoveModule( mod );
-				
 			_state.Leave('interactive');
 			_state.Leave('connected');
+
+			for each ( mod in _core.ModuleList() )
+				_core.RemoveModule( mod );
+
 			_connection.Close();
 			_connection = undefined; // this is the end
 			// (TBD) retry if remotelyDisconnected ?
@@ -262,6 +263,7 @@ function ClientCore( Configurator ) {
 			_connection.OnDisconnected = OnDisconnected;
 			_state.Leave('connecting');
 			_state.Enter('connected');
+			getData(data.ident) && Ident( io, function(identRequest) identRequest + ' : '+getData(data.ident.userid)+' : '+getData(data.ident.opsys)+' : '+getData(data.nick)+CRLF, 2000 ); // let 2 seconds to the server to make the IDENT request
 		}
 
 		var getServer = new function() {
@@ -321,11 +323,13 @@ function ClientCore( Configurator ) {
 		mod.RemoveModuleListenerSet = _moduleListener.RemoveSet;
 		mod.FireModuleListener = _moduleListener.Fire;
 
+		mod.StateIs = function(stateName) _state.Is;
+		
 		mod.Send = this.Send;
 		mod.data = _data;
 		mod.api = _api;
 		_modules.push(mod);
-		mod.InitModule && mod.InitModule();
+		mod.AddingModule && mod.AddingModule();
 		_state.AddListener(mod);
 		return mod;
 	}
@@ -339,10 +343,12 @@ function ClientCore( Configurator ) {
 		_state.RemoveListener(mod);
 		mod.messageListener && _messageListener.RemoveSet( mod.messageListener );
 		mod.moduleListener && _moduleListener.RemoveSet( mod.moduleListener );
+		
 		if ( mod.moduleApi )
 			for ( var f in mod.moduleApi )
 				delete _api[f];
-		mod.DestroyModule && mod.DestroyModule();
+				
+		mod.RemovingModule && mod.RemovingModule();
 		Clear(mod);
 	}
 	

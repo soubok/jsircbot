@@ -22,12 +22,12 @@
 
 	var _contactList = {};
 
-	this.messageListener = {
+	this.interactive = function( stateName, polarity ) {
 
-		RPL_WELCOME: function( command, from, to, msg ) {
-		
-			_mod.api.Join( _tremClanWarChannel );
-		}
+		if ( !polarity )
+			return;
+
+		_mod.api.Join( _tremClanWarChannel );
 	}
 
 /*

@@ -381,41 +381,39 @@
 	}
 	
 	
-	this.interactive = function() {
+	this.interactive = function( stateName, polarity ) {
+		
+		if ( !polarity )
+			return;
 
+		StartAsyncProc( new ScanVipTremServer );
+
+		QueryVIPDatabase({ action:'getIpList' }, function(status, response) {
+
+			if ( status != OK ) // ???
+				return;
+			for each ( let ip in response )
+				_playerListToSetlevel.push([ip, '', 0]);
+		});
+
+		_mod.api.Nick( pv.botNick );
+		_mod.api.Privmsg( pv.nickServ, 'IDENTIFY '+pv.password );
+		_mod.api.Privmsg( pv.chanServ, 'IDENTIFY '+pv.vipChannel+' '+pv.vipChannelPassword );
 		_mod.api.Join( pv.vipChannel );
+		// _mod.Send('CAPAB IDENTIFY-MSG'); // ask the server to prefix all messages with '+' if the nick is resistred
 	}
 
-	this.InitModule = function() {
+	this.AddingModule = function() {
 	}
-	
-	this.DestroyModule = function() {
 
-//		_mod.api.Part( pv.vipChannel );
+	this.RemovingModule = function() {
+		
+		if ( _mod.StateIs('connected') )
+			_mod.api.Part( pv.vipChannel );
 	}
-	
 
 
 	this.messageListener = {
-
-		RPL_WELCOME: function( command, from, to, msg ) {
-		
-			StartAsyncProc( new ScanVipTremServer );
-			
-			QueryVIPDatabase({ action:'getIpList' }, function(status, response) {
-
-				if ( status != OK ) // ???
-					return;
-				for each ( let ip in response )
-					_playerListToSetlevel.push([ip, '', 0]);
-			});
-			
-			_mod.api.Nick( pv.botNick );
-			_mod.api.Privmsg( pv.nickServ, 'IDENTIFY '+pv.password );
-			_mod.api.Privmsg( pv.chanServ, 'IDENTIFY '+pv.vipChannel+' '+pv.vipChannelPassword );
-			_mod.api.Join( pv.vipChannel );
-			// _mod.Send('CAPAB IDENTIFY-MSG'); // ask the server to prefix all messages with '+' if the nick is resistred
-		},
 
 		ERR_NICKNAMEINUSE: function( command, from, to, msg ) {
 

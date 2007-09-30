@@ -66,16 +66,9 @@
 			pos++;
 		}		
 	}
-	
-	this.messageListener = {
 
-		RPL_WELCOME: function () {
-			
-			var chanList = getData(_mod.data[_mod.name].joinList);
-			for each ( var channel in chanList )
-				_mod.Send( 'JOIN ' + channel );
-		},
-		
+	this.messageListener = {
+	
 		RPL_CREATIONTIME: function( command, from, to, channel, time ) {
 
 			setData( _mod.data.channel[NormalizeChannelName(channel)].creationTime, parseInt(time) );
@@ -203,6 +196,16 @@
 		Join: function(channel) _mod.Send( 'JOIN ' + channel ),
 		Part: function(channel) _mod.Send( 'PART ' + channel ),
 		Invite: function(nick, channel) _mod.Send( 'INVITE ' + nick + ' ' + channel )
+	}
+
+	this.interactive = function( stateName, polarity ) {
+
+		if ( !polarity )
+			return;
+
+		var chanList = getData(_mod.data[_mod.name].joinList);
+		for each ( var channel in chanList )
+			_mod.Send( 'JOIN ' + channel );
 	}
 
 })
