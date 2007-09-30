@@ -341,7 +341,7 @@
 		}
 	}
 	
-	function ScanVipTremServer() {
+	var ScanVipTremServer = new function() {
 		
 		var prevDisplayedStatusDate = 0;
 		
@@ -380,21 +380,13 @@
 		}
 	}
 	
-	
+
 	this.interactive = function( stateName, polarity ) {
 		
 		if ( !polarity )
 			return;
-
-		StartAsyncProc( new ScanVipTremServer );
-
-		QueryVIPDatabase({ action:'getIpList' }, function(status, response) {
-
-			if ( status != OK ) // ???
-				return;
-			for each ( let ip in response )
-				_playerListToSetlevel.push([ip, '', 0]);
-		});
+		
+		StartAsyncProc( ScanVipTremServer );
 
 		_mod.api.Nick( pv.botNick );
 		_mod.api.Privmsg( pv.nickServ, 'IDENTIFY '+pv.password );
@@ -404,9 +396,20 @@
 	}
 
 	this.AddingModule = function() {
+
+		QueryVIPDatabase({ action:'getIpList' }, function(status, response) {
+
+			if ( status != OK ) // ???
+				return;
+			for each ( let ip in response )
+				_playerListToSetlevel.push([ip, '', 0]);
+		});
 	}
 
 	this.RemovingModule = function() {
+	
+		if ( _mod.StateIs('interactive') )
+			ScanVipTremServer.close();
 		
 		if ( _mod.StateIs('connected') )
 			_mod.api.Part( pv.vipChannel );

@@ -138,23 +138,27 @@
 		var data = _mod.data;
 		_mod.Send( 'NICK '+getData(data.nick) );
 		_mod.Send( 'USER '+getData(data.ident.username)+' '+getData(data.hostname)+' '+getData(data.server)+' :'+getData(data.ident.realname) );
-
-		function LagProbe() {
-
-			_mod.Send( 'PING LAG' + IntervalNow(), true );
-			
-			if ( _mod.StateIs('connected') )
-				io.AddTimeout(getData( _mod.data[_mod.name].lagProbeInterval ), arguments.callee );
-		}
-		LagProbe();
 	}
 	
 
+	function LagProbe( action ) {
+		
+		if ( action == false ) {
+		
+			io.RemoveTimeout(arguments.callee.timeoutId);
+		} else {
+
+			_mod.Send( 'PING LAG'+IntervalNow(), true );
+			arguments.callee.timeoutId = io.AddTimeout(getData( _mod.data[_mod.name].lagProbeInterval ), arguments.callee );
+		}
+	}
+
 	this.interactive = function( stateName, polarity ) {
+
+		LagProbe(polarity);
 
 		if ( !polarity )
 			return;
-	
 
 // (TBD) re-eable this:
 //		setData( _mod.data.serverHost, from );
