@@ -38,6 +38,22 @@
 			}
 		}
 	}
+	
+	this.interactive = function( stateName, polarity ) {
 
+		if ( !polarity )
+			return;
+		// 
+	}	
+	
+	// module state listener
+	this.connected = function( stateName, polarity ) {
+	}
+	
+	this.AddingModule = function() {
+	}
+
+	this.RemovingModule = function() {
+	}
 
 })

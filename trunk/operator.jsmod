@@ -18,7 +18,7 @@
 	this.name = this.constructor.name;
 	var _mod = this;
 	
-	this.InitModule = function() {
+	this.AddingModule = function() {
 	
 		setData( _mod.data[_mod.name].list, [] );
 	}

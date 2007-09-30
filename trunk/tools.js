@@ -250,20 +250,26 @@ function StateKeeper() {
 	var _stateListener = new Listener();
 	
 	var _stateList = NewDataObj();
+
+	this.Is = function(stateName) stateName in _stateList;
 	
 	this.Enter = function(stateName) {
 		
 		_stateList[stateName] = true;
-		_stateListener.Fire(stateName);
+		_stateListener.Fire(stateName, true);
 	}
 
-	this.Leave = function(stateName) void delete _stateList[stateName];
+	this.Leave = function(stateName) {
+		
+		delete _stateList[stateName];
+		_stateListener.Fire(stateName, false);
+	}
 
 	this.AddListener = function(listener) {
 		
 		_stateListener.AddSet(listener);
 		for ( let stateName in _stateList )
-			stateName in listener && listener[stateName] instanceof Function && listener[stateName]();
+			stateName in listener && listener[stateName] instanceof Function && listener[stateName](stateName, true);
 	}
 
 	this.RemoveListener = function(listener) void _stateListener.RemoveSet(listener);

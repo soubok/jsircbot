@@ -23,20 +23,6 @@
 
 	this.messageListener = {
 
-		RPL_WELCOME: function( command, from, to ) {
-
-			setData( _mod.data.serverHost, from );
-			setData( _mod.data.nick, to );
-			_mod.Send( 'USERHOST ' + to );
-			
-			function LagProbe() {
-				
-				_mod.Send( 'PING LAG' + IntervalNow(), true );
-				io.AddTimeout(getData( _mod.data[_mod.name].lagProbeInterval ), arguments.callee );
-			}
-			LagProbe();
-		},
-
 		RPL_USERHOST: function( command, from, to, hostList ) {
 			
 			if ( to == getData(_mod.data.nick) ) {
@@ -106,15 +92,6 @@
 		}
 	};
 	
-	// module state listener
-	this.connected = function() {
-		
-		var data = _mod.data;
-		getData(data.ident) && Ident( io, function(identRequest) identRequest + ' : '+getData(data.ident.userid)+' : '+getData(data.ident.opsys)+' : '+getData(data.nick)+CRLF, 2000 ); // let 2 seconds to the server to make the IDENT request
-		_mod.Send( 'NICK '+getData(data.nick) );
-		_mod.Send( 'USER '+getData(data.ident.username)+' '+getData(data.hostname)+' '+getData(data.server)+' :'+getData(data.ident.realname) );
-	} 
-
 	// export module API
 	_mod.moduleApi = {
 	
@@ -149,6 +126,42 @@
 
 		// freenode network do not send a quit message if the client is connected for less than 5 mimutes
 		Quit: function(quitMessage) _mod.Send( 'QUIT :'+quitMessage, true ) // true = force the message to be post ASAP
+	}
+
+
+	// module state listener
+	this.connected = function( stateName, polarity ) {
+		
+		if ( !polarity )
+			return;
+
+		var data = _mod.data;
+		_mod.Send( 'NICK '+getData(data.nick) );
+		_mod.Send( 'USER '+getData(data.ident.username)+' '+getData(data.hostname)+' '+getData(data.server)+' :'+getData(data.ident.realname) );
+
+		function LagProbe() {
+
+			_mod.Send( 'PING LAG' + IntervalNow(), true );
+			
+			if ( _mod.StateIs('connected') )
+				io.AddTimeout(getData( _mod.data[_mod.name].lagProbeInterval ), arguments.callee );
+		}
+		LagProbe();
+	}
+	
+
+	this.interactive = function( stateName, polarity ) {
+
+		if ( !polarity )
+			return;
+	
+
+// (TBD) re-eable this:
+//		setData( _mod.data.serverHost, from );
+//		setData( _mod.data.nick, to );
+
+		_mod.Send( 'USERHOST '+getData(data.nick) );
+
 	}
 
 })
