@@ -181,12 +181,12 @@
 					var replyTo = to[0] == '#' ? to : nick;
 
 					if ( _mod.lastServerQueryInterval && IntervalNow() - _mod.lastServerQueryInterval < 10000 ) // anti-flood
-						_mod.api.Privmsg( replyTo, 'Please don\'t spam, try again later.' ), StopAsyncProc();
+						_mod.api.Privmsg( replyTo, 'Please don\'t spam, try again later.' ), AbortAsyncProc();
 					var [status, result] = yield function(callback) QueryTremServerStatus(pv.vipTremServer, callback);
 					
 					if ( status != OK ) {
 					
-						_mod.api.Privmsg( replyTo, 'Sorry, the server does not respond.' ), StopAsyncProc();
+						_mod.api.Privmsg( replyTo, 'Sorry, the server does not respond.' ), AbortAsyncProc();
 						return;
 					}
 
@@ -207,7 +207,7 @@
 					
 						var replyTo = to[0] == '#' ? to : StrBefore(from, '!');
 						_mod.api.Privmsg( replyTo, message );
-						StopAsyncProc();
+						AbortAsyncProc();
 					}
 
 					if ( !_mod.api.IsBotOp(from) )
@@ -257,13 +257,13 @@
 				StartAsyncProc( new function() {
 
 					if ( to != pv.vipChannel )
-						StopAsyncProc();
+						AbortAsyncProc();
 						
 					function InvitationFailed(message) {
 					
 						var replyTo = to[0] == '#' ? to : StrBefore(from, '!');
 						_mod.api.Privmsg( replyTo, message );
-						StopAsyncProc();
+						AbortAsyncProc();
 					}
 				
 					var hostNick = StrBefore(from, '!');
@@ -351,6 +351,7 @@
 
 				if ( status != OK ) // no response or timeout or failure
 					return;
+					
 				for each ( let playerStatusInfo in ParseRconStatus(result) )
 					for each ( let [i, [guestIp, guestNick, date]] in Iterator(_playerListToSetlevel) )
 						if ( playerStatusInfo.ip == guestIp ) {
@@ -360,6 +361,7 @@
 							guestNick && TremulousServerCommand( pv.vipTremServer, 'rcon '+pv.vipTremServerRcon+' say Welcome to '+guestNick+'^7 the new VIP !', Noop );
 							_playerListToSetlevel.splice(i, 1); // remove processed item
 							QueryVIPDatabase({ action:'setlevelDone', nick:guestNick, tremName:guestNick }, callback);
+							return; // because the list has been splice(), we can only process one item
 						}
 			});
 			
@@ -376,9 +378,17 @@
 					prevDisplayedStatusDate = Time();
 				});
 
-			yield function(callback) io.AddTimeout( 1000*60*1, callback );
+			yield function(callback) io.AddTimeout( 1000*60*1, callback ); // async pause
 		}
 	}
+	
+	
+	
+	this.ListenState( function(Is) Is('interactive') && Is('DefaultModule'), function(polarity) {
+	
+	
+	
+	});
 	
 
 	this.interactive = function( stateName, polarity ) {
@@ -386,7 +396,7 @@
 		if ( !polarity )
 			return;
 		
-		StartAsyncProc( ScanVipTremServer );
+		StartAsyncProc( ScanVipTremServer ); // start this here because ScanVipTremServer have to send IRC messages
 
 		_mod.api.Nick( pv.botNick );
 		_mod.api.Privmsg( pv.nickServ, 'IDENTIFY '+pv.password );
@@ -409,7 +419,7 @@
 	this.RemovingModule = function() {
 	
 		if ( _mod.StateIs('interactive') )
-			ScanVipTremServer.close();
+			StopAsyncProc( ScanVipTremServer );
 		
 		if ( _mod.StateIs('connected') )
 			_mod.api.Part( pv.vipChannel );
