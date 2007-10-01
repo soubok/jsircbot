@@ -34,7 +34,7 @@ const NOTFOUND = { toString:function() 'NOTFOUND' };
 
 function Time() (new Date).getTime();
 
-function StopAsyncProc() {
+function AbortAsyncProc() {
 	
 	throw StopIteration;
 }
@@ -50,6 +50,12 @@ function StartAsyncProc( procedure ) {
 		});
 	} catch(ex if ex == StopIteration) {}
 }
+
+function StopAsyncProc( procedure ) {
+	
+	procedure.close();
+}
+
 
 /////////////////////////////////////////////////////// Manage exit value
 
@@ -251,18 +257,22 @@ function StateKeeper() {
 	
 	var _stateList = NewDataObj();
 
-	this.Is = function(stateName) stateName in _stateList;
+	function Is(stateName) stateName in _stateList;
+
+	this.Is = Is;
 	
 	this.Enter = function(stateName) {
 		
 		_stateList[stateName] = true;
 		_stateListener.Fire(stateName, true);
+		StateChanging();
 	}
 
 	this.Leave = function(stateName) {
 		
 		delete _stateList[stateName];
 		_stateListener.Fire(stateName, false);
+		StateChanging();
 	}
 
 	this.AddListener = function(listener) {
@@ -273,6 +283,24 @@ function StateKeeper() {
 	}
 
 	this.RemoveListener = function(listener) void _stateListener.RemoveSet(listener);
+	
+	var _predicateList = [];
+
+	function StateChanging() {
+		
+		for each ( let item in _predicateList ) {
+			
+			var polarity = item[0](Is);
+			if ( polarity !== item[2] ) {
+				
+				callback(polarity);
+				item[2] = polarity;
+			}
+		}
+	}
+	
+	this.StateTrigger = function( predicate, callback ) _predicateList.push([predicate, callback, undefined]);
+	
 }
 
 

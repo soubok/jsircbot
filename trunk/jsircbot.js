@@ -331,6 +331,8 @@ function ClientCore( Configurator ) {
 		_modules.push(mod);
 		mod.AddingModule && mod.AddingModule();
 		_state.AddListener(mod);
+		
+		_state.Enter(mod.name);
 		return mod;
 	}
 	
