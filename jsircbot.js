@@ -226,7 +226,7 @@ function ClientCore( Configurator ) {
 						args[1] = _numericCommand[parseInt(args[1])]||parseInt(args[1]);
 					args.splice(1, 0, args.shift()); // move the command name to the first place.
 					
-					if ( args[1] == 'RPL_WELCOME' )
+					if ( args[0] == 'RPL_WELCOME' )
 						_state.Enter('interactive');
 						
 					_messageListener.Fire.apply( null, args );
@@ -263,7 +263,7 @@ function ClientCore( Configurator ) {
 			_connection.OnDisconnected = OnDisconnected;
 			_state.Leave('connecting');
 			_state.Enter('connected');
-			getData(data.ident) && Ident( io, function(identRequest) identRequest + ' : '+getData(data.ident.userid)+' : '+getData(data.ident.opsys)+' : '+getData(data.nick)+CRLF, 2000 ); // let 2 seconds to the server to make the IDENT request
+			getData(_data.ident) && Ident( io, function(identRequest) identRequest + ' : '+getData(_data.ident.userid)+' : '+getData(_data.ident.opsys)+' : '+getData(_data.nick)+CRLF, 2000 ); // let 2 seconds to the server to make the IDENT request
 		}
 
 		var getServer = new function() {
@@ -309,7 +309,11 @@ function ClientCore( Configurator ) {
 	}
 		
 	this.AddModule = function( mod ) {
-		
+
+		if ( mod.stateListener )
+			for each ( let listener in mod.stateListener )
+				_state.AddStateListener( listener.set, listener.reset, listener.trigger );
+
 		if ( mod.moduleApi )
 			for ( let f in mod.moduleApi )
 				_api[f] = mod.moduleApi[f];
@@ -330,7 +334,7 @@ function ClientCore( Configurator ) {
 		mod.api = _api;
 		_modules.push(mod);
 		mod.AddingModule && mod.AddingModule();
-		
+
 		_state.Enter(mod.name);
 		return mod;
 	}
@@ -351,6 +355,10 @@ function ClientCore( Configurator ) {
 			for ( var f in mod.moduleApi )
 				delete _api[f];
 				
+		if ( mod.stateListener )
+			for each ( let listener in mod.stateListener )
+				_state.RemoveStateListener( listener.set, listener.reset, listener.trigger );
+
 		mod.RemovingModule && mod.RemovingModule();
 		Clear(mod);
 	}

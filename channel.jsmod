@@ -198,14 +198,18 @@
 		Invite: function(nick, channel) _mod.Send( 'INVITE ' + nick + ' ' + channel )
 	}
 
-	this.interactive = function( stateName, polarity ) {
 
-		if ( !polarity )
-			return;
+	this.stateListener = [
+		{
+			set: function(s) s.interactive,
+			reset: function(s) false,
+			trigger: function(polarity) {
 
-		var chanList = getData(_mod.data[_mod.name].joinList);
-		for each ( var channel in chanList )
-			_mod.Send( 'JOIN ' + channel );
-	}
+				var chanList = getData(_mod.data[_mod.name].joinList);
+				for each ( var channel in chanList )
+				_mod.Send( 'JOIN ' + channel );
+			}
+		}
+	];
 
 })

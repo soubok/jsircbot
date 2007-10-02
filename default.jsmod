@@ -129,18 +129,6 @@
 	}
 
 
-	// module state listener
-	this.connected = function( stateName, polarity ) {
-		
-		if ( !polarity )
-			return;
-
-		var data = _mod.data;
-		_mod.Send( 'NICK '+getData(data.nick) );
-		_mod.Send( 'USER '+getData(data.ident.username)+' '+getData(data.hostname)+' '+getData(data.server)+' :'+getData(data.ident.realname) );
-	}
-	
-
 	function LagProbe( action ) {
 		
 		if ( action == false ) {
@@ -153,20 +141,30 @@
 		}
 	}
 
-	this.interactive = function( stateName, polarity ) {
 
-		LagProbe(polarity);
+	this.stateListener = [
+		{
+			set: function(s) s.connected,
+			reset: function(s) false,
+			trigger: function(polarity) {
 
-		if ( !polarity )
-			return;
+				_mod.Send( 'NICK '+getData(_mod.data.nick) );
+				_mod.Send( 'USER '+getData(_mod.data.ident.username)+' '+getData(_mod.data.hostname)+' '+getData(_mod.data.server)+' :'+getData(_mod.data.ident.realname) );
+			}
+		},
+		
+		{
+			set: function(s) s.interactive,
+			reset: function(s) !s.interactive,
+			trigger: function(polarity) {
 
-// (TBD) re-eable this:
-//		setData( _mod.data.serverHost, from );
-//		setData( _mod.data.nick, to );
+				LagProbe(polarity);
 
-		_mod.Send( 'USERHOST '+getData(data.nick) );
-
-	}
+				if ( polarity )
+					_mod.Send( 'USERHOST '+getData(_mod.data.nick) );
+			}
+		}
+	];
 
 })
 

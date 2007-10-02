@@ -382,52 +382,63 @@
 		}
 	}
 	
-	// ListenState( set condition, reset condition, action )
-	
-	this.ListenState( function(s) s.interactive && s.VipInvitationModule && s.DefaultModule, function(s) (!s.interactive || !s.VipInvitationModule) && s.DefaultModule, function(polarity) {
+
+	this.stateListener = [
+		{
+			set: function(s) s.VipInvitationModule && s.interactive && s.ChannelModule,
+			reset: function(s) !s.VipInvitationModule && s.interactive && s.ChannelModule,
+			trigger: function(polarity) {
+
+				if ( polarity )
+					_mod.api.Join( pv.vipChannel );
+				else
+					_mod.api.Part( pv.vipChannel );
+			}
+		},
 		
-		if ( polarity )
-			// join channel
-		else
-			// leave channel
-	});
+		{
+			set: function(s) s.interactive && s.VipInvitationModule,
+			reset: function(s) !s.interactive || !s.VipInvitationModule,
+			trigger: function(polarity) {
 
+				if ( polarity )
+					StartAsyncProc( ScanVipTremServer ); // start this here because ScanVipTremServer have to send IRC messages
+				else
+					StopAsyncProc( ScanVipTremServer );
+			}
+		},
 
-	this.ListenState( function(s) s.interactive && s.VipInvitationModule, function(s) !s.interactive || !s.VipInvitationModule, function(polarity) {
+		{
+			set: function(s) s.VipInvitationModule,
+			reset: function(s) !s.VipInvitationModule,
+			trigger: function(polarity) {
 		
-		if ( polarity )
-			StartAsyncProc( ScanVipTremServer ); // start this here because ScanVipTremServer have to send IRC messages
-		else
-			StopAsyncProc( ScanVipTremServer );
-	}
-
-
-	this.ListenState( function(s) s.VipInvitationModule, function(s) !s.VipInvitationModule, function(polarity) {
-		
-		if ( polarity ) {
-
-			QueryVIPDatabase({ action:'getIpList' }, function(status, response) {
-
-				if ( status != OK ) // ???
+				if ( !polarity )
 					return;
-				for each ( let ip in response )
-					_playerListToSetlevel.push([ip, '', 0]);
-			});
-		}	
-	}
 
+				QueryVIPDatabase({ action:'getIpList' }, function(status, response) {
 
-	this.ListenState( function(s) s.interactive, function(s) false, function(polarity) {
+					if ( status != OK ) // ???
+						return;
+					for each ( let ip in response )
+						_playerListToSetlevel.push([ip, '', 0]);
+				});
+			}
+		},
 
-		if ( !polarity )
-			return;
+		{
+			set: function(s) s.interactive,
+			reset: function() false,
+			trigger: function(polarity) {
 
-		_mod.api.Nick( pv.botNick );
-		_mod.api.Privmsg( pv.nickServ, 'IDENTIFY '+pv.password );
-		_mod.api.Privmsg( pv.chanServ, 'IDENTIFY '+pv.vipChannel+' '+pv.vipChannelPassword );
-		_mod.api.Join( pv.vipChannel );
-		// _mod.Send('CAPAB IDENTIFY-MSG'); // ask the server to prefix all messages with '+' if the nick is resistred
-	}
+				_mod.api.Nick( pv.botNick );
+				_mod.api.Privmsg( pv.nickServ, 'IDENTIFY '+pv.password );
+				_mod.api.Privmsg( pv.chanServ, 'IDENTIFY '+pv.vipChannel+' '+pv.vipChannelPassword );
+				// _mod.Send('CAPAB IDENTIFY-MSG'); // ask the server to prefix all messages with '+' if the nick is resistred
+			}
+		}
+	];
+	
 
 
 	this.messageListener = {
