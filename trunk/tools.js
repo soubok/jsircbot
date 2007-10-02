@@ -290,17 +290,27 @@ function StateKeeper() {
 		
 		for each ( let item in _predicateList ) {
 			
-			var polarity = item[0](Is);
-			if ( polarity !== item[2] ) {
-				
-				callback(polarity);
-				item[2] = polarity;
+			var [setPredicate, resetPredicate, callback, state] = item;
+
+			if ( !state ) {
+			
+				state = setPredicate(_stateList);
+				if ( state ) {
+					callback(state);
+					item[3] = state;
+				}
+			} else {
+			
+				state = resetPredicate(_stateList);
+				if ( !state ) {
+					callback(state);
+					item[3] = state;
+				}
 			}
 		}
 	}
 	
-	this.StateTrigger = function( predicate, callback ) _predicateList.push([predicate, callback, undefined]);
-	
+	this.StateListener = function( setPredicate, resetPredicate, callback, initialState ) _predicateList.push(arguments);
 }
 
 

@@ -330,7 +330,6 @@ function ClientCore( Configurator ) {
 		mod.api = _api;
 		_modules.push(mod);
 		mod.AddingModule && mod.AddingModule();
-		_state.AddListener(mod);
 		
 		_state.Enter(mod.name);
 		return mod;
@@ -342,7 +341,9 @@ function ClientCore( Configurator ) {
 		if ( pos == -1 )
 			return;
 		_modules.splice(pos, 1);
-		_state.RemoveListener(mod);
+
+		_state.Leave(mod.name);
+
 		mod.messageListener && _messageListener.RemoveSet( mod.messageListener );
 		mod.moduleListener && _moduleListener.RemoveSet( mod.moduleListener );
 		
