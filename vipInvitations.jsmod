@@ -13,7 +13,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 
-(function invitationModule() {
+(function VipInvitationModule() {
 
 	this.name = this.constructor.name;
 	var _mod = this;
@@ -382,47 +382,51 @@
 		}
 	}
 	
+	// ListenState( set condition, reset condition, action )
 	
-	
-	this.ListenState( function(Is) Is('interactive') && Is('DefaultModule'), function(polarity) {
-	
-	
-	
-	});
-	
-
-	this.interactive = function( stateName, polarity ) {
+	this.ListenState( function(s) s.interactive && s.VipInvitationModule && s.DefaultModule, function(s) (!s.interactive || !s.VipInvitationModule) && s.DefaultModule, function(polarity) {
 		
+		if ( polarity )
+			// join channel
+		else
+			// leave channel
+	});
+
+
+	this.ListenState( function(s) s.interactive && s.VipInvitationModule, function(s) !s.interactive || !s.VipInvitationModule, function(polarity) {
+		
+		if ( polarity )
+			StartAsyncProc( ScanVipTremServer ); // start this here because ScanVipTremServer have to send IRC messages
+		else
+			StopAsyncProc( ScanVipTremServer );
+	}
+
+
+	this.ListenState( function(s) s.VipInvitationModule, function(s) !s.VipInvitationModule, function(polarity) {
+		
+		if ( polarity ) {
+
+			QueryVIPDatabase({ action:'getIpList' }, function(status, response) {
+
+				if ( status != OK ) // ???
+					return;
+				for each ( let ip in response )
+					_playerListToSetlevel.push([ip, '', 0]);
+			});
+		}	
+	}
+
+
+	this.ListenState( function(s) s.interactive, function(s) false, function(polarity) {
+
 		if ( !polarity )
 			return;
-		
-		StartAsyncProc( ScanVipTremServer ); // start this here because ScanVipTremServer have to send IRC messages
 
 		_mod.api.Nick( pv.botNick );
 		_mod.api.Privmsg( pv.nickServ, 'IDENTIFY '+pv.password );
 		_mod.api.Privmsg( pv.chanServ, 'IDENTIFY '+pv.vipChannel+' '+pv.vipChannelPassword );
 		_mod.api.Join( pv.vipChannel );
 		// _mod.Send('CAPAB IDENTIFY-MSG'); // ask the server to prefix all messages with '+' if the nick is resistred
-	}
-
-	this.AddingModule = function() {
-
-		QueryVIPDatabase({ action:'getIpList' }, function(status, response) {
-
-			if ( status != OK ) // ???
-				return;
-			for each ( let ip in response )
-				_playerListToSetlevel.push([ip, '', 0]);
-		});
-	}
-
-	this.RemovingModule = function() {
-	
-		if ( _mod.StateIs('interactive') )
-			StopAsyncProc( ScanVipTremServer );
-		
-		if ( _mod.StateIs('connected') )
-			_mod.api.Part( pv.vipChannel );
 	}
 
 
