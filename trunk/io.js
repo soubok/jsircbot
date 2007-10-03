@@ -17,12 +17,21 @@ var io = new function() {
 
 	var _timeout = new function() {
 
-		var _min, _tlist = NewDataObj();
+		var _min = Number.POSITIVE_INFINITY, _tlist = NewDataObj();
+		
+		function UpdateMin() {
+
+			_min = Number.POSITIVE_INFINITY;
+			for ( let w in _tlist )
+				if ( w < _min )
+					_min = w;
+		}
 		
 		this.Add = function( time, func ) {
 
 			var when = IntervalNow() + time;
-			while( when in _tlist ) when++; // avoid same time because we use the time as timer id
+			while ( when in _tlist )
+				when++; // avoid same time because we use the time as timer id
 			_tlist[when] = func;
 			if ( when < _min )
 				_min = when;
@@ -31,42 +40,40 @@ var io = new function() {
 
 		this.Remove = function(when) {
 
-			if ( when == _min )
-				_min = Number.POSITIVE_INFINITY;
 			delete _tlist[when];
+			if ( when == _min )
+				UpdateMin();
 		}
 
 		this.Process = function(defaultTimeout) {
 		
 			var now = IntervalNow();
-			if ( _min <= now )
+			if ( now >= _min ) {
+				
 				for ( let w in _tlist )
 					if ( w <= now ) {
 
 						void _tlist[w]();
 						delete _tlist[w];
 					}
-			_min = Number.POSITIVE_INFINITY;
-			for ( let w in _tlist )
-				if ( w < _min )
-					_min = w;
-			var t = _min - now;
-			return t > defaultTimeout ? defaultTimeout : t;
+				UpdateMin();
+			}
+			return let (t = _min - now) t > defaultTimeout ? defaultTimeout : t;
 		}
 	}
 	
 	var _descriptorList = [];
 	
-	this.AddTimeout = function( time, fct ) _timeout.Add( time, fct );
+	this.AddTimeout = _timeout.Add;
 
-	this.RemoveTimeout = function( when ) _timeout.Remove( when );
+	this.RemoveTimeout = _timeout.Remove;
 
-	this.AddDescriptor = function( d ) _descriptorList.push(d);
+	this.AddDescriptor = function(d) _descriptorList.push(d);
 
 	this.RemoveDescriptor = function(d) {
 		
 		var pos = _descriptorList.indexOf(d);
-		pos != -1 && _descriptorList.splice( pos, 1 );
+		pos != -1 && _descriptorList.splice(pos, 1);
 	}
 
 	this.Process = function( endPredicate ) {
@@ -91,7 +98,7 @@ var io = new function() {
 function GetHostsByName( hostName ) {
 
 	try {
-		return Socket.GetHostsByName(guestWhois.host).shift();
+		return Socket.GetHostsByName(hostName).shift(); // GetHostsByName returns an array of IP
 	} catch( ex if ex instanceof IoError ) {}
 	return undefined;
 }
@@ -122,7 +129,7 @@ function UDPGet( host, port, data, timeout, OnResponse ) {
 	try {
 		socket.Connect( host, port );
 	} catch(ex) {
-		OnResponse(UNREACHABLE);
+		OnResponse(UNREACHABLE); // UDP, never UNREACHABLE
 	}
 
 	socket.writable = function() {
@@ -134,11 +141,26 @@ function UDPGet( host, port, data, timeout, OnResponse ) {
 	socket.readable = function() {
 
 		delete socket.readable;
-		var data = socket.Read(8192);
+		var status, data;
+		try {
+		
+			data = socket.Read(8192);
+			status = OK;
+		} catch(ex if ex instanceof IoError) {
+			
+			status = ERROR; // IoError: TCP connection reset by peer (10054) ??
+		}
 		socket.Close();
 		io.RemoveTimeout(timeoutId);
 		io.RemoveDescriptor(socket);
-		OnResponse && OnResponse(OK, data, IntervalNow() - time);
+		OnResponse && OnResponse(status, data, IntervalNow() - time);
+	}
+	
+	
+	socket.error =
+	socket.exception = function() {
+	
+		DPrint( 'UDP socket error or exception' );
 	}
 
 	io.AddDescriptor(socket);
@@ -401,3 +423,16 @@ function TCPServer( portRange, ip ) {
 
 	DBG && ReportNotice( 'TCP LISTENING: ' + this.name+':'+this.port );
 }
+
+
+/*
+WSAECONNRESET 10054 Connection reset by peer.
+
+    An existing connection was forcibly closed by the remote host. 
+    This normally results if the peer application on the remote host is suddenly stopped, 
+    the host is rebooted, the host or remote network interface is disabled, 
+    or the remote host uses a hard close (see setsockopt for more information on the SO_LINGER option on the remote socket). 
+    This error may also result if a connection was broken due to keep-alive activity detecting a failure while one or more operations are in progress. 
+    Operations that were in progress fail with WSAENETRESET. Subsequent operations fail with WSAECONNRESET.
+
+*/

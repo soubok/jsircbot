@@ -143,7 +143,7 @@ function MakeFloodSafeMessageSender( maxMessage, maxData, time, RawDataSender ) 
 	}
 	
 	function Timeout() {
-
+		
 		_timeoutId = undefined;
 		_count = maxMessage;
 		_bytes = maxData;
@@ -175,8 +175,7 @@ function ClientCore( Configurator ) {
 	var _modules = [];
 	var _messageListener = new Listener();
 	var _moduleListener = new Listener();
-//	var _api = new SetOnceObject();
-	var _api = NewDataObj();
+	var _api = NewDataObj(); // or new SetOnceObject();
 	var _state = new StateKeeper();
 	
 	function RawDataSender(buf) {
@@ -308,17 +307,21 @@ function ClientCore( Configurator ) {
 		TryNextServer();
 		_state.Enter('connecting');
 	}
-		
+	
 	this.AddModule = function( mod ) {
 
-		for each ( let [set, reset, trigger] in mod.stateListener ) // ok even if mod.stateListener is undefined
-			_state.AddStateListener(set, reset, trigger);
+		if ( mod.stateListener )
+			for each ( let {set:set, reset:reset, trigger:trigger} in mod.stateListener )
+				_state.AddStateListener(set, reset, trigger);
 
-		for ( let f in mod.moduleApi )
-			if ( f in _api )
-				Failed( 'API Already defined' );
-			else
-				_api[f] = mod.moduleApi[f];
+		if ( mod.moduleApi )
+			for ( let f in mod.moduleApi ) {
+			
+				if ( f in _api )
+					Failed( 'API Already defined' );
+				else
+					_api[f] = mod.moduleApi[f];
+			}
 		
 		mod.moduleListener && _moduleListener.AddSet( mod.moduleListener );
 		mod.messageListener && _messageListener.AddSet( mod.messageListener );
@@ -353,11 +356,13 @@ function ClientCore( Configurator ) {
 		mod.messageListener && _messageListener.RemoveSet( mod.messageListener );
 		mod.moduleListener && _moduleListener.RemoveSet( mod.moduleListener );
 		
-		for ( var f in mod.moduleApi )
-			delete _api[f];
+		if ( mod.moduleApi )
+			for ( var f in mod.moduleApi )
+				delete _api[f];
 				
-		for each ( let [set, reset, trigger] in mod.stateListener )
-			_state.RemoveStateListener(set, reset, trigger);
+		if ( mod.stateListener )
+			for each ( let {set:set, reset:reset, trigger:trigger} in mod.stateListener )
+				_state.RemoveStateListener(set, reset, trigger);
 
 		mod.RemovingModule && mod.RemovingModule();
 		Clear(mod);
