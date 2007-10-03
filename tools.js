@@ -69,7 +69,7 @@ const LOG_CLOSE_FILTER = { toString:function() '' };
 
 function MakeLogScreen() function(data) {
 	
-	Print(data);
+	Print('    '+data);
 }
 
 function MakeLogFile(fileName, append) {
@@ -269,13 +269,14 @@ function StateKeeper() {
 			delete _stateList[stateName];
 		
 		for each ( let item in _predicateList )
-			if ( !item[3] )
+			if ( !item[3] ) {
 				item[0](_stateList) && item[2]((item[3] = true), _predicateList);
-			else
+			} else {
 				if ( item[1] )
 					item[1](_stateList) && item[2]((item[3] = false), _predicateList);
 				else
 					item[0](_stateList) || item[2]((item[3] = false), _predicateList);
+			}
 				
 	}
 	

@@ -79,7 +79,7 @@
 
 
 	function TremulousServerCommand( server, command, OnResult ) {
-
+	
 		var [host,port] = pv.vipTremServer.split(':', 2);
 		UDPGet( host, port, tremQueryPrefix + command, 3000, OnResult );
 	}
@@ -296,7 +296,7 @@
 					} else {
 
 						if ( hostDbInfo.invitations_left <= 0 )
-							InvitationFailed('Sorry '+nick+', you have no invitations remaining.');
+							InvitationFailed('Sorry '+hostNick+', you have no invitations remaining.');
 					
 						var guestNick = cmdData;
 
@@ -311,33 +311,26 @@
 						if ( guestLevel != undefined && guestLevel >= pv.vipChanLevel )
 							InvitationFailed(guestNick+' is already a VIP.');
 
-						var [status, response] = yield function(callback) QueryVIPDatabase({ action:'invite', guest:guest, host:nick }, callback);
+						var [status, response] = yield function(callback) QueryVIPDatabase({ action:'invite', guest:guestNick, host:hostNick }, callback);
 						if ( status != OK )
 							InvitationFailed('Service unavailable. Please retry later.');
 						if ( response.error )
 							InvitationFailed(response.error);
 
-						_mod.api.SetAccessLevel( pv.vipChannel, guest, pv.vipChanLevel );
-						InvitationFailed(guest+' has been invited. You have '+(hostDbInfo.invitations_left-1)+' invitation(s) remaining.');
-						if ( info.isOnline )
-							_mod.api.Invite( guest, pv.vipChannel );
+						_mod.api.SetAccessLevel( pv.vipChannel, guestNick, pv.vipChanLevel );
+						InvitationFailed(guestNick+' has been invited. You have '+(hostDbInfo.invitations_left-1)+' invitation(s) remaining.');
+
+						_mod.api.Invite( guestNick, pv.vipChannel );
 
 						var guestIp = GetHostsByName(guestWhois.host);
-						
 						if ( guestIp ) {
 
 							var [status, response] = yield function(callback) QueryVIPDatabase({ action:'setIp', nick:guestNick, ip:guestIp }, callback);
 							_playerListToSetlevel.push([guestIp, guestNick, Time()]);
 						}
-						
-						// { action:'setIp', nick:'irc_nick', ip:'x.x.x.x' }
-						// { action:'setlevelDone', nick:'irc_nick', tremName:'trem_name' }
-						// { action:'getIpList' }
-						
 					}
 				});
 			} // invite
-			
 		}
 	}
 	
@@ -365,7 +358,8 @@
 			yield function(callback) io.AddTimeout( 1000*60*1, callback ); // async pause
 		}
 	}
-			
+
+
 	var VipTremServerScanPlayers = new function() {
 		
 		var prevDisplayedStatusDate = 0;
@@ -403,11 +397,18 @@
 		for (;;) {
 
 			var [status, response] = yield function(callback) QueryVIPDatabase({ action:'getIpList' }, callback);
+
+			DPrint( 'VipTremServerUpdateIpList', status, response );
+			
+			yield function(callback) io.AddTimeout( 1000*60*60*2, callback ); // async pause
+			
+/*
 			if ( status == OK ) {
 
 				_playerListToSetlevel.splice(0); // empty the current list
-				for each ( let ip in response )
-					_playerListToSetlevel.push([ip, '', 0]);
+				if ( !response.error ) // eg. { "error":"No ips in base" }
+					for each ( let ip in response )
+						_playerListToSetlevel.push([ip, '', 0]);
 				
 				// ok, we got the list, then reload it in 2 hours
 				yield function(callback) io.AddTimeout( 1000*60*60*2, callback ); // async pause
@@ -416,6 +417,7 @@
 				// failed to get the list, then retry soon
 				yield function(callback) io.AddTimeout( 1000*60*10, callback ); // async pause
 			}
+*/			
 		}
 	}
 
@@ -456,16 +458,17 @@
 			set: function(s) s.VipInvitationModule,
 			reset: function(s) !s.VipInvitationModule,
 			trigger: function(polarity) {
-		
+
 				if ( polarity )
 					StartAsyncProc( VipTremServerUpdateIpList );
 				else
 					StopAsyncProc( VipTremServerUpdateIpList );
-
+/*
 				if ( polarity )
 					StartAsyncProc( VipTremServerAutoSetlevel );
 				else
 					StopAsyncProc( VipTremServerAutoSetlevel );
+*/
 			}
 		}
 	];

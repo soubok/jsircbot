@@ -194,7 +194,7 @@
 	_mod.moduleApi = {
 	
 		Join: function(channel) _mod.Send( 'JOIN ' + channel ),
-		Part: function(channel) _mod.Send( 'PART ' + channel ),
+		Part: function(channel, message) _mod.Send( 'PART ' + channel + (message != undefined ? ' :'+message : '') ),
 		Invite: function(nick, channel) _mod.Send( 'INVITE ' + nick + ' ' + channel )
 	}
 
