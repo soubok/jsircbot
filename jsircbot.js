@@ -175,7 +175,8 @@ function ClientCore( Configurator ) {
 	var _modules = [];
 	var _messageListener = new Listener();
 	var _moduleListener = new Listener();
-	var _api = new SetOnceObject();
+//	var _api = new SetOnceObject();
+	var _api = NewDataObj();
 	var _state = new StateKeeper();
 	
 	function RawDataSender(buf) {
@@ -223,13 +224,13 @@ function ClientCore( Configurator ) {
 					if ( trailing != 0 )
 						args.push( message.substring( trailing + 1 ) );
 					if ( !isNaN(args[1]) )
-						args[1] = _numericCommand[parseInt(args[1])]||parseInt(args[1]);
+						args[1] = _numericCommand[parseInt(args[1])] || parseInt(args[1]);
 					args.splice(1, 0, args.shift()); // move the command name to the first place.
 					
+					_messageListener.Fire.apply( null, args );
+
 					if ( args[0] == 'RPL_WELCOME' )
 						_state.Enter('interactive');
-						
-					_messageListener.Fire.apply( null, args );
 
 				} catch (ex if ex == ERR) {
 				
@@ -310,12 +311,13 @@ function ClientCore( Configurator ) {
 		
 	this.AddModule = function( mod ) {
 
-		if ( mod.stateListener )
-			for each ( let listener in mod.stateListener )
-				_state.AddStateListener( listener.set, listener.reset, listener.trigger );
+		for each ( let [set, reset, trigger] in mod.stateListener ) // ok even if mod.stateListener is undefined
+			_state.AddStateListener(set, reset, trigger);
 
-		if ( mod.moduleApi )
-			for ( let f in mod.moduleApi )
+		for ( let f in mod.moduleApi )
+			if ( f in _api )
+				Failed( 'API Already defined' );
+			else
 				_api[f] = mod.moduleApi[f];
 		
 		mod.moduleListener && _moduleListener.AddSet( mod.moduleListener );
@@ -335,7 +337,7 @@ function ClientCore( Configurator ) {
 		_modules.push(mod);
 		mod.AddingModule && mod.AddingModule();
 
-		_state.Enter(mod.name);
+		_state.Enter(mod.name); // don't move
 		return mod;
 	}
 	
@@ -351,13 +353,11 @@ function ClientCore( Configurator ) {
 		mod.messageListener && _messageListener.RemoveSet( mod.messageListener );
 		mod.moduleListener && _moduleListener.RemoveSet( mod.moduleListener );
 		
-		if ( mod.moduleApi )
-			for ( var f in mod.moduleApi )
-				delete _api[f];
+		for ( var f in mod.moduleApi )
+			delete _api[f];
 				
-		if ( mod.stateListener )
-			for each ( let listener in mod.stateListener )
-				_state.RemoveStateListener( listener.set, listener.reset, listener.trigger );
+		for each ( let [set, reset, trigger] in mod.stateListener )
+			_state.RemoveStateListener(set, reset, trigger);
 
 		mod.RemovingModule && mod.RemovingModule();
 		Clear(mod);

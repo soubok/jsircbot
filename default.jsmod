@@ -145,7 +145,7 @@
 	this.stateListener = [
 		{
 			set: function(s) s.connected,
-			reset: function(s) false,
+			reset: False,
 			trigger: function(polarity) {
 
 				_mod.Send( 'NICK '+getData(_mod.data.nick) );

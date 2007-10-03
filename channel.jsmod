@@ -202,7 +202,7 @@
 	this.stateListener = [
 		{
 			set: function(s) s.interactive,
-			reset: function(s) false,
+			reset: False,
 			trigger: function(polarity) {
 
 				var chanList = getData(_mod.data[_mod.name].joinList);
