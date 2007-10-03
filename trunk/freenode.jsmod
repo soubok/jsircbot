@@ -191,5 +191,7 @@
 /*
 freenode modes:
 	http://freenode.net/using_the_network.shtml
-	
+
+
+// _mod.Send('CAPAB IDENTIFY-MSG'); // ask the server to prefix all messages with '+' if the nick is resistred	
 */

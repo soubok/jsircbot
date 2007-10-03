@@ -173,6 +173,10 @@ function TRY(fct) {
 
 /////////////////////////////////////////////////////// Misc tools
 
+function False() false;
+
+function True() true;
+
 function Noop() {}
 
 function NewDataObj() ({ __proto__: null }); // create a really empty object ( without __parent__, __count__, __proto__, ... )
@@ -256,53 +260,30 @@ function StateKeeper() {
 	var _predicateList = [];
 
 	function Is(stateName) stateName in _stateList;
-	
-	this.Enter = function(stateName) {
+
+	function StateChanging(stateName, state) {
+
+		if ( state )
+			_stateList[stateName] = true;
+		else
+			delete _stateList[stateName];
 		
-		DPrint('enter', stateName);
-		
-		_stateList[stateName] = true;
-		StateChanging();
-	}
-
-	this.Leave = function(stateName) {
-		
-		DPrint('leave', stateName);
-		delete _stateList[stateName];
-		StateChanging();
-	}
-
-
-	function StateChanging() {
-		
-		for each ( let item in _predicateList ) {
-			
-			var [setPredicate, resetPredicate, callback, state] = item;
-
-			if ( !state ) {
-			
-				if ( setPredicate(_stateList) ) {
-					callback(true);
-					item[3] = true;
-				}
-			} else {
-
-				if ( resetPredicate(_stateList) ) {
-					callback(false);
-					item[3] = false;
-				}
-			}
-		}
+		for each ( let item in _predicateList )
+			if ( !item[3] )
+				item[0](_stateList) && item[2]((item[3] = true), _predicateList);
+			else
+				if ( item[1] )
+					item[1](_stateList) && item[2]((item[3] = false), _predicateList);
+				else
+					item[0](_stateList) || item[2]((item[3] = false), _predicateList);
+				
 	}
 	
-//	this.AddStateListener = function( setPredicate, resetPredicate, callback, initialState ) _predicateList.push(arguments) && arguments;
-//	this.RemoveStateListener = function( id ) _predicateList.some( function(item, index) item == id && a.splice(index,1) );
+	this.Enter = function(stateName) StateChanging(stateName, true);
+	this.Leave = function(stateName)	StateChanging(stateName, false);
 
-	this.AddStateListener = function( setPredicate, resetPredicate, callback, initialState ) 
-		_predicateList.push(arguments);
-		
-	this.RemoveStateListener = function( setPredicate, resetPredicate, callback )
-		_predicateList.some( function(item, index) item[0] == setPredicate && item[1] == resetPredicate && item[2] == callback && _predicateList.splice(index,1) );
+	this.AddStateListener = function( setPredicate, resetPredicate, callback, initialState ) _predicateList.push(arguments);
+	this.RemoveStateListener = function( setPredicate, resetPredicate, callback ) _predicateList.some( function(item, index) item[0] == setPredicate && item[1] == resetPredicate && item[2] == callback && _predicateList.splice(index,1) );
 }
 
 
