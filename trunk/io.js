@@ -70,11 +70,7 @@ var io = new function() {
 
 	this.AddDescriptor = function(d) _descriptorList.push(d);
 
-	this.RemoveDescriptor = function(d) {
-		
-		var pos = _descriptorList.indexOf(d);
-		pos != -1 && _descriptorList.splice(pos, 1);
-	}
+	this.RemoveDescriptor = function(d) _predicateList.some( function(item, index) item == d && _descriptorList.splice(index, 1) );
 
 	this.Process = function( endPredicate ) {
 		
@@ -84,11 +80,8 @@ var io = new function() {
 	
 	this.Close = function() {
 		
-		for each ( let d in _descriptorList ) {
-			
-//			Print( 'peer:'+d.peerName+':'+d.peerPort+' sock:'+d.sockName+':'+d.sockPort );
+		for each ( let d in _descriptorList )
 			d.Close();
-		}
 		return _descriptorList.splice(0).length; // empty the descriptor list and returns the count of remaining open descriptor
 	}
 }
@@ -148,7 +141,7 @@ function UDPGet( host, port, data, timeout, OnResponse ) {
 			status = OK;
 		} catch(ex if ex instanceof IoError) {
 			
-			status = ERROR; // IoError: TCP connection reset by peer (10054) ??
+			status = ERROR; // IoError: TCP connection reset by peer (10054) ?? ( see. bottom of this page )
 		}
 		socket.Close();
 		io.RemoveTimeout(timeoutId);
@@ -434,5 +427,12 @@ WSAECONNRESET 10054 Connection reset by peer.
     or the remote host uses a hard close (see setsockopt for more information on the SO_LINGER option on the remote socket). 
     This error may also result if a connection was broken due to keep-alive activity detecting a failure while one or more operations are in progress. 
     Operations that were in progress fail with WSAENETRESET. Subsequent operations fail with WSAECONNRESET.
+...
+
+The socket is actually receiving an ICMP packet back to tell it the other end's dead - stop sending from the server to the dead client and the error goes away.
+If you've implemented a reliable UDP method (resend / ack) you need to ensure that you also drop all outgoing ack packets queued for that client, and also flush the resend queue for that client.
+
 
 */
+
+

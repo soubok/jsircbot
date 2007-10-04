@@ -398,11 +398,6 @@
 
 			var [status, response] = yield function(callback) QueryVIPDatabase({ action:'getIpList' }, callback);
 
-			DPrint( 'VipTremServerUpdateIpList', status, response );
-			
-			yield function(callback) io.AddTimeout( 1000*60*60*2, callback ); // async pause
-			
-/*
 			if ( status == OK ) {
 
 				_playerListToSetlevel.splice(0); // empty the current list
@@ -417,7 +412,6 @@
 				// failed to get the list, then retry soon
 				yield function(callback) io.AddTimeout( 1000*60*10, callback ); // async pause
 			}
-*/			
 		}
 	}
 
@@ -463,12 +457,12 @@
 					StartAsyncProc( VipTremServerUpdateIpList );
 				else
 					StopAsyncProc( VipTremServerUpdateIpList );
-/*
+
 				if ( polarity )
 					StartAsyncProc( VipTremServerAutoSetlevel );
 				else
 					StopAsyncProc( VipTremServerAutoSetlevel );
-*/
+
 			}
 		}
 	];
