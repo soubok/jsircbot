@@ -21,7 +21,7 @@
 	
 	function NormalizeChannelName(channelName) channelName.toLowerCase(); // (TBD) check if we muse use _api.ToIRCLowerString instead !
 
-	function ParseModes( modes, args, chanData ) {
+	function ParseModes( modes, args, chanData, setBy ) {
 
 		var simpleMode = { i:'inviteOnly', t:'topicByOp', p:'private', s:'secret', m:'moderated', n:'noExternalMessages', r:'reop', C:'noCtcp', N:'noExternalNotice', c:'noColor' };
 		var argPos = 0;
@@ -40,23 +40,26 @@
 				case 'k' :
 					setData( chanData.key, args[argPos++] );
 					break;
-				case 'o' :
-					setData( chanData.names[args[argPos++]].operator, set );
+				case 'o' : // operator
+					var nick = args[argPos++];
+					setData( chanData.names[nick].operator, set );
+					setData( chanData.names[nick].operator.by, setBy ); // remember who op / deop who
 					break;
-				case 'v' :
-					setData( chanData.names[args[argPos++]].voice, set );
+				case 'v' : // voice
+					var nick = args[argPos++];
+					setData( chanData.names[nick].voice, set );
+					setData( chanData.names[nick].voice.by, setBy );
 					break;
-				case 'l' :
+				case 'l' : // userLimit
 					if ( set )
 						setData( chanData.userLimit, args[argPos++] );
 					else
 						delData( chanData.userLimit );
 					break;
-				case 'b' :
-					if ( set )
-						setData( chanData.bans[args[argPos++]], set );
-					else
-						delData( chanData.bans[args[argPos++]] );
+				case 'b' : // ban
+					var nick = args[argPos++];
+					setData( chanData.bans[nick], set );
+					setData( chanData.bans[nick].by, setBy );
 					break;
 				case ' ' :
 					break;
@@ -160,14 +163,15 @@
 
 		RPL_CHANNELMODEIS: function( command, from, to, channel, modes /*, ...*/ ) {
 
-			ParseModes( modes, Array.slice(arguments,5), _mod.data.channel[NormalizeChannelName(channel)] );
+			ParseModes( modes, Array.slice(arguments,5), _mod.data.channel[NormalizeChannelName(channel)], undefined );
 		},
 		
 		MODE: function( command, who, what, modes /*, ...*/ ) {
 				
 			if ( what[0] != '#' ) // can be a user mode OR a mod for another channel
 				return;
-			ParseModes( modes, Array.slice(arguments,4), _mod.data.channel[NormalizeChannelName(what)] );
+			
+			ParseModes( modes, Array.slice(arguments,4), _mod.data.channel[NormalizeChannelName(what)], who );
 		},
 		
 		RPL_NAMREPLY: function( command, from, to, type, channel, list ) {

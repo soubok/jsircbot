@@ -12,53 +12,42 @@
  * License.
  * ***** END LICENSE BLOCK ***** */
 
-
 var io = new function() {
 
 	var _timeout = new function() {
 
-		var _min = Number.POSITIVE_INFINITY, _tlist = NewDataObj();
-		
-		function UpdateMin() {
-
-			_min = Number.POSITIVE_INFINITY;
-			for ( let w in _tlist )
-				if ( w < _min )
-					_min = w;
-		}
+		var _tlist = NewDataObj();
 		
 		this.Add = function( time, func ) {
+			
+			DBG && isNaN(time) && FAILED('the timeout is not a number');
 
 			var when = IntervalNow() + time;
 			while ( when in _tlist )
 				when++; // avoid same time because we use the time as timer id
 			_tlist[when] = func;
-			if ( when < _min )
-				_min = when;
 			return when; // timer id
 		}
 
 		this.Remove = function(when) {
 
 			delete _tlist[when];
-			if ( when == _min )
-				UpdateMin();
 		}
 
-		this.Process = function(defaultTimeout) {
+		this.Process = function(next) {
 		
 			var now = IntervalNow();
-			if ( now >= _min ) {
-				
-				for ( let w in _tlist )
-					if ( w <= now ) {
+			for ( let w in _tlist )
+				if ( w <= now ) {
 
-						void _tlist[w]();
-						delete _tlist[w];
-					}
-				UpdateMin();
-			}
-			return let (t = _min - now) t > defaultTimeout ? defaultTimeout : t;
+					void _tlist[w]();
+					delete _tlist[w];
+				} else {
+
+					if ( w - now < next )
+						next = w - now;
+				}
+			return next;
 		}
 	}
 	
@@ -70,7 +59,7 @@ var io = new function() {
 
 	this.AddDescriptor = function(d) _descriptorList.push(d);
 
-	this.RemoveDescriptor = function(d) _predicateList.some( function(item, index) item == d && _descriptorList.splice(index, 1) );
+	this.RemoveDescriptor = function(d) _descriptorList.some( function(item, index) item == d && _descriptorList.splice(index, 1) );
 
 	this.Process = function( endPredicate ) {
 		
