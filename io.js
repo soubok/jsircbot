@@ -17,11 +17,56 @@ var io = new function() {
 	var _timeout = new function() {
 
 		var _tlist = NewDataObj();
+		var _min = Infinity;
+		
+		this.Add = function(time, func) {
+			
+			DBG && isNaN(time) && FAILED('the timeout is not a number');
+			var date = IntervalNow() + time;
+			while ( date in _tlist )
+				date++; // avoid same time because we use the time as timer id
+			_tlist[date] = func;
+			if ( date < _min )
+				_min = date;
+			return date; // timer id
+		}
+
+		this.Remove = function(date) {
+			
+			delete _tlist[date];
+			if ( date == Infinity )
+				_min = Infinity;
+		}
+
+		this.Process = function() {
+		
+			var now = IntervalNow();
+			if ( _min <= now || _min == Infinity ) {
+				
+				for ( let date in _tlist )
+					if ( date <= now ) {
+						
+						let fct = _tlist[date];
+						delete _tlist[date];
+						void fct.call(fct); // 'this' will be the function itself
+					}
+				_min = Infinity;
+				for ( let date in _tlist )
+					if ( date < _min )
+						_min = date;
+			}
+			return _min - now;
+		}
+	}
+
+/*
+	var _timeout = new function() {
+
+		var _tlist = NewDataObj();
 		
 		this.Add = function( time, func ) {
 			
 			DBG && isNaN(time) && FAILED('the timeout is not a number');
-
 			var when = IntervalNow() + time;
 			while ( when in _tlist )
 				when++; // avoid same time because we use the time as timer id
@@ -29,10 +74,7 @@ var io = new function() {
 			return when; // timer id
 		}
 
-		this.Remove = function(when) {
-
-			delete _tlist[when];
-		}
+		this.Remove = function(when) delete _tlist[when];
 
 		this.Process = function(next) {
 		
@@ -50,7 +92,7 @@ var io = new function() {
 			return next;
 		}
 	}
-	
+*/
 	var _descriptorList = [];
 	
 	this.AddTimeout = _timeout.Add;
@@ -64,7 +106,7 @@ var io = new function() {
 	this.Process = function( endPredicate ) {
 		
 		while ( !endPredicate() )
-			Poll(_descriptorList, _timeout.Process(500));
+			Poll(_descriptorList, Math.min(_timeout.Process(), 500));
 	}
 	
 	this.Close = function() {
@@ -81,7 +123,7 @@ function GetHostsByName( hostName ) {
 
 	try {
 		return Socket.GetHostsByName(hostName).shift(); // GetHostsByName returns an array of IP
-	} catch( ex if ex instanceof IoError ) {}
+	} catch(ex if ex instanceof IoError) {}
 	return undefined;
 }
 
@@ -111,7 +153,7 @@ function UDPGet( host, port, data, timeout, OnResponse ) {
 	try {
 		socket.Connect( host, port );
 	} catch(ex) {
-		OnResponse(UNREACHABLE); // UDP, never UNREACHABLE
+		OnResponse && OnResponse.call(OnResponse, UNREACHABLE); // UDP, never UNREACHABLE
 	}
 
 	socket.writable = function() {
@@ -135,7 +177,7 @@ function UDPGet( host, port, data, timeout, OnResponse ) {
 		socket.Close();
 		io.RemoveTimeout(timeoutId);
 		io.RemoveDescriptor(socket);
-		OnResponse && OnResponse(status, data, IntervalNow() - time);
+		OnResponse && OnResponse.call(OnResponse, status, data, IntervalNow() - time);
 	}
 	
 	
@@ -150,7 +192,7 @@ function UDPGet( host, port, data, timeout, OnResponse ) {
 
 		socket.Close();
 		io.RemoveDescriptor(socket);
-		OnResponse && OnResponse(TIMEOUT);
+		OnResponse && OnResponse.call(OnResponse, TIMEOUT);
 	});
 }
 
@@ -169,7 +211,7 @@ function TCPGet( host, port, data, timeout, OnResponse ) {
 	try {
 		socket.Connect( host, port );
 	} catch(ex) {
-		OnResponse(UNREACHABLE);
+		OnResponse && OnResponse.call(OnResponse, UNREACHABLE);
 	}
 
 	var buffer = new Buffer();
@@ -190,7 +232,7 @@ function TCPGet( host, port, data, timeout, OnResponse ) {
 			socket.Close();
 			io.RemoveTimeout(timeoutId);
 			io.RemoveDescriptor(socket);
-			OnResponse && OnResponse(OK, buffer, IntervalNow() - time);
+			OnResponse && OnResponse.call(OnResponse, OK, buffer, IntervalNow() - time);
 		}
 	}
 
@@ -199,7 +241,7 @@ function TCPGet( host, port, data, timeout, OnResponse ) {
 
 		socket.Close();
 		io.RemoveDescriptor(socket);
-		OnResponse && OnResponse(TIMEOUT);
+		OnResponse && OnResponse.call(OnResponse, TIMEOUT);
 	});
 }	
 
@@ -232,7 +274,7 @@ function HttpRequest( url, data, timeout, OnResponse ) {
 
 		if ( status != OK ) {
 			
-			OnResponse && OnResponse(status);
+			OnResponse && OnResponse.call(OnResponse, status);
 			return;
 		}
 			
@@ -245,10 +287,10 @@ function HttpRequest( url, data, timeout, OnResponse ) {
 				var [k, v] = h.split(': ', 2); 
 				headers[k] = v;
 			}
-			OnResponse && OnResponse(status, statusCode, reasonPhrase, headers, response.Read());
+			OnResponse && OnResponse.call(OnResponse, status, statusCode, reasonPhrase, headers, response.Read());
 		} catch(ex if ex == ERR) {
 
-			OnResponse && OnResponse(BADRESPONSE);
+			OnResponse && OnResponse.call(OnResponse, BADRESPONSE);
 		}
 	});
 }

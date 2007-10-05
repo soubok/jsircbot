@@ -24,49 +24,44 @@
 	function ParseModes( modes, args, chanData, setBy ) {
 
 		var simpleMode = { i:'inviteOnly', t:'topicByOp', p:'private', s:'secret', m:'moderated', n:'noExternalMessages', r:'reop', C:'noCtcp', N:'noExternalNotice', c:'noColor' };
-		var argPos = 0;
-		var pos = 0;
-		var set;
-		var c;
-		while ( (c = modes.charAt(pos)) != '' ) {
-
+		var polarity;
+		for ( let c, pos=0, argPos=0 ; (c = modes.charAt(pos)) != ''; pos++ ) {
 			switch(c) {
 				case '+' :
-					set = true;
+					polarity = true;
 					break;
 				case '-' :
-					set = false;
+					polarity = false;
 					break;
 				case 'k' :
 					setData( chanData.key, args[argPos++] );
 					break;
 				case 'o' : // operator
 					var nick = args[argPos++];
-					setData( chanData.names[nick].operator, set );
+					setData( chanData.names[nick].operator, polarity );
 					setData( chanData.names[nick].operator.by, setBy ); // remember who op / deop who
 					break;
 				case 'v' : // voice
 					var nick = args[argPos++];
-					setData( chanData.names[nick].voice, set );
+					setData( chanData.names[nick].voice, polarity );
 					setData( chanData.names[nick].voice.by, setBy );
 					break;
 				case 'l' : // userLimit
-					if ( set )
+					if ( polarity )
 						setData( chanData.userLimit, args[argPos++] );
 					else
 						delData( chanData.userLimit );
 					break;
 				case 'b' : // ban
 					var nick = args[argPos++];
-					setData( chanData.bans[nick], set );
+					setData( chanData.bans[nick], polarity );
 					setData( chanData.bans[nick].by, setBy );
 					break;
 				case ' ' :
 					break;
 				default:
-					setData( chanData[simpleMode[c]], set );
+					setData( chanData[simpleMode[c]], polarity );
 			}
-			pos++;
 		}		
 	}
 
@@ -144,7 +139,7 @@
 		TOPIC: function( command, from, channel, topic ) {
 			
 			var who = StrBefore(from, '!')			
-			var time = Math.floor( (new Date().getTime())/1000 ); // adjust time because timezone ?
+			var time = Math.floor( Now()/SECOND ); // adjust time because timezone ?
 			setData( _mod.data.channel[NormalizeChannelName(channel)].topic, topic );
 			setData( _mod.data.channel[NormalizeChannelName(channel)].topicWho, who );
 			setData( _mod.data.channel[NormalizeChannelName(channel)].topicWho, time );
@@ -201,7 +196,6 @@
 		Part: function(channel, message) _mod.Send( 'PART ' + channel + (message != undefined ? ' :'+message : '') ),
 		Invite: function(nick, channel) _mod.Send( 'INVITE ' + nick + ' ' + channel )
 	}
-
 
 	this.stateListener = [
 		{

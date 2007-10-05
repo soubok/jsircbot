@@ -180,7 +180,7 @@
 					var nick = StrBefore(from, '!');
 					var replyTo = to[0] == '#' ? to : nick;
 
-					if ( _mod.lastServerQueryInterval && IntervalNow() - _mod.lastServerQueryInterval < 10000 ) // anti-flood
+					if ( _mod.lastServerQueryInterval && IntervalNow() - _mod.lastServerQueryInterval < 10*SECONDS ) // anti-flood
 						_mod.api.Privmsg( replyTo, 'Please don\'t spam, try again later.' ), AbortAsyncProc();
 					var [status, result] = yield function(callback) QueryTremServerStatus(pv.vipTremServer, callback);
 					
@@ -247,7 +247,7 @@
 					if ( guestIp ) {
 
 						var [status, response] = yield function(callback) QueryVIPDatabase({ action:'setIp', nick:guestNick, ip:guestIp }, callback);
-						_playerListToSetlevel.push([guestIp, guestNick, Time()]);
+						_playerListToSetlevel.push([guestIp, guestNick, Now()]);
 					}
 				});
 			},
@@ -291,7 +291,7 @@
 					
 					if ( !cmdData ) { // just get the VIP info
 
-						var days = ( (new Date() - new Date(parseInt(hostDbInfo.time)*1000)) / 86400000 ).toFixed(1);
+						var days = ( (new Date() - new Date(parseInt(hostDbInfo.time)*1000)) / DAY ).toFixed(1);
 						InvitationFailed(hostNick+', you\'ve been a VIP for '+days+' days and you have '+hostDbInfo.invitations_left+' invitation(s) remaining.' );
 					} else {
 
@@ -326,7 +326,7 @@
 						if ( guestIp ) {
 
 							var [status, response] = yield function(callback) QueryVIPDatabase({ action:'setIp', nick:guestNick, ip:guestIp }, callback);
-							_playerListToSetlevel.push([guestIp, guestNick, Time()]);
+							_playerListToSetlevel.push([guestIp, guestNick, Now()]);
 						}
 					}
 				});
@@ -355,7 +355,7 @@
 							break loop; // because the list has been splice(), we can only process one item
 						}
 
-			yield function(callback) io.AddTimeout( 1000*60*1, callback ); // async pause
+			yield function(callback) io.AddTimeout( 1*MINUTE, callback ); // async pause
 		}
 	}
 
@@ -368,26 +368,26 @@
 			var [status, result] = yield function(callback) QueryTremServerStatus( pv.vipTremServer, callback );
 			if ( status != OK ) {
 			
-				yield function(callback) io.AddTimeout( 1000*60*1, callback ); // async pause
+				yield function(callback) io.AddTimeout( 1*MINUTE, callback ); // async pause
 				continue;
 			}
 
 			if ( result.playerList.length < 3 || result.playerList.length > 10 ) {
 				
-				yield function(callback) io.AddTimeout( 1000*60*1, callback ); // async pause
+				yield function(callback) io.AddTimeout( 1*MINUTE, callback ); // async pause
 				continue;
 			}
 
-			if ( Time() - 1000*60*10 > prevDisplayedStatusDate ) {
+			if ( Now() - 10*MINUTE > prevDisplayedStatusDate ) {
 
 				var nicePlayerList = [ '\x030,1'+ColorTremToIrc(player)+'\x0F' for each ( player in result.playerList ) ];
 				_mod.api.Privmsg( pv.vipChannel, ColorTremToIrc(result.info.sv_hostname) + '\x0F is running ' + result.info.mapname + ' with ' + result.playerList.length + ' player(s)' );
 				while ( nicePlayerList.length )
 					_mod.api.Privmsg( pv.vipChannel, nicePlayerList.splice(0, 8).join('  ') ); // avoid long lines
-				prevDisplayedStatusDate = Time();
+				prevDisplayedStatusDate = Now();
 			}
 
-			yield function(callback) io.AddTimeout( 1000*60*1, callback ); // async pause
+			yield function(callback) io.AddTimeout( 1*MINUTE, callback ); // async pause
 		}
 	}
 
@@ -406,11 +406,11 @@
 						_playerListToSetlevel.push([ip, '', 0]);
 				
 				// ok, we got the list, then reload it in 2 hours
-				yield function(callback) io.AddTimeout( 1000*60*60*2, callback ); // async pause
+				yield function(callback) io.AddTimeout( 2*HOUR, callback ); // async pause
 			} else {
 				
 				// failed to get the list, then retry soon
-				yield function(callback) io.AddTimeout( 1000*60*10, callback ); // async pause
+				yield function(callback) io.AddTimeout( 10*MINUTE, callback ); // async pause
 			}
 		}
 	}
