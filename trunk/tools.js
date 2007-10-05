@@ -30,9 +30,18 @@ const BADRESPONSE = { toString:function() 'BADRESPONSE' };
 const TIMEOUT = { toString:function() 'TIMEOUT' };
 const NOTFOUND = { toString:function() 'NOTFOUND' };
 
-/////////////////////////////////////////////////////// start an asynchronus procedure
 
-function Time() (new Date).getTime();
+/////////////////////////////////////////////////////// Date and Time
+
+const SECOND = 1000; // ms
+const MINUTE = 60*SECOND;
+const HOUR = 60*MINUTE;
+const DAY = 24*HOUR;
+const WEEK = 7*DAY;
+
+function Now() (new Date).getTime(); // returns the current date in ms
+
+/////////////////////////////////////////////////////// start an asynchronus procedure
 
 function AbortAsyncProc() {
 	
@@ -113,7 +122,7 @@ function Log(data) {
 
 	var _outputList = [];
 	var _time0 = IntervalNow();
-	function Time() StringPad(((IntervalNow()-_time0)/1000).toFixed(2), 7, ' ');
+	function Time() StringPad(((IntervalNow()-_time0)/SECOND).toFixed(2), 7, ' ');
 	
 	function Write(type, data) {
 		
@@ -139,7 +148,7 @@ function Log(data) {
 				return; // done.
 			}
 	}
-	this.WriteLn = function(type, data) void Write(type, Time()+data+'\n');
+	this.WriteLn = function(type, data) void Write(type, Now()+data+'\n');
 }
 
 
@@ -268,11 +277,12 @@ function StateKeeper() {
 		else
 			delete _stateList[stateName];
 		
+		var callback = item[2];
 		for each ( let item in _predicateList )
 			if ( !item[3] )
-				item[0](_stateList) && item[2]((item[3] = true), _predicateList);
+				item[0](_stateList) && callback.call(callback, (item[3] = true), _predicateList); // 'this' will be the function itself
 			else
-				( item[1] ? item[1](_stateList) : !item[0](_stateList) ) && item[2]((item[3] = false), _predicateList);
+				( item[1] ? item[1](_stateList) : !item[0](_stateList) ) && callback.call(callback, (item[3] = false), _predicateList); // 'this' will be the function itself
 	}
 	
 	this.Enter = function(stateName) StateChanging(stateName, true);
@@ -297,8 +307,8 @@ function Listener() {
 			for each ( let set in _list.slice() ) {
 				
 				var n = set;
-				for ( let it = 0; typeof(n) == 'object' && it in arguments && arguments[it] in n; n = n[arguments[it++]] );
-				n instanceof Function && void n.apply(null, arguments);
+				for ( var it = 0; typeof(n) == 'object' && it in arguments && arguments[it] in n; n = n[arguments[it++]] ); // var is faster than let
+				n instanceof Function && void n.apply(n, arguments); // 'this' will be the function itself
 			}
 		} catch(ex) {
 			

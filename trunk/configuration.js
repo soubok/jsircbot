@@ -11,7 +11,7 @@ function(data) {
 		'204.11.244.21:6666-6667',
 	]);
 	setData( data.serverRetry, 3 );
-	setData( data.serverRetryPause, 1000 );
+	setData( data.serverRetryPause, 1*SECOND );
 
 
 //	setData( data.server, 'irc.freenode.net' );
@@ -30,7 +30,7 @@ function(data) {
 	setData(data.ident.realname, 'real_TremVipBot');
 
 // default module
-	setData(data.DefaultModule.lagProbeInterval, 1000*60*2);
+	setData(data.DefaultModule.lagProbeInterval, 2*MINUTE);
 
 // configure chans
 	setData(data.ChannelModule.joinList, ['#soubok']);
@@ -43,7 +43,7 @@ function(data) {
 // configure DCC
 	setData(data.DCC.maxDCCConnections, 32 );
 	setData(data.DCC.portRange, '1024-2048' );
-	setData(data.DCC.requestTimeout, 1000*30 );
+	setData(data.DCC.requestTimeout, 30*SECONDS );
 
 // configure DCCReceiver module
 	setData(data.DCCReceiverModule.destinationPath, '.' );
@@ -52,6 +52,6 @@ function(data) {
 	setData(data.OperatorManagerModule.password, 's6d5vf4qsd6f5vsqs8dv8q' );
 	
 // CommandEvent Module
-	setData(data.CommandEventModule.maxServerReplyInterval, 1000*2 );
-	setData(data.CommandEventModule.maxUserReplyInterval, 1000*30 );
+	setData(data.CommandEventModule.maxServerReplyInterval, 2*SECONDS );
+	setData(data.CommandEventModule.maxUserReplyInterval, 30*SECONDS );
 }
