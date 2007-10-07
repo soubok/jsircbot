@@ -139,7 +139,7 @@ function MakeFloodSafeMessageSender( maxMessage, maxData, time, RawDataSender ) 
 		buffer.length && RawDataSender(buffer);
 		
 		if ( !_timeoutId ) // do not reset the timeout
-			_timeoutId = io.AddTimeout( time, Timeout );
+			_timeoutId = io.AddTimeout(time, Timeout);
 	}
 	
 	function Timeout() {
@@ -150,7 +150,7 @@ function MakeFloodSafeMessageSender( maxMessage, maxData, time, RawDataSender ) 
 		_messageQueue.length && Process(); // process if needed. else no more timeout
 	}
 	
-	return function( message, bypassAntiFlood, OnSent ) {
+	return function(message, bypassAntiFlood, OnSent) {
 		
 		if ( message ) { 
 		

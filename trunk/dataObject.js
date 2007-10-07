@@ -33,7 +33,7 @@ function removeDataListener( path, listener ) {
 function setData( path, data ) {
 	
 	var aux = ObjEx.Aux(path);
-	for each ( var listener in aux.listenerList )
+	for each ( let listener in aux.listenerList )
 		listener('set', data);
 	aux.data = data;
 	
@@ -49,12 +49,12 @@ function setData( path, data ) {
 function getData( path ) {
 	
 	var aux = ObjEx.Aux(path);
-	return ('data' in aux) ? (aux.data) : undefined;
+	return 'data' in aux ? aux.data : undefined;
 }
 
 function hasData( path ) {
 
-	return ('data' in ObjEx.Aux(path));
+	return 'data' in ObjEx.Aux(path);
 }
 
 function moveData( path, newPath ) {
@@ -65,40 +65,20 @@ function moveData( path, newPath ) {
 		moveData( path[k], newPath[k] );		
 }
 
-//function delPath( path ) {
-//	
-//	delete path;
-//}
 
-function delData( path ) { // delete datas but not listeners
+function delData(path, delStruct) { // delete datas but not listeners
 
 	var aux = ObjEx.Aux(path);
-	for each ( var listener in aux.listenerList )
+	for each (let listener in aux.listenerList)
 		listener('del');
 	delete aux.data;
-	for each ( var v in path )
-		delData( v );
-}
-
-/*
-
-var xml = <data>
-  <aaa/>
-  <aaa/>
-</data>;
-
-for each( var x in xml ) {
-
-  _o(x.name())
-}
-
-function importXML( dest, src ) {
+	for each (let v in path) {
 	
-	for ( var name in src ) {
-		
-		dest[name] = src[name]
+		arguments.callee(v, delStruct);
+		delStruct && delete path[v];
+	}
 }
-*/
+
 
 function dumpData( path, tab ) {
 

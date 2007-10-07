@@ -79,8 +79,13 @@
 			// channel name case may be wrong
 			
 			var nick = StrBefore(who, '!'); // [TBD] try to auto extract this
+			
+			
+			
+			
 			if ( nick == getData(_mod.data.nick) ) { // self
-
+				
+//				delData( _mod.data.channel[NormalizeChannelName(channel)] );
 				setData( _mod.data.channel[NormalizeChannelName(channel)], true );
 
 				_mod.Send( 'MODE '+channel ); // request modes
@@ -91,14 +96,9 @@
 			}
 		},
 			
-		RPL_BANLIST: function( command, from, to, channel, ban, banBy, time ) {
-
-			setData( _mod.data.channel[NormalizeChannelName(channel)].bans[ban], true );
-		},
-
 		PART: function( command, who, channel ) {
 
-			var nick = StrBefore(who, '!'); // (TBD) try to auto extract this
+			var nick = StrBefore(who, '!');
 			if ( nick == getData(_mod.data.nick) )
 				delData( _mod.data.channel[NormalizeChannelName(channel)] );
 			else
@@ -129,6 +129,11 @@
 			for each ( var chan in _mod.data.channel )
 				if ( nick in chan.names )
 					moveData( chan.names[nick], chan.names[newNick] );
+		},
+
+		RPL_BANLIST: function( command, from, to, channel, ban, banBy, time ) {
+
+			setData( _mod.data.channel[NormalizeChannelName(channel)].bans[ban], true );
 		},
 
 		RPL_NOTOPIC: function( command, channel ) {

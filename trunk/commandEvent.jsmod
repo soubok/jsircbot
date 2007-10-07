@@ -180,7 +180,35 @@
 				});
 			});
 		},
+/*
+		Message: function( message, OnReply ) {
+		
+			ScheduleCall(function() {
 
+				var timeoutId, events;
+
+				function End(status) {
+
+					_mod.RemoveMessageListenerSet(events);
+					io.RemoveTimeout(timeoutId);
+					NextCall();
+					OnReply(status);
+				}
+				
+				function Reply( command, from, server, data ) data == pingData && End(true);
+
+				events = {};
+				events.message = Reply;
+
+				_mod.AddMessageListenerSet(events);
+				_mod.Send( 'PING '+pingData, false, function() {
+
+					timeoutId = io.AddTimeout(getData(_mod.data[_mod.name].maxServerReplyInterval), End ); // start the timeout ONLY vhen the message has been sent
+				});
+			});
+		
+		},
+*/
 
 		Sync: function( OnReply ) {
 			

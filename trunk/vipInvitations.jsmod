@@ -110,7 +110,7 @@
 			} catch(ex) {
 			
 				DBG && ReportError( ExToText(ex) );
-				OnResult(INVALID_RESPONSE);
+				OnResult(BADRESPONSE);
 				return;
 			}
 			OnResult(OK, responseObject); // don't include this in the try ... catch
@@ -131,7 +131,7 @@
 			var lines = buf.split('\n');
 			if ( !lines ) {
 
-				OnResult(INVALID_RESPONSE);
+				OnResult(BADRESPONSE);
 				return;
 			}
 
@@ -145,7 +145,7 @@
 				serverStatus.playerList = [ CHK(ParsePlayer(line))[2] for each ( line in lines ) ];
 			} catch(ex if ex == ERR) {
 
-				OnResult(INVALID_RESPONSE);
+				OnResult(BADRESPONSE);
 				return;
 			}
 
@@ -180,7 +180,7 @@
 					var nick = StrBefore(from, '!');
 					var replyTo = to[0] == '#' ? to : nick;
 
-					if ( _mod.lastServerQueryInterval && IntervalNow() - _mod.lastServerQueryInterval < 10*SECONDS ) // anti-flood
+					if ( _mod.lastServerQueryInterval && IntervalNow() - _mod.lastServerQueryInterval < 10*SECOND ) // anti-flood
 						_mod.api.Privmsg( replyTo, 'Please don\'t spam, try again later.' ), AbortAsyncProc();
 					var [status, result] = yield function(callback) QueryTremServerStatus(pv.vipTremServer, callback);
 					
@@ -280,9 +280,14 @@
 
 					var hostLevel = [ user.level for each ( user in accessList ) if (user.hostmask.toLowerCase() == hostNick.toLowerCase()) ][0];
 					
-					if ( hostLevel == undefined )
-						InvitationFailed('You are not a VIP.');
-					
+					if ( hostLevel == undefined ) {
+						
+						if ( getData( _mod.data.channel[pv.vipChannel].names[hostNick].operator.by ) == pv.chanServ )
+							InvitationFailed('Please use your master nick before invite.');
+						else
+							InvitationFailed('You are not a VIP.');
+					}
+
 					var [status, hostDbInfo] = yield function(callback) QueryVIPDatabase({ action:'info', nick:hostNick }, callback);
 					if ( status != OK )
 						InvitationFailed('Service unavailable. Please retry later.');
@@ -334,31 +339,6 @@
 		}
 	}
 	
-	
-	var VipTremServerAutoSetlevel = new function() {
-		
-		for (;;) {
-
-			var [status, result] = yield function(callback) TremulousServerCommand( pv.vipTremServer, 'rcon '+pv.vipTremServerRcon+' status', callback );
-
-			if ( status == OK ) // no response or timeout or failure
-				loop:
-				for each ( let playerStatusInfo in ParseRconStatus(result) )
-					for each ( let [i, [guestIp, guestNick, date]] in Iterator(_playerListToSetlevel) )
-						if ( playerStatusInfo.ip == guestIp ) {
-
-							TremulousServerCommand( pv.vipTremServer, 'rcon '+pv.vipTremServerRcon+' !setlevel '+playerStatusInfo.num+' '+pv.vipTremServerVipLevel, Noop );
-							TremulousServerCommand( pv.vipTremServer, 'rcon '+pv.vipTremServerRcon+' m '+ playerStatusInfo.num +' Now your level is '+pv.vipTremServerVipLevel+', try !help command.', Noop );
-							guestNick && TremulousServerCommand( pv.vipTremServer, 'rcon '+pv.vipTremServerRcon+' say Welcome to '+guestNick+'^7 the new VIP !', Noop );
-							_playerListToSetlevel.splice(i, 1); // remove processed item
-							QueryVIPDatabase({ action:'setlevelDone', nick:guestNick, tremName:guestNick }, callback);
-							break loop; // because the list has been splice(), we can only process one item
-						}
-
-			yield function(callback) io.AddTimeout( 1*MINUTE, callback ); // async pause
-		}
-	}
-
 
 	var VipTremServerScanPlayers = new function() {
 		
@@ -386,6 +366,31 @@
 					_mod.api.Privmsg( pv.vipChannel, nicePlayerList.splice(0, 8).join('  ') ); // avoid long lines
 				prevDisplayedStatusDate = Now();
 			}
+
+			yield function(callback) io.AddTimeout( 1*MINUTE, callback ); // async pause
+		}
+	}
+
+	
+	var VipTremServerAutoSetlevel = new function() {
+		
+		for (;;) {
+
+			var [status, result] = yield function(callback) TremulousServerCommand( pv.vipTremServer, 'rcon '+pv.vipTremServerRcon+' status', callback );
+
+			if ( status == OK ) // no response or timeout or failure
+				loop:
+				for each ( let playerStatusInfo in ParseRconStatus(result) )
+					for each ( let [i, [guestIp, guestNick, date]] in Iterator(_playerListToSetlevel) )
+						if ( playerStatusInfo.ip == guestIp ) {
+
+							TremulousServerCommand( pv.vipTremServer, 'rcon '+pv.vipTremServerRcon+' !setlevel '+playerStatusInfo.num+' '+pv.vipTremServerVipLevel, Noop );
+							TremulousServerCommand( pv.vipTremServer, 'rcon '+pv.vipTremServerRcon+' m '+ playerStatusInfo.num +' Now your level is '+pv.vipTremServerVipLevel+', try !help command.', Noop );
+							guestNick && TremulousServerCommand( pv.vipTremServer, 'rcon '+pv.vipTremServerRcon+' say Welcome to '+guestNick+'^7 the new VIP !', Noop );
+							_playerListToSetlevel.splice(i, 1); // remove processed item
+							QueryVIPDatabase({ action:'setlevelDone', nick:guestNick, tremName:guestNick }, callback);
+							break loop; // because the list has been splice(), we can only process one item
+						}
 
 			yield function(callback) io.AddTimeout( 1*MINUTE, callback ); // async pause
 		}

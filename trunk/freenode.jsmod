@@ -150,7 +150,7 @@
 
 		_mod.api.Privmsg( _requestList[0].service, _requestList[0].message, function() {
 
-			_timeoutId = io.AddTimeout( 10*SECONDS, function() Done(TIMEOUT) );
+			_timeoutId = io.AddTimeout( 10*SECOND, function() Done(TIMEOUT) );
 		});
 	}
 	
