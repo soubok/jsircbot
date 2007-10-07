@@ -43,7 +43,7 @@ function(data) {
 // configure DCC
 	setData(data.DCC.maxDCCConnections, 32 );
 	setData(data.DCC.portRange, '1024-2048' );
-	setData(data.DCC.requestTimeout, 30*SECONDS );
+	setData(data.DCC.requestTimeout, 30*SECOND );
 
 // configure DCCReceiver module
 	setData(data.DCCReceiverModule.destinationPath, '.' );
@@ -52,6 +52,6 @@ function(data) {
 	setData(data.OperatorManagerModule.password, 's6d5vf4qsd6f5vsqs8dv8q' );
 	
 // CommandEvent Module
-	setData(data.CommandEventModule.maxServerReplyInterval, 2*SECONDS );
-	setData(data.CommandEventModule.maxUserReplyInterval, 30*SECONDS );
+	setData(data.CommandEventModule.maxServerReplyInterval, 2*SECOND );
+	setData(data.CommandEventModule.maxUserReplyInterval, 30*SECOND );
 }

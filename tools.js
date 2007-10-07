@@ -41,6 +41,64 @@ const WEEK = 7*DAY;
 
 function Now() (new Date).getTime(); // returns the current date in ms
 
+
+/////////////////////////////////////////////////////// State Keeper
+
+function StateKeeper() {
+
+	var _stateList = NewDataObj();
+	var _predicateList = [];
+
+	function Is(stateName) stateName in _stateList;
+
+	function StateChanging(stateName, state) {
+
+		if ( state )
+			_stateList[stateName] = true;
+		else
+			delete _stateList[stateName];
+		
+		for each ( let item in _predicateList ) {
+			var callback = item[2];
+			if ( !item[3] )
+				item[0](_stateList, stateName) && callback.call(callback, (item[3] = true), _predicateList); // 'this' will be the function itself
+			else
+				( item[1] ? item[1](_stateList, stateName) : !item[0](_stateList) ) && callback.call(callback, (item[3] = false), _predicateList); // 'this' will be the function itself
+		}
+	}
+	
+	this.Enter = function(stateName) StateChanging(stateName, true);
+	this.Leave = function(stateName)	StateChanging(stateName, false);
+
+	this.AddStateListener = function( setPredicate, resetPredicate, callback, initialState ) _predicateList.push(arguments);
+	this.RemoveStateListener = function( setPredicate, resetPredicate, callback ) _predicateList.some( function(item, index) item[0] == setPredicate && item[1] == resetPredicate && item[2] == callback && _predicateList.splice(index,1) );
+}
+
+
+/////////////////////////////////////////////////////// Event Listener
+
+
+function Listener() {
+	
+	var _list = [];
+	this.AddSet = function( set ) void _list.push(set);
+	this.RemoveSet = function( set ) void _list.splice(CHKNEQ(_list.indexOf(set),-1), 1);
+	this.Fire = function Fire() { // beware, Fire is only used for the function name
+	
+		try {
+			for each ( let set in _list.slice() ) {
+				
+				var n = set;
+				for ( var it = 0; typeof(n) == 'object' && it in arguments && arguments[it] in n; n = n[arguments[it++]] ); // var is faster than let
+				n instanceof Function && void n.apply(n, arguments); // 'this' will be the function itself
+			}
+		} catch(ex) {
+			
+			DBG && ReportError( ExToText(ex) );
+		}
+	}
+}
+
 /////////////////////////////////////////////////////// start an asynchronus procedure
 
 function AbortAsyncProc() {
@@ -121,8 +179,8 @@ function MakeLogEMail(mailTo) {
 function Log(data) {
 
 	var _outputList = [];
-	var _time0 = IntervalNow();
-	function Time() StringPad(((IntervalNow()-_time0)/SECOND).toFixed(2), 7, ' ');
+	var _time0 = Now();
+	function Time() StringPad(((Now()-_time0)/SECOND).toFixed(2), 7, ' ');
 	
 	function Write(type, data) {
 		
@@ -148,18 +206,12 @@ function Log(data) {
 				return; // done.
 			}
 	}
-	this.WriteLn = function(type, data) void Write(type, Now()+data+'\n');
+	this.WriteLn = function(type, data) void Write(type, Time()+data+'\n');
 }
 
 
 ///////////////////////////////////////////////////////
 
-//function Stringable( obj ) {
-//	
-//	obj.toString = function() obj.constructor.name;
-//}
-
-///////////////////////////////////////////////////////
 
 function ExToText(ex, showStack) ex instanceof Error ? ex.name+': '+ex.message+' ('+(showStack ? ex.stack : (ex.fileName+':'+ex.lineNumber))+')' : ex.toString();
 
@@ -210,6 +262,19 @@ function RandomString(length) {
 
 function RandomRange( min, max )	min + Math.random() * (max - min);
 
+
+function MakeObj( tpl, arr ) {
+	
+	var obj = NewDataObj();
+	if ( arr )
+		for ( let p in tpl ) obj[p] = arr[tpl[p]];
+	return obj;
+}
+
+
+
+/////////////////////////////////////////////////////// String functions
+
 function StringPad( str, count, chr ) {
 	
 	str += '';
@@ -220,32 +285,17 @@ function StringPad( str, count, chr ) {
 	return str;
 }
 
+function LTrim(str) str.replace(/^\s+/, '');
 
-LTrim._regexp = /^\s+/;
-function LTrim(str) str.replace(LTrim._regexp, '');
+function RTrim(str) str.replace(/\s+$/, '');
 
-RTrim._regexp = /\s+$/;
-function RTrim(str) str.replace(RTrim._regexp, '');
+function Trim(str) str.replace(/^\s+|\s+$/g, '');
 
-Trim._regexp = /^\s+|\s+$/g;
-function Trim(str) str.replace(Trim._regexp, '');
-
-
-//function StrBefore( str, sep ) str.split(sep,1)[0];
 function StrBefore( str, sep ) (sep = str.indexOf(sep)) == -1 ? str : str.substr(0, sep);
 
 function StringReplacer(conversionObject) function(s) s.replace(new RegExp([k for (k in conversionObject)].join('|'), 'g'), function(str) conversionObject[str]); // eg. StringReplacer({aa:11})('xxaaxx'); returns 'xx11xx'
 
 function Switch(i) arguments[++i];
-
-function MakeObj( tpl, arr ) {
-	
-	var obj = NewDataObj();
-	if ( arr )
-		for ( let p in tpl ) obj[p] = arr[tpl[p]];
-	return obj;
-}
-
 
 function ExpandStringRanges(rangesStr) {
 
@@ -261,60 +311,22 @@ function ExpandStringRanges(rangesStr) {
 }
 
 
-/////////////////////////////////////////////////////// State Keeper
+function ValueInStringRanges(rangesStr, value) {
 
-function StateKeeper() {
+	for each (let range in rangesStr.split(",")) {
 
-	var _stateList = NewDataObj();
-	var _predicateList = [];
-
-	function Is(stateName) stateName in _stateList;
-
-	function StateChanging(stateName, state) {
-
-		if ( state )
-			_stateList[stateName] = true;
-		else
-			delete _stateList[stateName];
+		var minmax = range.split("-", 2);
+		if (minmax.length == 2) {
 		
-		var callback = item[2];
-		for each ( let item in _predicateList )
-			if ( !item[3] )
-				item[0](_stateList) && callback.call(callback, (item[3] = true), _predicateList); // 'this' will be the function itself
-			else
-				( item[1] ? item[1](_stateList) : !item[0](_stateList) ) && callback.call(callback, (item[3] = false), _predicateList); // 'this' will be the function itself
-	}
-	
-	this.Enter = function(stateName) StateChanging(stateName, true);
-	this.Leave = function(stateName)	StateChanging(stateName, false);
-
-	this.AddStateListener = function( setPredicate, resetPredicate, callback, initialState ) _predicateList.push(arguments);
-	this.RemoveStateListener = function( setPredicate, resetPredicate, callback ) _predicateList.some( function(item, index) item[0] == setPredicate && item[1] == resetPredicate && item[2] == callback && _predicateList.splice(index,1) );
-}
-
-
-/////////////////////////////////////////////////////// Event Listener
-
-
-function Listener() {
-	
-	var _list = [];
-	this.AddSet = function( set ) void _list.push(set);
-	this.RemoveSet = function( set ) void _list.splice(CHKNEQ(_list.indexOf(set),-1), 1);
-	this.Fire = function Fire() { // beware, Fire is only used for the function name
-	
-		try {
-			for each ( let set in _list.slice() ) {
-				
-				var n = set;
-				for ( var it = 0; typeof(n) == 'object' && it in arguments && arguments[it] in n; n = n[arguments[it++]] ); // var is faster than let
-				n instanceof Function && void n.apply(n, arguments); // 'this' will be the function itself
-			}
-		} catch(ex) {
-			
-			DBG && ReportError( ExToText(ex) );
+			if ( value >= parseInt(minmax[0]) && value <= parseInt(minmax[1]) )
+				return true;
+		} else {
+		
+			if ( value == parseInt(minmax[0]) )
+				return true;
 		}
 	}
+	return false;
 }
 
 

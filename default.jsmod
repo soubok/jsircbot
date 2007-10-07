@@ -129,15 +129,15 @@
 	}
 
 
-	function LagProbe( action ) {
+
+	var LagProbe = new function() {
 		
-		if ( action == false ) {
+		var lagProbeInterval = getData( _mod.data[_mod.name].lagProbeInterval );
 		
-			io.RemoveTimeout(arguments.callee.timeoutId);
-		} else {
+		for (;;) {
 
 			_mod.Send( 'PING LAG'+IntervalNow(), true );
-			arguments.callee.timeoutId = io.AddTimeout(getData( _mod.data[_mod.name].lagProbeInterval ), arguments.callee );
+			yield function(callback) io.AddTimeout( lagProbeInterval, callback ); // async pause
 		}
 	}
 
@@ -158,7 +158,10 @@
 			reset: function(s) !s.interactive,
 			trigger: function(polarity) {
 
-				LagProbe(polarity);
+				if ( polarity ) 
+					StartAsyncProc( LagProbe );
+				else
+					StopAsyncProc( LagProbe );
 
 				if ( polarity )
 					_mod.Send( 'USERHOST '+getData(_mod.data.nick) );
