@@ -108,58 +108,60 @@ function LoadModuleFromURL( core, url ) {
 
 
 
-function MakeFloodSafeMessageSender( maxMessage, maxData, time, RawDataSender ) {
+	function MakeFloodSafeMessageSender( maxMessage, maxData, time, RawDataSender, state ) {
 
-	var _count = maxMessage;
-	var _bytes = maxData;
-	var _instantMessageQueue = [];
-	var _messageQueue = [];
-	var _timeoutId;
+		var _count = maxMessage;
+		var _bytes = maxData;
+		var _instantMessageQueue = [];
+		var _messageQueue = [];
+		var _timeoutId;
 
-	function Process() {
-		
-		DBG && ReportNotice( 'MakeFloodSafeMessageSender:: COUNT:'+ _count + ' BYTES:'+ _bytes+' QUEUE_LENGTH:'+_messageQueue.length );
-	
-		var buffer = '';
-		function PrepMessage([messages, OnSent]) {
-		
-			OnSent && void OnSent();
-			_count -= messages.length;
-			var messageString = messages.join(CRLF)+CRLF;
-			_bytes -= messageString.length;
-			buffer += messageString;
+		function Process() {
+
+			DBG && ReportNotice( 'MakeFloodSafeMessageSender:: COUNT:'+ _count + ' BYTES:'+ _bytes+' QUEUE_LENGTH:'+_messageQueue.length );
+
+			var buffer = '';
+			function PrepMessage([messages, OnSent]) {
+
+				OnSent && void OnSent();
+				_count -= messages.length;
+				var messageString = messages.join(CRLF)+CRLF;
+				_bytes -= messageString.length;
+				buffer += messageString;
+			}
+
+			while ( _instantMessageQueue.length )
+				PrepMessage(_instantMessageQueue.shift());
+
+			while ( _messageQueue.length && _count > 0 && _bytes > 0 ) // && (buffer + (_messageQueue[0]||'').length < maxData ???
+				PrepMessage(_messageQueue.shift());
+
+			buffer.length && RawDataSender(buffer);
+			
+			if ( _messageQueue.length )
+				state.Enter('sendOverflow');
+			else
+				state.Leave('sendOverflow');
+
+			if ( !_timeoutId ) // do not reset the timeout
+				_timeoutId = io.AddTimeout(time, Timeout);
 		}
-		
-		while ( _instantMessageQueue.length )
-			PrepMessage(_instantMessageQueue.shift());
-		
-		while ( _messageQueue.length && _count > 0 && _bytes > 0 ) // && (buffer + (_messageQueue[0]||'').length < maxData ???
-			PrepMessage(_messageQueue.shift());
-		
-		buffer.length && RawDataSender(buffer);
-		
-		if ( !_timeoutId ) // do not reset the timeout
-			_timeoutId = io.AddTimeout(time, Timeout);
-	}
-	
-	function Timeout() {
-		
-		_timeoutId = undefined;
-		_count = maxMessage;
-		_bytes = maxData;
-		_messageQueue.length && Process(); // process if needed. else no more timeout
-	}
-	
-	return function(message, bypassAntiFlood, OnSent) {
-		
-		if ( message ) { 
-		
+
+		function Timeout() {
+
+			_timeoutId = undefined;
+			_count = maxMessage;
+			_bytes = maxData;
+			_messageQueue.length && Process(); // process if needed. else no more timeout
+		}
+
+		return function(message, bypassAntiFlood, OnSent) {
+
 			(bypassAntiFlood ? _instantMessageQueue : _messageQueue).push([message instanceof Array ? message : [message], OnSent]);
 			Process();
 		}
-		return _messageQueue.length / maxMessage; // <1 : ok, messages are send; >1: beware, queue is full.
 	}
-}
+
 
 
 ///////////////////////////////////////////////// CORE /////////////////////////////////////////////
@@ -183,9 +185,9 @@ function ClientCore( Configurator ) {
 		log.WriteLn( 'irc', '<-' + buf );
 		_connection.Write(buf).length && Failed('Unable to send (more) data.');
 		setData( _data.lastMessageTime, IntervalNow() );
-	}	
+	}
 
-	this.Send = MakeFloodSafeMessageSender( getData(_data.antiflood.maxMessage), getData(_data.antiflood.maxBytes), getData(_data.antiflood.interval), RawDataSender );
+	this.Send = MakeFloodSafeMessageSender( getData(_data.antiflood.maxMessage), getData(_data.antiflood.maxBytes), getData(_data.antiflood.interval), RawDataSender, _state );
 
 	this.hasFinished = function() !_connection;
 	this.Disconnect = function() _connection.Disconnect(); // make a Gracefully disconnect ( disconnect != close )
@@ -293,17 +295,12 @@ function ClientCore( Configurator ) {
 			_connection.OnFailed = function() {
 
 				DBG && ReportError('Failed to connect to ' + host + ':' + port );
-				
-				var _timeoutId = io.AddTimeout( getData(_data.serverRetryPause), function() {
-				
-					TryNextServer();
-				});
+				io.AddTimeout( getData(_data.serverRetryPause), TryNextServer );
 			}
 			_connection.OnConnected = OnConnected;
 			_connection.Connect();
 			setData( _data.connectTime, IntervalNow() );
 		}
-
 		TryNextServer();
 		_state.Enter('connecting');
 	}

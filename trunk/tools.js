@@ -52,6 +52,9 @@ function StateKeeper() {
 	function Is(stateName) stateName in _stateList;
 
 	function StateChanging(stateName, state) {
+		
+		if ( state == !!_stateList[stateName] ) // if state is already set
+			return;
 
 		if ( state )
 			_stateList[stateName] = true;

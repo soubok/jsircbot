@@ -60,7 +60,7 @@
 			_mod.Send( 'PONG '+arg );
 			setData( _mod.data.lastPingTime, IntervalNow() );
 		},
-
+/*
 		PONG: function( command, from, server, data ) {
 			
 			if ( data.substr(0,3) == 'LAG' ) {
@@ -68,7 +68,7 @@
 				setData( _mod.data.ping, IntervalNow() - parseInt(data.substr(3)) );
 			}
 		},
-
+*/
 		NOTICE: function( command, from, to, message ) {
 
 			// irc.clockworkorange.co.uk- on 1 ca 1(2) ft 10(10) tr
@@ -132,12 +132,10 @@
 
 	var LagProbe = new function() {
 		
-		var lagProbeInterval = getData( _mod.data[_mod.name].lagProbeInterval );
-		
 		for (;;) {
 
 			_mod.Send( 'PING LAG'+IntervalNow(), true );
-			yield function(callback) io.AddTimeout( lagProbeInterval, callback ); // async pause
+			yield function(callback) io.AddTimeout( getData(_mod.data[_mod.name].lagProbeInterval), callback ); // async pause
 		}
 	}
 
@@ -157,11 +155,25 @@
 			set: function(s) s.interactive,
 			reset: function(s) !s.interactive,
 			trigger: function(polarity) {
+			
+				
+				if ( this.lagProbeResponse == undefined )
+					this.lagProbeResponse = function( command, from, server, data ) {
 
-				if ( polarity ) 
+						if ( data.substr(0,3) == 'LAG' )
+							setData( _mod.data.ping, IntervalNow() - parseInt(data.substr(3)) );
+					}
+
+
+				if ( polarity ) {
+				
+					_mod.AddMessageListenerSet(this.lagProbeResponse);
 					StartAsyncProc( LagProbe );
-				else
+				} else {
+				
+					_mod.RemoveMessageListenerSet(this.lagProbeResponse);
 					StopAsyncProc( LagProbe );
+				}
 
 				if ( polarity )
 					_mod.Send( 'USERHOST '+getData(_mod.data.nick) );
