@@ -27,7 +27,7 @@
 				var nick = from.split('!',1);
 				var replyTo = to[0] == '#' ? to : nick;
 
-				UDPGet( 'master.tremulous.net', 30710, '\xFF\xFF\xFF\xFFgetservers 69', 5000, function(status, response) {
+				UDPGet( 'master.tremulous.net', 30710, '\xFF\xFF\xFF\xFFgetservers 69', 5*SECOND, function(status, response) {
 
 					if ( status != OK ) {
 						_mod.api.Privmsg( replyTo, 'failed' );

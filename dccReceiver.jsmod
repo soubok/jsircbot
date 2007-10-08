@@ -92,7 +92,7 @@
 				var [type,argument,address,port,size] = data.split(' ');
 				if ( type != 'SEND' )
 					return;
-				DCCReceive( IntegerToIp(address), port, argument, 2000 );
+				DCCReceive( IntegerToIp(address), port, argument, 2*SECOND );
 			}
 		}
 	};

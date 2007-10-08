@@ -174,7 +174,7 @@
 	
 	this.moduleApi = {
 
-		SetAccessLevel: function(channel, nick, level) void _mod.api.Privmsg( 'ChanServ!ChanServ@services.', 'ACCESS '+channel+' ADD '+nick+' '+level ),
+		SetChannelAccessLevel: function(channel, nick, level) void _mod.api.Privmsg( 'ChanServ!ChanServ@services.', 'ACCESS '+channel+' ADD '+nick+' '+level ),
 
 		// Syntax: INFO <nickname>	
 		NickInfo: function(nick, callback) StartRequest( 'NickServ!NickServ@services.', 'INFO '+nick, infoParser, callback ),

@@ -32,7 +32,7 @@ function MakeModuleFromUrl( url, callback ) {
 	DBG && ReportNotice( 'Loading module from: '+url );
 	
 	var args = arguments;
-	HttpRequest( url, '', 3000, function(status, statusCode, reasonPhrase, headers, body ) {
+	HttpRequest( url, '', 3*SECOND, function(status, statusCode, reasonPhrase, headers, body ) {
 
 		if ( status != OK || statusCode != 200 ) {
 
@@ -108,59 +108,56 @@ function LoadModuleFromURL( core, url ) {
 
 
 
-	function MakeFloodSafeMessageSender( maxMessage, maxData, time, RawDataSender, state ) {
+function MakeFloodSafeMessageSender( maxMessage, maxData, time, RawDataSender, state ) {
 
-		var _count = maxMessage;
-		var _bytes = maxData;
-		var _instantMessageQueue = [];
-		var _messageQueue = [];
-		var _timeoutId;
+	var _count = maxMessage;
+	var _bytes = maxData;
+	var _instantMessageQueue = [];
+	var _messageQueue = [];
+	var _timeoutId;
 
-		function Process() {
+	function Process() {
 
-			DBG && ReportNotice( 'MakeFloodSafeMessageSender:: COUNT:'+ _count + ' BYTES:'+ _bytes+' QUEUE_LENGTH:'+_messageQueue.length );
+		DBG && ReportNotice( 'MakeFloodSafeMessageSender:: COUNT:'+ _count + ' BYTES:'+ _bytes+' QUEUE_LENGTH:'+_messageQueue.length );
 
-			var buffer = '';
-			function PrepMessage([messages, OnSent]) {
+		var buffer = '';
+		function PrepMessage([messages, OnSent]) {
 
-				OnSent && void OnSent();
-				_count -= messages.length;
-				var messageString = messages.join(CRLF)+CRLF;
-				_bytes -= messageString.length;
-				buffer += messageString;
-			}
-
-			while ( _instantMessageQueue.length )
-				PrepMessage(_instantMessageQueue.shift());
-
-			while ( _messageQueue.length && _count > 0 && _bytes > 0 ) // && (buffer + (_messageQueue[0]||'').length < maxData ???
-				PrepMessage(_messageQueue.shift());
-
-			buffer.length && RawDataSender(buffer);
-			
-			if ( _messageQueue.length )
-				state.Enter('sendOverflow');
-			else
-				state.Leave('sendOverflow');
-
-			if ( !_timeoutId ) // do not reset the timeout
-				_timeoutId = io.AddTimeout(time, Timeout);
+			OnSent && void OnSent();
+			_count -= messages.length;
+			var messageString = messages.join(CRLF)+CRLF;
+			_bytes -= messageString.length;
+			buffer += messageString;
 		}
 
-		function Timeout() {
+		while ( _instantMessageQueue.length )
+			PrepMessage(_instantMessageQueue.shift());
 
-			_timeoutId = undefined;
-			_count = maxMessage;
-			_bytes = maxData;
-			_messageQueue.length && Process(); // process if needed. else no more timeout
-		}
+		while ( _messageQueue.length && _count > 0 && _bytes > 0 ) // && (buffer + (_messageQueue[0]||'').length < maxData ???
+			PrepMessage(_messageQueue.shift());
 
-		return function(message, bypassAntiFlood, OnSent) {
+		buffer.length && RawDataSender(buffer);
 
-			(bypassAntiFlood ? _instantMessageQueue : _messageQueue).push([message instanceof Array ? message : [message], OnSent]);
-			Process();
-		}
+		state.Toggle('sendOverflow', _messageQueue.length > 0);
+
+		if ( !_timeoutId ) // do not reset the timeout
+			_timeoutId = io.AddTimeout(time, Timeout);
 	}
+
+	function Timeout() {
+
+		_timeoutId = undefined;
+		_count = maxMessage;
+		_bytes = maxData;
+		_messageQueue.length && Process(); // process if needed. else no more timeout
+	}
+
+	return function(message, bypassAntiFlood, OnSent) {
+
+		(bypassAntiFlood ? _instantMessageQueue : _messageQueue).push([message instanceof Array ? message : [message], OnSent]);
+		Process();
+	}
+}
 
 
 
@@ -265,7 +262,7 @@ function ClientCore( Configurator ) {
 			_connection.OnDisconnected = OnDisconnected;
 			_state.Leave('connecting');
 			_state.Enter('connected');
-			getData(_data.ident) && Ident( io, function(identRequest) identRequest + ' : '+getData(_data.ident.userid)+' : '+getData(_data.ident.opsys)+' : '+getData(_data.nick)+CRLF, 2000 ); // let 2 seconds to the server to make the IDENT request
+			getData(_data.ident) && Ident( io, function(identRequest) identRequest + ' : '+getData(_data.ident.userid)+' : '+getData(_data.ident.opsys)+' : '+getData(_data.nick)+CRLF, 2*SECOND ); // let 2 seconds to the server to make the IDENT request
 		}
 
 		var getServer = new function() {
@@ -320,16 +317,17 @@ function ClientCore( Configurator ) {
 					_api[f] = mod.moduleApi[f];
 			}
 		
-		mod.moduleListener && _moduleListener.AddSet( mod.moduleListener );
-		mod.messageListener && _messageListener.AddSet( mod.messageListener );
+		mod.moduleListener && _moduleListener.Add( mod.moduleListener );
+		mod.messageListener && _messageListener.Add( mod.messageListener );
 
-		mod.AddMessageListenerSet = _messageListener.AddSet;
-		mod.RemoveMessageListenerSet = _messageListener.RemoveSet;
-		mod.AddModuleListenerSet = _moduleListener.AddSet;
-		mod.RemoveModuleListenerSet = _moduleListener.RemoveSet;
+		mod.AddMessageListener = _messageListener.Add;
+		mod.RemoveMessageListener = _messageListener.Remove;
+		mod.ToggleMessageListener = _messageListener.Toggle;
+
+		mod.AddModuleListener = _moduleListener.Add;
+		mod.RemoveModuleListener = _moduleListener.Remove;
+		mod.ToggleModuleListener = _moduleListener.Toggle;
 		mod.FireModuleListener = _moduleListener.Fire;
-
-		mod.StateIs = function(stateName) _state.Is;
 		
 		mod.Send = this.Send;
 		mod.data = _data;

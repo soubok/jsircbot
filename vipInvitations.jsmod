@@ -22,12 +22,11 @@
 	
 	const tremQueryPrefix = '\xFF\xFF\xFF\xFF';
 	
-	
 	function ColorTremToIrc(str) {
 		
 		var color = arguments.callee.color || ( arguments.callee.color = { 0:1, 1:4, 2:9, 3:8, 4:12, 5:11, 6:13, 7:0 } );
 		var out = '';
-		for ( let i = 0; i < str.length; i++ ) {
+		for ( let i = 0; i < str.length; i++ )
 			switch (str[i]) {
 				case '^':
 					out += '\x03' + color[String.charCodeAt(str[++i]) % 8];
@@ -35,7 +34,6 @@
 				default:
 					out += str[i];
 			}
-		}
 		return out;
 	}
 
@@ -59,7 +57,6 @@
 
 	function ParseRconStatus( data ) {
 		
-		var parser = /^ *([0-9]+) *(-?[0-9]+) *([0-9]+) (.*?) *([0-9]+) *([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+):([0-9]+) *([0-9]+) *([0-9]+)$/; // regexp are compiled and cached automatically
 		var tpl = {num:1, score:2, ping:3, name:4, lastmsg:5, ip:6, port:7, qport:8, rate:9};
 		try {
 		
@@ -69,7 +66,7 @@
 			lines.shift(); // col names
 			lines.shift(); // --- -----
 			for ( var status = []; lines.length && lines[0]; lines.shift() )
-				status.push(MakeObj( tpl, CHK(parser(lines[0])) ));
+				status.push(MakeObj( tpl, CHK(  /^ *([0-9]+) *(-?[0-9]+) *([0-9]+) (.*?) *([0-9]+) *([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+):([0-9]+) *([0-9]+) *([0-9]+)$/(lines[0])  ) ));
 			return status;
 		} catch(ex if ex == ERR) {
 			
@@ -78,16 +75,9 @@
 	}
 
 
-	function TremulousServerCommand( server, command, OnResult ) {
-	
-		var [host,port] = pv.vipTremServer.split(':', 2);
-		UDPGet( host, port, tremQueryPrefix + command, 3000, OnResult );
-	}
-	
-
 	function QueryVIPDatabase( data, OnResult ) {
 
-		HttpRequest( pv.invitationURL, data, 3000, function(status, statusCode, reasonPhrase, headers, body) {
+		HttpRequest( pv.invitationURL, data, 3*SECOND, function(status, statusCode, reasonPhrase, headers, body) {
 			
 			DBG && ReportNotice( 'QueryVIPDatabase:: STATUS:'+OK+' REQUEST:'+data.toSource()+' RESPONSE:'+body );
 
@@ -115,6 +105,13 @@
 			}
 			OnResult(OK, responseObject); // don't include this in the try ... catch
 		});
+	}
+
+
+	function TremulousServerCommand( server, command, OnResult ) {
+	
+		var [host,port] = pv.vipTremServer.split(':', 2);
+		UDPGet( host, port, tremQueryPrefix + command, 3*SECOND, OnResult );
 	}
 	
 	
@@ -153,7 +150,8 @@
 		});
 	}
 	
-	var _playerListToSetlevel = [];
+	
+	_mod.playerListToSetlevel = [];
 	
 
 	this.moduleListener = {
@@ -186,7 +184,8 @@
 					
 					if ( status != OK ) {
 					
-						_mod.api.Privmsg( replyTo, 'Sorry, the server does not respond.' ), AbortAsyncProc();
+						_mod.api.Privmsg( replyTo, 'Sorry, the server does not respond.' );
+						AbortAsyncProc();
 						return;
 					}
 
@@ -203,51 +202,40 @@
 			
 				StartAsyncProc( new function() {
 
-					function forceinviteFailed(message) {
+					function CancelForceinvite(message) {
 					
 						var replyTo = to[0] == '#' ? to : StrBefore(from, '!');
 						_mod.api.Privmsg( replyTo, message );
 						AbortAsyncProc();
 					}
 
-					if ( !_mod.api.IsBotOp(from) )
-						forceinviteFailed('need bot auth.');
+					!_mod.api.IsBotOp(from) && CancelForceinvite('need bot auth.');
 
 					var replyTo = to[0] == '#' ? to : StrBefore(from, '!');
 
-					if ( !cmdData )
-						forceinviteFailed( 'use: !forceinvite <guest> by <host>' );
+					!cmdData && CancelForceinvite( 'use: !forceinvite <guest> by <host>' );
 
 					var [guestNick, byWord, hostNick] = cmdData.split(' ');
 					
-					if ( byWord != 'by' )
-						forceinviteFailed( 'use: !forceinvite <guest> by <host>' );
-					
+					byWord != 'by' && CancelForceinvite( 'use: !forceinvite <guest> by <host>' );
 					
 					var [status, hostWhois] = yield function(callback) _mod.api.Whois(hostNick, callback);
-					if ( status != OK )
-						forceinviteFailed('Unable to get '+hostNick+' IRC status.');
-					if ( !hostWhois.isIdentified )
-						forceinviteFailed( hostWhois+' is not identified on IRC.');
+					status != OK && CancelForceinvite('Unable to get '+hostNick+' IRC status.');
+					!hostWhois.isIdentified && CancelForceinvite( hostWhois+' is not identified on IRC.');
 
 					var [status, guestWhois] = yield function(callback) _mod.api.Whois(guestNick, callback);
-					if ( status != OK )
-						forceinviteFailed('Unable to get '+guestNick+' IRC status.');
-					if ( !guestWhois.isIdentified )
-						forceinviteFailed( guestNick+' is not identified on IRC.');
+					status != OK && CancelForceinvite('Unable to get '+guestNick+' IRC status.');
+					!guestWhois.isIdentified && CancelForceinvite( guestNick+' is not identified on IRC.');
 					
 					var [status, response] = yield function(callback) QueryVIPDatabase({ action:'invite', guest:guestNick, host:hostNick }, callback);
-					if ( status != OK )
-						forceinviteFailed('Service unavailable. Please retry later.');
-					if ( response.error )
-						forceinviteFailed(response.error);
-						
-						
+					status != OK && CancelForceinvite('Service unavailable. Please retry later.');
+					response.error && CancelForceinvite(response.error);
+
 					var guestIp = GetHostsByName(guestWhois.host);
 					if ( guestIp ) {
 
 						var [status, response] = yield function(callback) QueryVIPDatabase({ action:'setIp', nick:guestNick, ip:guestIp }, callback);
-						_playerListToSetlevel.push([guestIp, guestNick, Now()]);
+						_mod.playerListToSetlevel.push([guestIp, guestNick, Now()]);
 					}
 				});
 			},
@@ -256,10 +244,9 @@
 
 				StartAsyncProc( new function() {
 
-					if ( to != pv.vipChannel )
-						AbortAsyncProc();
+					to != pv.vipChannel && AbortAsyncProc();
 						
-					function InvitationFailed(message) {
+					function CancelInvitation(message) {
 					
 						var replyTo = to[0] == '#' ? to : StrBefore(from, '!');
 						_mod.api.Privmsg( replyTo, message );
@@ -269,61 +256,44 @@
 					var hostNick = StrBefore(from, '!');
 
 					var [status, hostWhois] = yield function(callback) _mod.api.Whois(hostNick, callback);
-					if ( status != OK )
-						InvitationFailed('Unable to get your IRC status '+hostNick+'.');
-					if ( !hostWhois.isIdentified )
-						InvitationFailed('You are not identified on IRC.');
+					status != OK && CancelInvitation('Unable to get your IRC status '+hostNick+'.');
+					!hostWhois.isIdentified && CancelInvitation('You are not identified on IRC.');
 
 					var [status, accessList] = yield function(callback) _mod.api.AccessInfo(pv.vipChannel, callback);
-					if ( status != OK )
-						InvitationFailed('Unable to get AccessInfo.');
+					status != OK && CancelInvitation('Unable to get AccessInfo.');
 
 					var hostLevel = [ user.level for each ( user in accessList ) if (user.hostmask.toLowerCase() == hostNick.toLowerCase()) ][0];
-					
-					if ( hostLevel == undefined ) {
-						
-						if ( getData( _mod.data.channel[pv.vipChannel].names[hostNick].operator.by ) == pv.chanServ )
-							InvitationFailed('Please use your master nick before invite.');
-						else
-							InvitationFailed('You are not a VIP.');
-					}
+					var hasBeenOpByChanServ = getData( _mod.data.channel[pv.vipChannel].names[hostNick].operator.by ) == pv.chanServ;
+					!(hostLevel >= pv.vipChanLevel) && !hasBeenOpByChanServ && CancelInvitation('You must be a VIP to invite someone.');
+					hostLevel >= pv.vipChanLevel || hasBeenOpByChanServ && CancelInvitation('Please use your master nick before invite.');
 
 					var [status, hostDbInfo] = yield function(callback) QueryVIPDatabase({ action:'info', nick:hostNick }, callback);
-					if ( status != OK )
-						InvitationFailed('Service unavailable. Please retry later.');
-					if ( hostDbInfo.error )
-						InvitationFailed(hostNick+', you are not in the VIP database.');
+					status != OK && CancelInvitation('Service unavailable. Please retry later.');
+					hostDbInfo.error && CancelInvitation(hostNick+', you are not in the VIP database.');
 					
 					if ( !cmdData ) { // just get the VIP info
 
 						var days = ( (new Date() - new Date(parseInt(hostDbInfo.time)*1000)) / DAY ).toFixed(1);
-						InvitationFailed(hostNick+', you\'ve been a VIP for '+days+' days and you have '+hostDbInfo.invitations_left+' invitation(s) remaining.' );
+						CancelInvitation(hostNick+', you\'ve been a VIP for '+days+' days and you have '+hostDbInfo.invitations_left+' invitation(s) remaining.' );
 					} else {
 
-						if ( hostDbInfo.invitations_left <= 0 )
-							InvitationFailed('Sorry '+hostNick+', you have no invitations remaining.');
+						hostDbInfo.invitations_left <= 0 && CancelInvitation('Sorry '+hostNick+', you have no invitations remaining.');
 					
 						var guestNick = cmdData;
 
 						var [status, guestWhois] = yield function(callback) _mod.api.Whois(guestNick, callback);
-						if ( status != OK )
-							InvitationFailed('Unable to get '+guestNick+' IRC status.');
-						if ( !guestWhois.isIdentified )
-							InvitationFailed(guestNick +' is not identified on IRC.');
+						status != OK && CancelInvitation('Unable to get '+guestNick+' IRC status.');
+						!guestWhois.isIdentified && CancelInvitation(guestNick +' is not identified on IRC.');
 
 						var guestLevel = [ user.level for each ( user in accessList ) if (user.hostmask.toLowerCase() == guestNick.toLowerCase()) ][0];
-
-						if ( guestLevel != undefined && guestLevel >= pv.vipChanLevel )
-							InvitationFailed(guestNick+' is already a VIP.');
+						guestLevel >= pv.vipChanLevel && CancelInvitation(guestNick+' is already a VIP.');
 
 						var [status, response] = yield function(callback) QueryVIPDatabase({ action:'invite', guest:guestNick, host:hostNick }, callback);
-						if ( status != OK )
-							InvitationFailed('Service unavailable. Please retry later.');
-						if ( response.error )
-							InvitationFailed(response.error);
+						status != OK && CancelInvitation('Service unavailable. Please retry later.');
+						response.error && CancelInvitation(response.error);
 
-						_mod.api.SetAccessLevel( pv.vipChannel, guestNick, pv.vipChanLevel );
-						InvitationFailed(guestNick+' has been invited. You have '+(hostDbInfo.invitations_left-1)+' invitation(s) remaining.');
+						_mod.api.SetChannelAccessLevel( pv.vipChannel, guestNick, pv.vipChanLevel );
+						CancelInvitation(guestNick+' has been invited. You have '+(hostDbInfo.invitations_left-1)+' invitation(s) remaining.');
 
 						_mod.api.Invite( guestNick, pv.vipChannel );
 
@@ -331,7 +301,7 @@
 						if ( guestIp ) {
 
 							var [status, response] = yield function(callback) QueryVIPDatabase({ action:'setIp', nick:guestNick, ip:guestIp }, callback);
-							_playerListToSetlevel.push([guestIp, guestNick, Now()]);
+							_mod.playerListToSetlevel.push([guestIp, guestNick, Now()]); // fc. VipTremServerUpdateIpList and VipTremServerScanPlayers procedures
 						}
 					}
 				});
@@ -380,14 +350,14 @@
 
 			if ( status == OK ) // no response or timeout or failure
 				loop:
-				for each ( let playerStatusInfo in ParseRconStatus(result) )
-					for each ( let [i, [guestIp, guestNick, date]] in Iterator(_playerListToSetlevel) )
+				for each ( let playerStatusInfo in ParseRconStatus(result) ) // ParseRconStatus returns undefined on error
+					for each ( let [i, [guestIp, guestNick, date]] in Iterator(_mod.playerListToSetlevel) )
 						if ( playerStatusInfo.ip == guestIp ) {
 
 							TremulousServerCommand( pv.vipTremServer, 'rcon '+pv.vipTremServerRcon+' !setlevel '+playerStatusInfo.num+' '+pv.vipTremServerVipLevel, Noop );
 							TremulousServerCommand( pv.vipTremServer, 'rcon '+pv.vipTremServerRcon+' m '+ playerStatusInfo.num +' Now your level is '+pv.vipTremServerVipLevel+', try !help command.', Noop );
 							guestNick && TremulousServerCommand( pv.vipTremServer, 'rcon '+pv.vipTremServerRcon+' say Welcome to '+guestNick+'^7 the new VIP !', Noop );
-							_playerListToSetlevel.splice(i, 1); // remove processed item
+							_mod.playerListToSetlevel.splice(i, 1); // remove processed item
 							QueryVIPDatabase({ action:'setlevelDone', nick:guestNick, tremName:guestNick }, callback);
 							break loop; // because the list has been splice(), we can only process one item
 						}
@@ -395,7 +365,6 @@
 			yield function(callback) io.AddTimeout( 1*MINUTE, callback ); // async pause
 		}
 	}
-
 
 	var VipTremServerUpdateIpList = new function() {
 	
@@ -405,10 +374,10 @@
 
 			if ( status == OK ) {
 
-				_playerListToSetlevel.splice(0); // empty the current list
+				_mod.playerListToSetlevel.splice(0); // empty the current list
 				if ( !response.error ) // eg. { "error":"No ips in base" }
 					for each ( let ip in response )
-						_playerListToSetlevel.push([ip, '', 0]);
+						_mod.playerListToSetlevel.push([ip, '', 0]); // cf. end of !invite procedure  
 				
 				// ok, we got the list, then reload it in 2 hours
 				yield function(callback) io.AddTimeout( 2*HOUR, callback ); // async pause
@@ -423,7 +392,7 @@
 	this.stateListener = [
 		{
 			set: function(s) s.interactive && s.DefaultModule,
-			reset: False,
+			reset: False, // state never resets
 			trigger: function(polarity) {
 
 				_mod.api.Nick( pv.botNick );
@@ -447,10 +416,7 @@
 			reset: function(s) !s.VipInvitationModule || !s.interactive || !s.DefaultModule,
 			trigger: function(polarity) {
 
-				if ( polarity )
-					StartAsyncProc( VipTremServerScanPlayers );
-				else
-					StopAsyncProc( VipTremServerScanPlayers );
+				ToggleAsyncProc( verScanPlayers, polarity );
 			}
 		},
 		{
@@ -458,21 +424,12 @@
 			reset: function(s) !s.VipInvitationModule,
 			trigger: function(polarity) {
 
-				if ( polarity )
-					StartAsyncProc( VipTremServerUpdateIpList );
-				else
-					StopAsyncProc( VipTremServerUpdateIpList );
-
-				if ( polarity )
-					StartAsyncProc( VipTremServerAutoSetlevel );
-				else
-					StopAsyncProc( VipTremServerAutoSetlevel );
-
+				ToggleAsyncProc( VipTremServerUpdateIpList, polarity );
+				ToggleAsyncProc( VipTremServerAutoSetlevel, polarity );
 			}
 		}
 	];
 	
-
 
 	this.messageListener = {
 
