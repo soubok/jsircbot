@@ -14,6 +14,7 @@
 
 var io = new function() {
 
+/* need to be fix*/
 	var _timeout = new function() {
 
 		var _tlist = NewDataObj();
@@ -34,30 +35,41 @@ var io = new function() {
 		this.Remove = function(date) {
 			
 			delete _tlist[date];
-			if ( date == Infinity )
+			if ( date == _min )
 				_min = Infinity;
 		}
 
 		this.Process = function() {
+			
+//			DPrint( 'process' );
 		
 			var now = IntervalNow();
 			if ( _min <= now || _min == Infinity ) {
+				
+//				var del = [];
 				
 				for ( let date in _tlist )
 					if ( date <= now ) {
 						
 						let fct = _tlist[date];
+//						del.push(date);
 						delete _tlist[date];
 						void fct.call(fct); // 'this' will be the function itself
 					}
+					
+//				for each ( let date in del )
+//					delete _tlist[date];
+					
 				_min = Infinity;
 				for ( let date in _tlist )
 					if ( date < _min )
 						_min = date;
 			}
+			
 			return _min - now;
 		}
 	}
+
 
 /*
 	var _timeout = new function() {
@@ -92,7 +104,9 @@ var io = new function() {
 			return next;
 		}
 	}
+
 */
+
 	var _descriptorList = [];
 	
 	this.AddTimeout = _timeout.Add;
@@ -105,8 +119,11 @@ var io = new function() {
 
 	this.Process = function( endPredicate ) {
 		
-		while ( !endPredicate() )
+		while ( !endPredicate() ) {
+
+			Print('-');
 			Poll(_descriptorList, Math.min(_timeout.Process(), 500));
+		}
 	}
 	
 	this.Close = function() {

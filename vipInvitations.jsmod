@@ -256,7 +256,7 @@
 					var hostNick = StrBefore(from, '!');
 
 					var [status, hostWhois] = yield function(callback) _mod.api.Whois(hostNick, callback);
-					status != OK && CancelInvitation('Unable to get your IRC status '+hostNick+'.');
+					status != OK && CancelInvitation('Unable to get your IRC status '+hostNick+'. ('+status+')');
 					!hostWhois.isIdentified && CancelInvitation('You are not identified on IRC.');
 
 					var [status, accessList] = yield function(callback) _mod.api.AccessInfo(pv.vipChannel, callback);
@@ -416,7 +416,7 @@
 			reset: function(s) !s.VipInvitationModule || !s.interactive || !s.DefaultModule,
 			trigger: function(polarity) {
 
-				ToggleAsyncProc( verScanPlayers, polarity );
+				ToggleAsyncProc( VipTremServerScanPlayers, polarity );
 			}
 		},
 		{
