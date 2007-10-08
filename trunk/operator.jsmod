@@ -168,12 +168,12 @@
 				_mod.api.OpenDCCChat( nick, function(connection) {
 
 					var spy = CreateSpy(connection);
-					_mod.AddMessageListenerSet(spy);
+					_mod.AddMessageListener(spy);
 					connection.OnData = function(buf) {
 						
 						_mod.Send( buf.replace(/\r?\n?$/,'') );
 					}
-					connection.OnDisconnected = function() _mod.RemoveMessageListenerSet(spy);
+					connection.OnDisconnected = function() _mod.RemoveMessageListener(spy);
 				});
 			},
 			

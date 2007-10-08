@@ -27,7 +27,7 @@
 			
 			if ( to == getData(_mod.data.nick) ) {
 				
-				var host = hostList.split(' ')[0];
+				var host = StrBefore(hostList, ' ');
 				setData( _mod.data.userhost, host.substr(host.lastIndexOf('=')+1) ); // hostinfo[0] = '+' or '-' : AWAY message set ???
 			}
 		},
@@ -58,17 +58,9 @@
 		PING: function( command, prefix, arg ) {
 
 			_mod.Send( 'PONG '+arg );
-			setData( _mod.data.lastPingTime, IntervalNow() );
+			setData( _mod.data.lastPingTime, Time() );
 		},
-/*
-		PONG: function( command, from, server, data ) {
-			
-			if ( data.substr(0,3) == 'LAG' ) {
 
-				setData( _mod.data.ping, IntervalNow() - parseInt(data.substr(3)) );
-			}
-		},
-*/
 		NOTICE: function( command, from, to, message ) {
 
 			// irc.clockworkorange.co.uk- on 1 ca 1(2) ft 10(10) tr
@@ -78,17 +70,15 @@
 			//  ft = Free Targets. This is how many different people you may contact at once, also see 3.10
 			//  tr = Targets Restored. Your targets are kept for 2 minutes or until someone else from your IP logs on. 
 			//       This stops you from  refilling  your free targets by reconnection.	
-	
-			// http://developer.mozilla.org/en/docs/Core_JavaScript_1.5_Guide:Writing_a_Regular_Expression_Pattern
-			var oncafttrExpr = new RegExp('^on ([0-9]+) ca ([0-9]+)\\(([0-9]+)\\) ft ([0-9]+)\\(([0-9]+)\\) *(tr)?$');
-
+/*
 			if ( message.substr(0,2) == 'on' ) {
 
-				var res = oncafttrExpr(message);
+				var res = /on ([0-9]+) ca ([0-9]+)\(([0-9]+)\) ft ([0-9]+)\(([0-9]+)\) *(tr)?$/(message);
 				if ( res == null )
 					return;
 //				_mod.RemoveMessageListener( 'NOTICE', oncafttrNotice );
 			}
+*/
 		}
 	};
 	
@@ -128,8 +118,6 @@
 		Quit: function(quitMessage) _mod.Send( 'QUIT :'+quitMessage, true ) // true = force the message to be post ASAP
 	}
 
-
-
 	var LagProbe = new function() {
 		
 		for (;;) {
@@ -138,7 +126,12 @@
 			yield function(callback) io.AddTimeout( getData(_mod.data[_mod.name].lagProbeInterval), callback ); // async pause
 		}
 	}
+	
+	function LagProbeResponse( command, from, server, data ) {
 
+		if ( data.substr(0,3) == 'LAG' )
+			setData( _mod.data.ping, IntervalNow() - parseInt(data.substr(3)) );
+	}
 
 	this.stateListener = [
 		{
@@ -150,36 +143,17 @@
 				_mod.Send( 'USER '+getData(_mod.data.ident.username)+' '+getData(_mod.data.hostname)+' '+getData(_mod.data.server)+' :'+getData(_mod.data.ident.realname) );
 			}
 		},
-		
 		{
 			set: function(s) s.interactive,
 			reset: function(s) !s.interactive,
 			trigger: function(polarity) {
-			
-				
-				if ( this.lagProbeResponse == undefined )
-					this.lagProbeResponse = function( command, from, server, data ) {
 
-						if ( data.substr(0,3) == 'LAG' )
-							setData( _mod.data.ping, IntervalNow() - parseInt(data.substr(3)) );
-					}
-
-
-				if ( polarity ) {
-				
-					_mod.AddMessageListenerSet(this.lagProbeResponse);
-					StartAsyncProc( LagProbe );
-				} else {
-				
-					_mod.RemoveMessageListenerSet(this.lagProbeResponse);
-					StopAsyncProc( LagProbe );
-				}
+				_mod.ToggleMessageListener( LagProbeResponse, polarity );
+				ToggleAsyncProc( LagProbe, polarity );
 
 				if ( polarity )
 					_mod.Send( 'USERHOST '+getData(_mod.data.nick) );
 			}
 		}
 	];
-
 })
-

@@ -372,7 +372,7 @@ function TCPConnection( host, port ) {
 				_this.OnFailed(host, port);
 			}
 
-			_connectionTimeout = io.AddTimeout( timeout||5000, ConnectionFailed );
+			_connectionTimeout = io.AddTimeout( timeout||5*SECOND, ConnectionFailed );
 			_socket = new Socket(Socket.TCP);
 			_socket.nonblocking = true;
 			_socket.noDelay = true;
@@ -413,7 +413,7 @@ function TCPConnection( host, port ) {
 			_this.OnDisconnected(false); // locally disconnected
 		}
 		_socket.readable = Disconnected;
-		shutdownTimeout = io.AddTimeout( 2000, Disconnected ); // force disconnect after the timeout
+		shutdownTimeout = io.AddTimeout( 2*SECOND, Disconnected ); // force disconnect after the timeout
 	}
 
 	this.Write = function(data) _socket.Write(data);

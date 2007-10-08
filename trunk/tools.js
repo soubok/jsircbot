@@ -53,14 +53,9 @@ function StateKeeper() {
 
 	function StateChanging(stateName, state) {
 		
-		if ( state == !!_stateList[stateName] ) // if state is already set
+		if ( !state == !_stateList[stateName] ) // if state is already set
 			return;
-
-		if ( state )
-			_stateList[stateName] = true;
-		else
-			delete _stateList[stateName];
-		
+		_stateList[stateName] = state;
 		for each ( let item in _predicateList ) {
 			var callback = item[2];
 			if ( !item[3] )
@@ -72,9 +67,12 @@ function StateKeeper() {
 	
 	this.Enter = function(stateName) StateChanging(stateName, true);
 	this.Leave = function(stateName)	StateChanging(stateName, false);
+	this.Toggle = function(stateName, polarity) StateChanging(stateName, polarity);
 
-	this.AddStateListener = function( setPredicate, resetPredicate, callback, initialState ) _predicateList.push(arguments);
-	this.RemoveStateListener = function( setPredicate, resetPredicate, callback ) _predicateList.some( function(item, index) item[0] == setPredicate && item[1] == resetPredicate && item[2] == callback && _predicateList.splice(index,1) );
+	this.AddStateListener = function( setPredicate, resetPredicate, callback, initialState ) 
+		_predicateList.push(arguments);
+	this.RemoveStateListener = function( setPredicate, resetPredicate, callback ) 
+		_predicateList.some( function(item, index) item[0] == setPredicate && item[1] == resetPredicate && item[2] == callback && _predicateList.splice(index,1) );
 }
 
 
@@ -84,11 +82,20 @@ function StateKeeper() {
 function Listener() {
 	
 	var _list = [];
-	this.AddSet = function( set ) void _list.push(set);
-	this.RemoveSet = function( set ) void _list.splice(CHKNEQ(_list.indexOf(set),-1), 1);
+	this.Add = function( set ) void _list.push(set);
+	this.Remove = function( set ) void _list.splice(CHKNEQ(_list.indexOf(set),-1), 1);
+	this.Toggle = function( set, polarity ) {
+
+		if ( polarity )
+			void _list.push(set);
+		else
+			void _list.splice(CHKNEQ(_list.indexOf(set),-1), 1);
+	}
+	
 	this.Fire = function Fire() { // beware, Fire is only used for the function name
 	
 		try {
+
 			for each ( let set in _list.slice() ) {
 				
 				var n = set;
@@ -96,18 +103,13 @@ function Listener() {
 				n instanceof Function && void n.apply(n, arguments); // 'this' will be the function itself
 			}
 		} catch(ex) {
-			
+
 			DBG && ReportError( ExToText(ex) );
 		}
 	}
 }
 
 /////////////////////////////////////////////////////// start an asynchronus procedure
-
-function AbortAsyncProc() {
-	
-	throw StopIteration;
-}
 
 function StartAsyncProc( procedure ) {
 	
@@ -121,9 +123,22 @@ function StartAsyncProc( procedure ) {
 	} catch(ex if ex == StopIteration) {}
 }
 
-function StopAsyncProc( procedure ) {
+function AbortAsyncProc() { // used inside a procedure
+	
+	throw StopIteration;
+}
+
+function StopAsyncProc( procedure ) { // used outside a procedure
 	
 	procedure.close();
+}
+
+function ToggleAsyncProc( procedure, polarity ) {
+	
+	if ( polarity )
+		StartAsyncProc( procedure )
+	else
+		StopAsyncProc( procedure );
 }
 
 
@@ -294,17 +309,17 @@ function RTrim(str) str.replace(/\s+$/, '');
 
 function Trim(str) str.replace(/^\s+|\s+$/g, '');
 
-function StrBefore( str, sep ) (sep = str.indexOf(sep)) == -1 ? str : str.substr(0, sep);
+function StrBefore(str, sep) (sep = str.indexOf(sep)) == -1 ? str : str.substr(0, sep);
 
-function StringReplacer(conversionObject) function(s) s.replace(new RegExp([k for (k in conversionObject)].join('|'), 'g'), function(str) conversionObject[str]); // eg. StringReplacer({aa:11})('xxaaxx'); returns 'xx11xx'
+function StringReplacer(conversionObject) function(s) s.replace(new RegExp([k.replace(/(\/|\.|\*|\+|\?|\||\(|\)|\[|\]|\{|\}|\\)/g, "\\$1") for (k in conversionObject)].join('|'), 'g'), function(str) conversionObject[str]); // eg. StringReplacer({aa:11})('xxaaxx'); returns 'xx11xx'
 
 function Switch(i) arguments[++i];
 
 function ExpandStringRanges(rangesStr) {
 
-    for each (let range in rangesStr.split(",")) {
+    for each (let range in rangesStr.split(',')) {
 
-        var minmax = range.split("-", 2);
+        var minmax = range.split('-', 2);
         if (minmax.length == 2)
             for (let i = parseInt(minmax[0]); i <= parseInt(minmax[1]); i++)
                 yield i;
@@ -316,9 +331,9 @@ function ExpandStringRanges(rangesStr) {
 
 function ValueInStringRanges(rangesStr, value) {
 
-	for each (let range in rangesStr.split(",")) {
+	for each (let range in rangesStr.split(',')) {
 
-		var minmax = range.split("-", 2);
+		var minmax = range.split('-', 2);
 		if (minmax.length == 2) {
 		
 			if ( value >= parseInt(minmax[0]) && value <= parseInt(minmax[1]) )

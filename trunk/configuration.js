@@ -38,7 +38,7 @@ function(data) {
 // Configure anti-flood system ( in 10 seconds, we can send 5 messages OR 1456 bytes )
 	setData(data.antiflood.maxMessage, 5 );
 	setData(data.antiflood.maxBytes, 1456 );
-	setData(data.antiflood.interval, 5000 );
+	setData(data.antiflood.interval, 5*SECOND );
 
 // configure DCC
 	setData(data.DCC.maxDCCConnections, 32 );
