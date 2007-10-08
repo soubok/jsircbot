@@ -16,6 +16,7 @@
 (function tremulousServerStatus() {
 	
 	this.name = this.constructor.name;
+	this.disabled = true;
 	var _mod = this;
 	
 	this.moduleListener = {

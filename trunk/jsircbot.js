@@ -44,8 +44,7 @@ function MakeModuleFromUrl( url, callback ) {
 			var relativeLineNumber;
 			try { throw new Error() } catch(ex) { relativeLineNumber = ex.lineNumber }		
 			var mod = new (eval(body));
-			mod.Reload = function() args.callee.apply(null, args);
-			callback(mod);
+			callback(mod, function() args.callee.apply(null, args));
 			DBG && ReportNotice( 'Module '+url+ ' loaded.' );
 		} catch(ex) {
 
@@ -63,8 +62,7 @@ function MakeModuleFromPath( path, callback ) {
 	try {
 		
 		var mod = new (Exec(path, false)); // do not save compiled version of the script
-		mod.Reload = function() args.callee.apply(null, args);
-		callback(mod);
+		callback(mod, function() args.callee.apply(null, args));
 		DBG && ReportNotice( 'Module '+path+ ' loaded.' );
 	} catch(ex) {
 
@@ -75,12 +73,12 @@ function MakeModuleFromPath( path, callback ) {
 
 function LoadModuleFromURL( core, url ) {
 	
-	function InstallLoadedModule( mod ) {
+	function InstallLoadedModule( mod, creationFunction ) {
 		
 		var module = core.ModuleByName(mod.name);
 		if ( module )
 			core.RemoveModule(module); // remove existing module with the same name
-		core.AddModule(mod);
+		core.AddModule(mod, creationFunction);
 	}
 
 	const defaultSufix = '.jsmod';
@@ -302,7 +300,12 @@ function ClientCore( Configurator ) {
 		_state.Enter('connecting');
 	}
 	
-	this.AddModule = function( mod ) {
+	this.AddModule = function( mod, creationFunction ) {
+		
+		if ( mod.disabled )
+			return;
+			
+		mod.Reload = creationFunction;
 
 		if ( mod.stateListener )
 			for each ( let {set:set, reset:reset, trigger:trigger} in mod.stateListener )
@@ -335,8 +338,7 @@ function ClientCore( Configurator ) {
 		_modules.push(mod);
 		mod.AddingModule && mod.AddingModule();
 
-		_state.Enter(mod.name); // don't move
-		return mod;
+		_state.Enter(mod.name); // don't move this line
 	}
 	
 	this.RemoveModule = function( mod ) {
@@ -348,8 +350,8 @@ function ClientCore( Configurator ) {
 
 		_state.Leave(mod.name);
 
-		mod.messageListener && _messageListener.RemoveSet( mod.messageListener );
-		mod.moduleListener && _moduleListener.RemoveSet( mod.moduleListener );
+		mod.messageListener && _messageListener.Remove( mod.messageListener );
+		mod.moduleListener && _moduleListener.Remove( mod.moduleListener );
 		
 		if ( mod.moduleApi )
 			for ( var f in mod.moduleApi )
@@ -392,8 +394,8 @@ function ClientCore( Configurator ) {
 
 
 var log = new Log;
-log.AddFilter( MakeLogFile('jsircbot.log', false), 'irc net http error warning failure notice' );
-log.AddFilter( MakeLogScreen(), 'irc net http error warning failure notice' );
+log.AddFilter( MakeLogFile('jsircbot.log', false), 'irc net http error warning failure notice debug' );
+log.AddFilter( MakeLogScreen(), 'irc net http error warning failure notice debug' );
 
 function ReportNotice(text) log.WriteLn( 'notice', text);
 function ReportWarning(text) log.WriteLn( 'warning', text)

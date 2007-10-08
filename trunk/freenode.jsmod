@@ -58,6 +58,8 @@
 	}
 
 	function accessInfoParser(msg, request) {
+
+		DBG && log.WriteLn( 'notice', 'entering accessInfoParser');
 		
 		try {
 	
@@ -65,7 +67,6 @@
 				Done(NOTFOUND);
 				return;
 			}
-
 			if ( msg.indexOf('End of list') != -1 ) {
 			
 				Done(OK);
@@ -82,7 +83,7 @@
 
 		} catch(ex if ex == ERR) {
 			
-			log.WriteLn( 'error', 'accessInfoParser: parsing error');
+			DBG && log.WriteLn( 'error', 'accessInfoParser: parsing error');
 			Done(BADRESPONSE);
 			return;
 		}
@@ -155,6 +156,8 @@
 	}
 	
 	function StartRequest( service, query, parser, callback) {
+		
+//		DBG && log.WriteLn( 'debug', _mod.name+'::'+arguments.callee.name+'('+Array.slice(arguments)+') .. '+'');
 	
 		var syncKey = RandomString(8);
 		_requestList.push({ service:service, message:[syncKey, query], parser:WaitSync(syncKey, parser), callback:callback });
@@ -192,6 +195,14 @@
 freenode modes:
 	http://freenode.net/using_the_network.shtml
 
-
 // _mod.Send('CAPAB IDENTIFY-MSG'); // ask the server to prefix all messages with '+' if the nick is resistred	
+
+
+
+
+_mod.api.AccessInfo('#trem-vips', DArgs );
+
+
+
+
 */

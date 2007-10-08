@@ -58,7 +58,7 @@
 		PING: function( command, prefix, arg ) {
 
 			_mod.Send( 'PONG '+arg );
-			setData( _mod.data.lastPingTime, Time() );
+			setData( _mod.data.lastPingTime, Now() );
 		},
 
 		NOTICE: function( command, from, to, message ) {
@@ -127,10 +127,15 @@
 		}
 	}
 	
-	function LagProbeResponse( command, from, server, data ) {
-
-		if ( data.substr(0,3) == 'LAG' )
-			setData( _mod.data.ping, IntervalNow() - parseInt(data.substr(3)) );
+	
+		
+	var LagProbeResponse = {
+	
+		PONG: function( command, from, server, data ) {
+	
+			if ( data.substr(0,3) == 'LAG' )
+				setData( _mod.data.ping, IntervalNow() - parseInt(data.substr(3)) );
+		}
 	}
 
 	this.stateListener = [

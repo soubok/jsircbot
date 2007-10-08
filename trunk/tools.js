@@ -224,7 +224,7 @@ function Log(data) {
 				return; // done.
 			}
 	}
-	this.WriteLn = function(type, data) void Write(type, Time()+data+'\n');
+	this.WriteLn = function(type, data) void Write(type, '\n'+Time()+' '+data);
 }
 
 
