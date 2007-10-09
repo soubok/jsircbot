@@ -192,7 +192,7 @@
 	this.stateListener = [
 		{
 			set: function(s) s[_mod.name],
-			reset: !s[_mod.name],
+			reset: function(s) !s[_mod.name],
 			trigger: function(polarity) {
 				
 				if ( polarity )
