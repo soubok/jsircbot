@@ -45,8 +45,10 @@ function MakeModuleFromHttp( url, callback ) {
 			callback(mod, function() args.callee.apply(null, args));
 			DBG && ReportNotice( 'Module '+url+ ' loaded.' );
 		} catch(ex) {
-
-			DBG && ReportError('Failed to make the module '+url+' ('+ExToText(ex)+')');
+		
+			ex.lineNumber -= relativeLineNumber;
+			ex.fileName = url;
+			DBG && ReportError('Failed to make the module: '+ExToText(ex));
 		}
 	});
 }
