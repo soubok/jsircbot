@@ -74,6 +74,8 @@ function StateKeeper() {
 		_predicateList.push(arguments);
 	this.RemoveStateListener = function( setPredicate, resetPredicate, callback ) 
 		_predicateList.some( function(item, index) item[0] == setPredicate && item[1] == resetPredicate && item[2] == callback && _predicateList.splice(index,1) );
+
+	INSPECT.push(function() 'STATE '+[stateName+':'+state for ([stateName, state] in Iterator(_stateList))].join(' '));
 }
 
 
@@ -155,7 +157,7 @@ const LOG_CLOSE_FILTER = { toString:function() '' };
 
 function MakeLogScreen() function(data) {
 	
-	Print('    '+data);
+	Print('    '+data+LF);
 }
 
 function MakeLogFile(fileName, append) {
@@ -167,7 +169,7 @@ function MakeLogFile(fileName, append) {
 		if ( data === LOG_CLOSE_FILTER )
 			file.Close();
 		else
-			file.Write(data);
+			file.Write(data+LF);
 	}
 }
 
@@ -184,7 +186,7 @@ function MakeLogUDP(host, port) {
 		if ( data === LOG_CLOSE_FILTER )
 			socket.Close();
 		else
-			socket.Write(data);
+			socket.Write(data+LF);
 	}
 }
 
@@ -225,7 +227,7 @@ function Log(data) {
 				return; // done.
 			}
 	}
-	this.WriteLn = function(type, data) void Write(type, '\n'+Time()+' '+data);
+	this.WriteLn = function(type, data) void Write(type, Time()+' '+data);
 }
 
 

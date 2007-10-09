@@ -144,7 +144,7 @@
 						if ( data === LOG_CLOSE_FILTER )
 							connection.Close();
 						else
-							connection.Write(data);
+							connection.Write(data + LF);
 					}
 					log.AddFilter( LogFilter, 'irc net http error warning failure notice' ); // or cmdData
 					connection.OnDisconnected = function() log.RemoveFilter( LogFilter );
