@@ -50,7 +50,7 @@
 	this.stateListener = [
 		{
 			set: function(s) s.interactive,
-			reset: !s.interactive,
+			reset: function(s) !s.interactive,
 			trigger: function(polarity) {
 				
 				//
