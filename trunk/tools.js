@@ -501,3 +501,6 @@ function DPrint() {
 function DStack() { try { throw Error() } catch(ex) { Print( 'Stack: ', ex.stack, '\n' ) } }
 
 function DArgs() { Print( 'Arguments: ', Array.slice(DArgs.caller.arguments).toSource(), '\n' ) }
+
+
+function Inspect() Print( LF+'$'+[ fct() for each ( fct in INSPECT ) ].join(LF) + LF );

@@ -27,8 +27,10 @@ var io = new function() {
 			while ( date in _tlist )
 				date++; // avoid same time because we use the time as timer id
 			_tlist[date] = func;
-			if ( date < _min )
+			
+			if ( _min != Infinity && date < _min )
 				_min = date;
+				
 			return date; // timer id
 		}
 
@@ -42,7 +44,7 @@ var io = new function() {
 		this.Process = function() {
 			
 			var now = IntervalNow();
-			if ( _min <= now || _min == Infinity ) {
+			if ( _min == Infinity || _min <= now ) {
 				
 				for ( let [date, fct] in Iterator(_tlist) )
 				
@@ -60,6 +62,8 @@ var io = new function() {
 			
 			return _min - now;
 		}
+		
+		INSPECT && INSPECT.push(function() let ( now=IntervalNow() ) 'TIMEOUT '+[(date-now)+':'+fct.name for ( [date,fct] in Iterator(_tlist) )].join(' ')+' MIN='+(_min-now)+'');
 	}
 
 
@@ -113,7 +117,7 @@ var io = new function() {
 		
 		while ( !endPredicate() ) {
 
-			Print('-');
+//			Print('-');
 			Poll(_descriptorList, Math.min(_timeout.Process(), 500));
 		}
 	}
