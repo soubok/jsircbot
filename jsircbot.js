@@ -27,12 +27,12 @@ Exec('ident.js');
 ///////////////////////////////////////////////// TOOLS /////////////////////////////////////////////
 
 
-function MakeModuleFromUrl( url, callback ) {
+function MakeModuleFromHttp( url, callback ) {
 
 	DBG && ReportNotice( 'Loading module from: '+url );
 	
 	var args = arguments;
-	HttpRequest( url, '', 3*SECOND, function(status, statusCode, reasonPhrase, headers, body ) {
+	HttpRequest( url, '', 10*SECOND, function(status, statusCode, reasonPhrase, headers, body ) {
 
 		if ( status != OK || statusCode != 200 ) {
 
@@ -84,7 +84,7 @@ function LoadModuleFromURL( core, url ) {
 	const defaultSufix = '.jsmod';
 	var ud = ParseUri(url);
 	
-	switch (ud.protocol) {
+	switch (ud.protocol.toLowerCase()) {
 		case 'file':
 			var path = ud.path.substr(1);
 			if ( path.substr(-1) == '/' ) {
@@ -97,10 +97,10 @@ function LoadModuleFromURL( core, url ) {
 				MakeModuleFromPath( path, InstallLoadedModule );
 			break;
 		case 'http':
-			MakeModuleFromUrl( url, InstallLoadedModule );
+			MakeModuleFromHttp( url, InstallLoadedModule );
 			break;
 		default:
-			DBG && ReportError('Invalid module source: '+url);
+			DBG && ReportError('Invalid module source: URL not supported ('+url+')');
 	}	
 }
 
@@ -199,18 +199,17 @@ function ClientCore( Configurator ) {
 				
 				log.WriteLn( 'irc', '->'+message);
 				try {
-/*
-    message    =  [ ":" prefix SPACE ] command [ params ] crlf
-    prefix     =  servername / ( nickname [ [ "!" user ] "@" host ] )
-    command    =  1*letter / 3digit
-    params     =  *14( SPACE middle ) [ SPACE ":" trailing ]
-               =/ 14( SPACE middle ) [ SPACE [ ":" ] trailing ]
 
-    nospcrlfcl =  %x01-09 / %x0B-0C / %x0E-1F / %x21-39 / %x3B-FF
-                    ; any octet except NUL, CR, LF, " " and ":"
-    middle     =  nospcrlfcl *( ":" / nospcrlfcl )
-    trailing   =  *( ":" / " " / nospcrlfcl )					
-*/
+//    message    =  [ ":" prefix SPACE ] command [ params ] crlf
+//    prefix     =  servername / ( nickname [ [ "!" user ] "@" host ] )
+//    command    =  1*letter / 3digit
+//    params     =  *14( SPACE middle ) [ SPACE ":" trailing ]
+//               =/ 14( SPACE middle ) [ SPACE [ ":" ] trailing ]
+//    nospcrlfcl =  %x01-09 / %x0B-0C / %x0E-1F / %x21-39 / %x3B-FF
+//                    ; any octet except NUL, CR, LF, " " and ":"
+//    middle     =  nospcrlfcl *( ":" / nospcrlfcl )
+//    trailing   =  *( ":" / " " / nospcrlfcl )					
+
 					// The prefix is used by servers to indicate the true origin of the message.
 					var prefix = message.indexOf( ':' );
 					var trailing = message.indexOf( ':', 1 );
@@ -336,7 +335,6 @@ function ClientCore( Configurator ) {
 		mod.data = _data;
 		mod.api = _api;
 		_modules.push(mod);
-		mod.AddingModule && mod.AddingModule();
 
 		_state.Enter(mod.name); // don't move this line
 	}
@@ -346,7 +344,7 @@ function ClientCore( Configurator ) {
 		var pos = _modules.indexOf(mod);
 		if ( pos == -1 )
 			return;
-		_modules.splice(pos, 1);
+		_modules.splice(pos, 1); // remove the module from the module list
 
 		_state.Leave(mod.name);
 
@@ -361,7 +359,6 @@ function ClientCore( Configurator ) {
 			for each ( let {set:set, reset:reset, trigger:trigger} in mod.stateListener )
 				_state.RemoveStateListener(set, reset, trigger);
 
-		mod.RemovingModule && mod.RemovingModule();
 		Clear(mod);
 	}
 	

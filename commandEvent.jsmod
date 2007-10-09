@@ -31,7 +31,6 @@
 		_callList.length && _callList[0]();
 	}
 	
-	
 	_mod.moduleApi = {
 	
 		Whois: function( nick, OnReply ) {
@@ -98,7 +97,8 @@
 			ScheduleCall(function() {
 
 				var pingData = RandomString(16);
-				var timeoutId, events = NewDataObj();
+				var timeoutId;
+				var events = NewDataObj();
 				
 				function End(status, reply) {
 
@@ -128,11 +128,7 @@
 						End(OK, result);
 					};
 
-					events.ERR_NEEDMOREPARAMS = function( command, from, to, erroneousCommand, reasonPhrase ) {
-
-						if ( erroneousCommand == 'USERHOST' )
-							End(BADREQUEST);
-					};
+					events.ERR_NEEDMOREPARAMS = function( command, from, to, erroneousCommand, reasonPhrase ) erroneousCommand == 'USERHOST' && End(BADREQUEST);
 				};
 
 				_mod.AddMessageListener(status, events);
@@ -161,17 +157,17 @@
 
 				events.PRIVMSG = function( command, from, to, message ) {
 
-					if ( to == getData( _mod.data.nick ) && nick == StrBefore(from, '!') )
+					if ( to == getData(_mod.data.nick) && nick == StrBefore(from, '!') )
 						End(OK, message);
 				};
-				events.ERR_NORECIPIENT = function() Error(BADREQUEST);
-				events.ERR_NOTEXTTOSEND = function() Error(BADREQUEST);
-				events.ERR_CANNOTSENDTOCHAN = function() Error(ERROR);
-				events.ERR_NOTOPLEVEL = function() Error(ERROR);
-				events.ERR_WILDTOPLEVEL = function() Error(ERROR);
-				events.ERR_TOOMANYTARGETS = function() Error(ERROR);
+				events.ERR_NORECIPIENT = function() End(BADREQUEST);
+				events.ERR_NOTEXTTOSEND = function() End(BADREQUEST);
+				events.ERR_CANNOTSENDTOCHAN = function() End(ERROR);
+				events.ERR_NOTOPLEVEL = function() End(ERROR);
+				events.ERR_WILDTOPLEVEL = function() End(ERROR);
+				events.ERR_TOOMANYTARGETS = function() End(ERROR);
 				events.ERR_NOSUCHNICK = function() End(NOTFOUND);
-//				events.RPL_AWAY = function() Error(ERROR);
+				events.RPL_AWAY = function() End(UNAVAILABLE);
 
 				_mod.AddMessageListener(events);
 				_mod.api.Privmsg( nick, message, function() {
@@ -180,35 +176,7 @@
 				});
 			});
 		},
-/*
-		Message: function( message, OnReply ) {
 		
-			ScheduleCall(function() {
-
-				var timeoutId, events;
-
-				function End(status) {
-
-					_mod.RemoveMessageListener(events);
-					io.RemoveTimeout(timeoutId);
-					NextCall();
-					OnReply(status);
-				}
-				
-				function Reply( command, from, server, data ) data == pingData && End(true);
-
-				events = {};
-				events.message = Reply;
-
-				_mod.AddMessageListener(events);
-				_mod.Send( 'PING '+pingData, false, function() {
-
-					timeoutId = io.AddTimeout(getData(_mod.data[_mod.name].maxServerReplyInterval), End ); // start the timeout ONLY vhen the message has been sent
-				});
-			});
-		
-		},
-*/
 
 		Sync: function( OnReply ) {
 			
@@ -236,7 +204,6 @@
 				});
 			});
 		}
-		
 		
 	};
 })

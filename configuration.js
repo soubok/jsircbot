@@ -54,4 +54,7 @@ function(data) {
 // CommandEvent Module
 	setData(data.CommandEventModule.maxServerReplyInterval, 10*SECOND );
 	setData(data.CommandEventModule.maxUserReplyInterval, 30*SECOND );
+
+// freenodeModule
+	setData(data.freenodeModule.maxServiceBotReply, 15*SECOND );
 }

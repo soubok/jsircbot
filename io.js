@@ -41,27 +41,19 @@ var io = new function() {
 
 		this.Process = function() {
 			
-//			DPrint( 'process' );
-		
 			var now = IntervalNow();
 			if ( _min <= now || _min == Infinity ) {
 				
-//				var del = [];
+				for ( let [date, fct] in Iterator(_tlist) )
 				
-				for ( let date in _tlist )
 					if ( date <= now ) {
 						
-						let fct = _tlist[date];
-//						del.push(date);
 						delete _tlist[date];
 						void fct.call(fct); // 'this' will be the function itself
 					}
 					
-//				for each ( let date in del )
-//					delete _tlist[date];
-					
 				_min = Infinity;
-				for ( let date in _tlist )
+				for ( let date in Iterator(_tlist, true) )
 					if ( date < _min )
 						_min = date;
 			}
