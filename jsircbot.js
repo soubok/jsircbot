@@ -16,9 +16,6 @@ LoadModule('jsstd');
 LoadModule('jsio');
 LoadModule('jsobjex');
 
-var DBG = true;
-var INSPECT = [];
-
 Exec('tools.js');
 Exec('dataObject.js');
 Exec('io.js');
