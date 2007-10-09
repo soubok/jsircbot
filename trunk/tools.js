@@ -24,6 +24,7 @@ const SPC = ' ';
 
 const OK = { toString:function() 'OK' };
 const ERROR = { toString:function() 'ERROR' };
+const UNAVAILABLE = { toString:function() 'UNAVAILABLE' };
 const UNREACHABLE = { toString:function() 'UNREACHABLE' };
 const BADREQUEST = { toString:function() 'BADREQUEST' };
 const BADRESPONSE = { toString:function() 'BADRESPONSE' };

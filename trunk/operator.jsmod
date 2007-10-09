@@ -18,11 +18,6 @@
 	this.name = this.constructor.name;
 	var _mod = this;
 	
-	this.AddingModule = function() {
-	
-		setData( _mod.data[_mod.name].list, [] );
-	}
-
 	this.moduleListener = {
 		
 		botcmd: {
@@ -192,6 +187,22 @@
 			
 		} // botcmd
 	} // moduleListener
+	
+	
+	this.stateListener = [
+		{
+			set: function(s) s[_mod.name],
+			reset: !s[_mod.name],
+			trigger: function(polarity) {
+				
+				if ( polarity )
+					setData( _mod.data[_mod.name].list, [] );
+				else
+					delData( _mod.data[_mod.name].list );
+			}
+		}
+	];
+	
 	
 	this.moduleApi = {
 	

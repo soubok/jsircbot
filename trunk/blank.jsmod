@@ -34,7 +34,8 @@
 		botcmd: {
 			
 			help: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
-			
+				
+				//
 			}
 		}
 	}
@@ -46,14 +47,15 @@
 		// 
 	}	
 	
-	// module state listener
-	this.connected = function( stateName, polarity ) {
-	}
+	this.stateListener = [
+		{
+			set: function(s) s.interactive,
+			reset: !s.interactive,
+			trigger: function(polarity) {
+				
+				//
+			}
+		}
+	];
 	
-	this.AddingModule = function() {
-	}
-
-	this.RemovingModule = function() {
-	}
-
 })
