@@ -27,8 +27,7 @@ var io = new function() {
 			while ( date in _tlist )
 				date++; // avoid same time because we use the time as timer id
 			_tlist[date] = func;
-			
-			if ( _min != Infinity && date < _min )
+			if ( date < _min )
 				_min = date;
 				
 			return date; // timer id
@@ -38,13 +37,13 @@ var io = new function() {
 			
 			delete _tlist[date];
 			if ( date == _min )
-				_min = Infinity;
+				_min = -Infinity;
 		}
 
 		this.Process = function() {
 			
 			var now = IntervalNow();
-			if ( _min == Infinity || _min <= now ) {
+			if ( _min <= now ) {
 				
 				for ( let [date, fct] in Iterator(_tlist) )
 				
@@ -59,11 +58,10 @@ var io = new function() {
 					if ( date < _min )
 						_min = date;
 			}
-			
 			return _min - now;
 		}
 		
-		INSPECT && INSPECT.push(function() let ( now=IntervalNow() ) 'TIMEOUT '+[(date-now)+':'+fct.name for ( [date,fct] in Iterator(_tlist) )].join(' ')+' MIN='+(_min-now)+'');
+		INSPECT.push(function() let ( now=IntervalNow() ) 'TIMEOUT '+[(date-now)+':'+fct.name for ( [date,fct] in Iterator(_tlist) )].join(' ')+' MIN='+(_min-now)+'');
 	}
 
 

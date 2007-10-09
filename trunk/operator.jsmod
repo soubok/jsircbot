@@ -101,6 +101,36 @@
 				}
 			},
 
+			echo: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+
+				if ( !_mod.api.IsBotOp(from) )
+					return;
+
+				var nick = StrBefore(from, '!');
+				var replyTo = to[0] == '#' ? to : nick;
+				
+				_mod.api.Privmsg( replyTo, cmdData );
+			},
+
+			ip: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+
+				if ( !_mod.api.IsBotOp(from) )
+					return;
+
+				var nick = StrBefore(from, '!');
+				var replyTo = to[0] == '#' ? to : nick;
+
+
+				_mod.api.Whois(cmdData, function(status, user) {
+					
+					if ( status != OK )
+						return;
+					
+					var userIp = GetHostsByName(user.host);
+					_mod.api.Privmsg( replyTo, userIp );				
+				});
+			},
+
 
 			log: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 				

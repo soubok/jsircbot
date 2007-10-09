@@ -498,9 +498,11 @@ function DPrint() {
 	Print('\n');
 }
 
-function DStack() { try { throw Error() } catch(ex) { Print( 'Stack: ', ex.stack, '\n' ) } }
+function DStack() { try { throw Error() } catch(ex) { Print( 'Stack: ', ex.stack, LF ) } }
 
-function DArgs() { Print( 'Arguments: ', Array.slice(DArgs.caller.arguments).toSource(), '\n' ) }
+function DArgs() { Print( 'Arguments: ', Array.slice(DArgs.caller.arguments).toSource(), LF ) }
 
+var INSPECT = [];
+function Inspect() '$'+[fct() for each (fct in INSPECT)].join(LF);
 
-function Inspect() Print( LF+'$'+[ fct() for each ( fct in INSPECT ) ].join(LF) + LF );
+var DBG = true;
