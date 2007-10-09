@@ -17,6 +17,7 @@ LoadModule('jsio');
 LoadModule('jsobjex');
 
 var DBG = true;
+var INSPECT = [];
 
 Exec('tools.js');
 Exec('dataObject.js');
@@ -139,10 +140,10 @@ function MakeFloodSafeMessageSender( maxMessage, maxData, time, RawDataSender, s
 		state.Toggle('sendOverflow', _messageQueue.length > 0);
 
 		if ( !_timeoutId ) // do not reset the timeout
-			_timeoutId = io.AddTimeout(time, Timeout);
+			_timeoutId = io.AddTimeout(time, AntiFloodTimeout);
 	}
 
-	function Timeout() {
+	function AntiFloodTimeout() {
 
 		_timeoutId = undefined;
 		_count = maxMessage;
