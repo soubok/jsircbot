@@ -27,11 +27,11 @@ Exec('ident.js');
 
 function MakeModuleFromHttp( url, retry, callback ) {
 
-	function CreationFunction() arguments.callee.apply(null, arguments);
+	var args = arguments;
+	function CreationFunction() args.callee.apply(null, args);
 
 	StartAsyncProc( new function() {
 
-		
 		for (;;) {
 	
 			DBG && ReportNotice( 'Loading module from: '+url+' ('+retry+' tries left)' );
@@ -63,8 +63,9 @@ function MakeModuleFromHttp( url, retry, callback ) {
 
 
 function MakeModuleFromPath( path, callback ) {
-
-	function CreationFunction() arguments.callee.apply(null, arguments);
+	
+	var args = arguments;
+	function CreationFunction() args.callee.apply(null, args);
 
 	DBG && ReportNotice( 'Loading module from: '+path );
 
@@ -324,7 +325,7 @@ function ClientCore( Configurator ) {
 	};
 	
 	this.AddModule = function( mod, creationFunction ) {
-		
+	
 		if ( mod.disabled )
 			return;
 			
@@ -406,7 +407,7 @@ function ClientCore( Configurator ) {
 
 var log = new Log;
 log.AddFilter( MakeLogFile('jsircbot.log', false), LOG_ALL );
-log.AddFilter( MakeLogScreen(), LOG_ALL - LOG_IRCMSG - LOG_DEBUG );
+log.AddFilter( MakeLogScreen(), LOG_ALL/* - LOG_IRCMSG - LOG_DEBUG*/ );
 
 function ReportNotice(text) log.WriteLn( LOG_NOTICE, text);
 function ReportWarning(text) log.WriteLn( LOG_WARNING, text)

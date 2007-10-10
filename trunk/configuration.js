@@ -53,7 +53,7 @@ function(data) {
 	setData(data.DCCReceiverModule.destinationPath, '.' );
 
 // bot operator password
-	setData(data.OperatorManagerModule.password, 's6d5vf4qsd6f5vsqs8dv8q' );
+	setData(data.OperatorManagerModule.password, '87y8ert8y7r8t7r8ty888888888' );
 	
 // CommandEvent Module
 	setData(data.CommandEventModule.maxServerReplyInterval, 10*SECOND );

@@ -181,16 +181,17 @@ function ToggleAsyncProc( procedure, polarity ) {
 /////////////////////////////////////////////////////// LOG system
 
 function BIT(n) 1<<n;
+var b = 0;
 
-const LOG_FAILURE = BIT(0);
-const LOG_ERROR = BIT(1);
-const LOG_WARNING = BIT(2);
-const LOG_NOTICE = BIT(3);
-const LOG_IRCMSG = BIT(8);
-const LOG_NET = BIT(9);
-const LOG_HTTP = BIT(10);
-const LOG_DEBUG = BIT(12);
-const LOG_ALL = BIT(13)-1;
+const LOG_FAILURE = BIT(b++);
+const LOG_ERROR = BIT(b++);
+const LOG_WARNING = BIT(b++);
+const LOG_NOTICE = BIT(b++);
+const LOG_IRCMSG = BIT(b++);
+const LOG_NET = BIT(b++);
+const LOG_HTTP = BIT(b++);
+const LOG_DEBUG = BIT(b++);
+const LOG_ALL = BIT(b++)-1;
 
 const LOG_CLOSE_FILTER = { toString:function() '' };
 
@@ -543,6 +544,8 @@ function DPrint() {
 		Print( '{'+arguments[i]+'} ' );
 	Print(LF);
 }
+
+var Trace = DPrint;
 
 function DStack() { try { throw Error() } catch(ex) { Print( 'Stack: ', ex.stack, LF ) } }
 
