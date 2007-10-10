@@ -182,17 +182,17 @@ function ToggleAsyncProc( procedure, polarity ) {
 
 function BIT(n) 1<<n;
 
-const LOG_FAILURE = {0};
-const LOG_ERROR = {1};
-const LOG_WARNING = {2};
-const LOG_NOTICE = {3};
+const LOG_FAILURE = BIT(0);
+const LOG_ERROR = BIT(1);
+const LOG_WARNING = BIT(2);
+const LOG_NOTICE = BIT(3);
 const LOG_IRCMSG = BIT(8);
 const LOG_NET = BIT(9);
 const LOG_HTTP = BIT(10);
 const LOG_DEBUG = BIT(12);
 const LOG_ALL = BIT(13)-1;
 
-const LOG_CLOSE_FILTER = { valueOf:#1=function() '', toString:#1# };
+const LOG_CLOSE_FILTER = { toString:function() '' };
 
 function MakeLogScreen() function(data) {
 	

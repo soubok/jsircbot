@@ -240,9 +240,9 @@
 			trigger: function(polarity) {
 				
 				if ( polarity )
-					setData( _mod.data[_mod.name].list, [] );
+					setData( _mod.data['OperatorManagerModule'].list, [] );
 				else
-					delData( _mod.data[_mod.name].list );
+					delData( _mod.data['OperatorManagerModule'].list );
 			}
 		}
 	];
