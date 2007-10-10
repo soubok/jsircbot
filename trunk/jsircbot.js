@@ -25,17 +25,16 @@ Exec('ident.js');
 ///////////////////////////////////////////////// TOOLS /////////////////////////////////////////////
 
 
-function MakeModuleFromHttp( url, callback ) {
+function MakeModuleFromHttp( url, retry, callback ) {
 
 	function CreationFunction() arguments.callee.apply(null, arguments);
 
-	StartAsyncProc( function() {
+	StartAsyncProc( new function() {
 
-		DBG && ReportNotice( 'Loading module from: '+url );
-		
-		var retry = getData(data.moduleLoadRetry);
 		
 		for (;;) {
+	
+			DBG && ReportNotice( 'Loading module from: '+url+' ('+retry+' tries left)' );
 	
 			var [status, statusCode, reasonPhrase, headers, body] = yield function(cb) HttpRequest(url, '', 10*SECOND, cb);
 			if ( status == OK && statusCode == 200 )
@@ -44,7 +43,6 @@ function MakeModuleFromHttp( url, callback ) {
 			if ( --retry <= 0 || Match(status, BADREQUEST, BADRESPONSE, NOTFOUND, ERROR) || status == OK && statusCode > 500 )
 				return; // cannot retry in this case
 			yield function(cb) io.AddTimeout( getData(data.moduleLoadRetryPause), cb ); // async pause
-			DBG && ReportNotice('Retry to load the module from '+url);
 		}
 		
 		var relativeLineNumber;
@@ -60,7 +58,7 @@ function MakeModuleFromHttp( url, callback ) {
 			ex.fileName = url;
 			DBG && ReportError('Failed to make the module: '+ExToText(ex));
 		}
-	}
+	});
 }
 
 
@@ -109,7 +107,7 @@ function LoadModuleFromURL( core, url ) {
 				MakeModuleFromPath( path, InstallLoadedModule );
 			break;
 		case 'http':
-			MakeModuleFromHttp( url, InstallLoadedModule );
+			MakeModuleFromHttp( url, getData(core.data.moduleLoadRetry), InstallLoadedModule );
 			break;
 		default:
 			DBG && ReportError('Invalid module source: URL not supported ('+url+')');
@@ -128,7 +126,7 @@ function MakeFloodSafeMessageSender( maxMessage, maxData, time, RawDataSender, s
 
 	function Process() {
 
-		DBG && ReportNotice( 'MakeFloodSafeMessageSender:: COUNT:'+ _count + ' BYTES:'+ _bytes+' QUEUE_LENGTH:'+_messageQueue.length );
+		DBG && log.WriteLn( LOG_DEBUG, 'MakeFloodSafeMessageSender:: COUNT:'+ _count + ' BYTES:'+ _bytes+' QUEUE_LENGTH:'+_messageQueue.length );
 
 		var buffer = '';
 		function PrepMessage([messages, OnSent]) {
@@ -177,7 +175,7 @@ function MakeFloodSafeMessageSender( maxMessage, maxData, time, RawDataSender, s
 function ClientCore( Configurator ) {
 
 	var _core = this;
-	var _data = newDataNode();
+	var _data = this.data = newDataNode();
 	Configurator(_data);
 	var _numericCommand = Exec('NumericCommand.js');
 	var _connection;
@@ -312,6 +310,7 @@ function ClientCore( Configurator ) {
 	}
 	
 	var modulePrototype = {
+	
 		AddMessageListener:_messageListener.Add,
 		RemoveMessageListener:_messageListener.Remove,
 		ToggleMessageListener:_messageListener.Toggle,
@@ -346,7 +345,8 @@ function ClientCore( Configurator ) {
 		if ( mod.messageListener )
 			_messageListener.Add( mod.messageListener );
 		
-		mod.__proro__ = modulePrototype;
+		mod.__proto__ = modulePrototype;
+		
 		mod.Reload = creationFunction;
 		_modules.push(mod);
 		_state.Enter(mod.name); // don't move this line
@@ -406,7 +406,7 @@ function ClientCore( Configurator ) {
 
 var log = new Log;
 log.AddFilter( MakeLogFile('jsircbot.log', false), LOG_ALL );
-log.AddFilter( MakeLogScreen(), LOG_ALL - LOG_IRCMSG );
+log.AddFilter( MakeLogScreen(), LOG_ALL - LOG_IRCMSG - LOG_DEBUG );
 
 function ReportNotice(text) log.WriteLn( LOG_NOTICE, text);
 function ReportWarning(text) log.WriteLn( LOG_WARNING, text)
