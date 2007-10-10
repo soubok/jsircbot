@@ -12,7 +12,7 @@
  * License.
  * ***** END LICENSE BLOCK ***** */
 
-///////////////////////////////////////////////////////
+/////////////////////////////////////////////////////// Chars
 
 const NUL = '\0';
 const CR = '\r';
@@ -20,7 +20,9 @@ const LF = '\n';
 const CRLF = CR+LF;
 const SPC = ' ';
 
-/////////////////////////////////////////////////////// callback functions status
+
+/////////////////////////////////////////////////////// status objects
+
 
 const OK = { toString:function() 'OK' };
 const ERROR = { toString:function() 'ERROR' };
@@ -34,16 +36,45 @@ const NOTFOUND = { toString:function() 'NOTFOUND' };
 
 /////////////////////////////////////////////////////// Date and Time
 
+
+function Now() (new Date).getTime(); // returns the current date in ms
+
 const SECOND = 1000; // ms
 const MINUTE = 60*SECOND;
 const HOUR = 60*MINUTE;
 const DAY = 24*HOUR;
 const WEEK = 7*DAY;
+const YEAR = 365*DAY + 5*HOUR + 48*MINUTE + 45*SECOND;
 
-function Now() (new Date).getTime(); // returns the current date in ms
 
+/////////////////////////////////////////////////////// Errors
+
+
+function ExToText(ex, showStack) ex instanceof Error ? ex.name+': '+ex.message+' ('+(showStack ? ex.stack : (ex.fileName+':'+ex.lineNumber))+')' : ex.toString();
+
+function Failed(text) { ReportFailure(text); throw new Error(text) } // fatal error
+
+function ERR() { throw ERR }
+
+function TRY(fct) {
+
+	try {
+		void fct();
+		return true;
+	} catch(ex if ex == ERR) {}
+	return false;
+}
+
+function CHK(v) v || ERR(); // check that the argument is not !!false
+
+function CHKN(v) !v || ERR(); // check that the argument is not !!true
+
+function CHKEQ(value, eq) value == eq ? value : ERR();
+
+function CHKNEQ(value, neq) value != neq ? value : ERR();
 
 /////////////////////////////////////////////////////// State Keeper
+
 
 function StateKeeper() {
 
@@ -112,7 +143,9 @@ function Listener() {
 	}
 }
 
+
 /////////////////////////////////////////////////////// start an asynchronus procedure
+
 
 function StartAsyncProc( procedure ) {
 	
@@ -139,21 +172,27 @@ function StopAsyncProc( procedure ) { // used outside a procedure
 function ToggleAsyncProc( procedure, polarity ) {
 	
 	if ( polarity )
-		StartAsyncProc( procedure )
+		StartAsyncProc( procedure );
 	else
 		StopAsyncProc( procedure );
 }
 
 
-/////////////////////////////////////////////////////// Manage exit value
-
-var _exitValue;
-function SetExitValue(val) _exitValue = val;
-function GetExitValue() _exitValue;
-
 /////////////////////////////////////////////////////// LOG system
 
-const LOG_CLOSE_FILTER = { toString:function() '' };
+function BIT(n) 1<<n;
+
+const LOG_FAILURE = {0};
+const LOG_ERROR = {1};
+const LOG_WARNING = {2};
+const LOG_NOTICE = {3};
+const LOG_IRCMSG = BIT(8);
+const LOG_NET = BIT(9);
+const LOG_HTTP = BIT(10);
+const LOG_DEBUG = BIT(12);
+const LOG_ALL = BIT(13)-1;
+
+const LOG_CLOSE_FILTER = { valueOf:#1=function() '', toString:#1# };
 
 function MakeLogScreen() function(data) {
 	
@@ -201,22 +240,10 @@ function Log(data) {
 
 	var _outputList = [];
 	var _time0 = Now();
-	function Time() StringPad(((Now()-_time0)/SECOND).toFixed(2), 7, ' ');
-	
-	function Write(type, data) {
-		
-		for each ( let [output, typeList] in _outputList )
-			(' '+typeList+' ').indexOf(' '+type+' ') != -1 && void output(data);
-	}
+	function FormatedTime() StringPad(((Now()-_time0)/SECOND).toFixed(2), 7, ' ');
 
-	this.Close = function() {
-
-		for each ( let [output] in _outputList )
-			output(LOG_CLOSE_FILTER);
-		_outputList.splice(0);
-	}
-	
 	this.AddFilter = function( output, typeList ) _outputList.push([output, typeList]);
+
 	this.RemoveFilter = function( outputToRemove ) {
 	
 		for each ( let [i, [output]] in Iterator(_outputList) )
@@ -227,127 +254,21 @@ function Log(data) {
 				return; // done.
 			}
 	}
-	this.WriteLn = function(type, data) void Write(type, Time()+' '+data);
-}
-
-
-///////////////////////////////////////////////////////
-
-
-function ExToText(ex, showStack) ex instanceof Error ? ex.name+': '+ex.message+' ('+(showStack ? ex.stack : (ex.fileName+':'+ex.lineNumber))+')' : ex.toString();
-
-function Failed(text) { ReportFailure(text); throw new Error(text) } // fatal error
-
-function ERR() { throw ERR }
-function CHK(v) v || ERR(); // check that the argument is not !!false
-function CHKN(v) !v || ERR(); // check that the argument is not !!true
-function CHKEQ(value, eq) value == eq ? value : ERR();
-function CHKNEQ(value, neq) value != neq ? value : ERR();
-
-function TRY(fct) {
-
-	try {
-		void fct();
-		return true;
-	} catch(ex if ex == ERR) {}
-	return false;
-}
-
-/////////////////////////////////////////////////////// Misc tools
-
-function False() false;
-
-function True() true;
-
-function Noop() {}
-
-function NewDataObj() ({ __proto__: null }); // create a really empty object ( without __parent__, __count__, __proto__, ... )
-
-function IntegerToIp(number) (number>>24 & 255)+'.'+(number>>16 & 255)+'.'+(number>>8 & 255)+'.'+(number & 255);
-
-function IpToInt(ip) {
 	
-	var res = 0;
-	ip.split('.',4).forEach(function(v, i) res |= v << (3-i) * 8 );
-	return res;
-}
+	this.Close = function() {
 
-function NumberToUint32NetworkOrderString(number) String.fromCharCode(number>>24 & 255)+String.fromCharCode(number>>16 & 255)+String.fromCharCode(number>>8 & 255)+String.fromCharCode(number & 255);
-
-function RandomString(length) {
-	
-	var str = '';
-	for ( ; str.length < length; str += Math.random().toString().substr(2) );
-	return str.substr(0, length);
-}
-
-function RandomRange( min, max )	min + Math.random() * (max - min);
-
-
-function MakeObj( tpl, arr ) {
-	
-	var obj = NewDataObj();
-	if ( arr )
-		for ( let p in tpl ) obj[p] = arr[tpl[p]];
-	return obj;
-}
-
-
-
-/////////////////////////////////////////////////////// String functions
-
-function StringPad( str, count, chr ) {
-	
-	str += '';
-	chr = chr || SPC;
-	var diff = count - str.length;
-		while( diff-- > 0 )
-			str = chr + str;
-	return str;
-}
-
-function LTrim(str) str.replace(/^\s+/, '');
-
-function RTrim(str) str.replace(/\s+$/, '');
-
-function Trim(str) str.replace(/^\s+|\s+$/g, '');
-
-function StrBefore(str, sep) (sep = str.indexOf(sep)) == -1 ? str : str.substr(0, sep);
-
-function StringReplacer(conversionObject) function(s) s.replace(new RegExp([k.replace(/(\/|\.|\*|\+|\?|\||\(|\)|\[|\]|\{|\}|\\)/g, "\\$1") for (k in conversionObject)].join('|'), 'g'), function(str) conversionObject[str]); // eg. StringReplacer({aa:11})('xxaaxx'); returns 'xx11xx'
-
-function Switch(i) arguments[++i];
-
-function ExpandStringRanges(rangesStr) {
-
-    for each (let range in rangesStr.split(',')) {
-
-        var minmax = range.split('-', 2);
-        if (minmax.length == 2)
-            for (let i = parseInt(minmax[0]); i <= parseInt(minmax[1]); i++)
-                yield i;
-        else
-            yield parseInt(minmax[0]);
-    }
-}
-
-
-function ValueInStringRanges(rangesStr, value) {
-
-	for each (let range in rangesStr.split(',')) {
-
-		var minmax = range.split('-', 2);
-		if (minmax.length == 2) {
-		
-			if ( value >= parseInt(minmax[0]) && value <= parseInt(minmax[1]) )
-				return true;
-		} else {
-		
-			if ( value == parseInt(minmax[0]) )
-				return true;
-		}
+		for each ( let [output] in _outputList )
+			output(LOG_CLOSE_FILTER); // if filter do not support closing, an empty string is used instead ( see LOG_CLOSE_FILTER )
+		_outputList.splice(0);
 	}
-	return false;
+
+	function Write(type, data) {
+		
+		for each ( let [output, typeList] in _outputList )
+			typeList & type && void output(data);
+	}
+
+	this.WriteLn = function(type, data) void Write(type, FormatedTime()+' '+data);
 }
 
 
@@ -400,12 +321,126 @@ function MakeStatusLine( method, path, version ) {
 }
 
 
-///////////////////////////////////////////////////////
+/////////////////////////////////////////////////////// Misc tools
 
 
-function SetOnceObject() {
+function False() false;
 
-	return new ObjEx( undefined,undefined,undefined, function(name, value) this[name] ? Failed('API Already defined') : value );
+
+function True() true;
+
+
+function Noop() {}
+
+
+function NewDataObj() ({ __proto__: null }); // create a really empty object ( without __parent__, __count__, __proto__, ... )
+
+
+function IntegerToIp(number) (number>>24 & 255)+'.'+(number>>16 & 255)+'.'+(number>>8 & 255)+'.'+(number & 255);
+
+
+function IpToInt(ip) {
+	
+	var res = 0;
+	ip.split('.',4).forEach(function(v, i) res |= v << (3-i) * 8 );
+	return res;
+}
+
+
+function NumberToUint32NetworkOrderString(number) String.fromCharCode(number>>24 & 255)+String.fromCharCode(number>>16 & 255)+String.fromCharCode(number>>8 & 255)+String.fromCharCode(number & 255);
+
+
+function RandomString(length) {
+	
+	var str = '';
+	for ( ; str.length < length; str += Math.random().toString().substr(2) );
+	return str.substr(0, length);
+}
+
+
+function RandomRange( min, max )	min + Math.random() * (max - min);
+
+
+function MakeObj( tpl, arr ) {
+	
+	var obj = NewDataObj();
+	if ( arr )
+		for ( let p in tpl ) obj[p] = arr[tpl[p]];
+	return obj;
+}
+
+
+function DeleteArrayElement( array, element ) let (pos = array.lastIndexOf(element)) pos != -1 ? array.splice(pos, 1) : undefined;
+
+
+function SetOnceObject() new ObjEx( undefined,undefined,undefined, function(name, value) this[name] ? Failed('Property Already defined') : value );
+
+
+/////////////////////////////////////////////////////// String functions
+
+
+function StringPad( str, count, chr ) {
+	
+	str += '';
+	chr = chr || SPC;
+	var diff = count - str.length;
+		while( diff-- > 0 )
+			str = chr + str;
+	return str;
+}
+
+
+function LTrim(str) str.replace(/^\s+/, '');
+
+
+function RTrim(str) str.replace(/\s+$/, '');
+
+
+function Trim(str) str.replace(/^\s+|\s+$/g, '');
+
+
+function StrBefore(str, sep) (sep = str.indexOf(sep)) == -1 ? str : str.substr(0, sep);
+
+
+function StringReplacer(conversionObject) function(s) s.replace(new RegExp([k.replace(/(\/|\.|\*|\+|\?|\||\(|\)|\[|\]|\{|\}|\\)/g, "\\$1") for (k in conversionObject)].join('|'), 'g'), function(str) conversionObject[str]); // eg. StringReplacer({aa:11})('xxaaxx'); returns 'xx11xx'
+
+
+function Switch(i) arguments[++i];
+
+
+function Match(v) Array.indexOf(arguments,v,1)-1;
+
+
+function ExpandStringRanges(rangesStr) {
+
+    for each (let range in rangesStr.split(',')) {
+
+        var minmax = range.split('-', 2);
+        if (minmax.length == 2)
+            for (let i = parseInt(minmax[0]); i <= parseInt(minmax[1]); i++)
+                yield i;
+        else
+            yield parseInt(minmax[0]);
+    }
+}
+
+
+function ValueInStringRanges(rangesStr, value) {
+
+	for each (let range in rangesStr.split(',')) {
+
+		var minmax = range.split('-', 2);
+		if (minmax.length == 2) {
+		
+			if ( value >= parseInt(minmax[0]) && value <= parseInt(minmax[1]) )
+				return true;
+		} else {
+		
+			if ( value == parseInt(minmax[0]) )
+				return true;
+		}
+	}
+	return false;
 }
 
 
@@ -491,13 +526,22 @@ function decode64(input) {
 // try: http://www.webtoolkit.info/
 
 
+/////////////////////////////////////////////////////// Manage exit value
+
+
+var _exitValue;
+function SetExitValue(val) _exitValue = val;
+function GetExitValue() _exitValue;
+
+
 /////////////////////////////////////////////////////// Debug tools
+
 
 function DPrint() {
 	
 	for ( let i = 0; i < arguments.length; i++ )
 		Print( '{'+arguments[i]+'} ' );
-	Print('\n');
+	Print(LF);
 }
 
 function DStack() { try { throw Error() } catch(ex) { Print( 'Stack: ', ex.stack, LF ) } }
@@ -508,3 +552,4 @@ var INSPECT = [];
 function Inspect() '$'+[fct() for each (fct in INSPECT)].join(LF);
 
 var DBG = true;
+

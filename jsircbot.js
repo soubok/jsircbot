@@ -27,22 +27,32 @@ Exec('ident.js');
 
 function MakeModuleFromHttp( url, callback ) {
 
-	DBG && ReportNotice( 'Loading module from: '+url );
+	function CreationFunction() arguments.callee.apply(null, arguments);
+
+	StartAsyncProc( function() {
+
+		DBG && ReportNotice( 'Loading module from: '+url );
+		
+		var retry = getData(data.moduleLoadRetry);
+		
+		for (;;) {
 	
-	var args = arguments;
-	HttpRequest( url, '', 10*SECOND, function(status, statusCode, reasonPhrase, headers, body ) {
-
-		if ( status != OK || statusCode != 200 ) {
-
-			DBG && ReportError('Failed to load the module from '+url+' (reason:'+reasonPhrase+')');
-			return;
+			var [status, statusCode, reasonPhrase, headers, body] = yield function(cb) HttpRequest(url, '', 10*SECOND, cb);
+			if ( status == OK && statusCode == 200 )
+				break;
+			DBG && ReportError('Failed to load the module from '+url+' (status:'+status+', reason:'+reasonPhrase+')');
+			if ( --retry <= 0 || Match(status, BADREQUEST, BADRESPONSE, NOTFOUND, ERROR) || status == OK && statusCode > 500 )
+				return; // cannot retry in this case
+			yield function(cb) io.AddTimeout( getData(data.moduleLoadRetryPause), cb ); // async pause
+			DBG && ReportNotice('Retry to load the module from '+url);
 		}
+		
+		var relativeLineNumber;
 		try {
 			
-			var relativeLineNumber;
-			try { throw new Error() } catch(ex) { relativeLineNumber = ex.lineNumber }		
+			try { throw new Error() } catch(ex) { relativeLineNumber = ex.lineNumber }
 			var mod = new (eval(body));
-			callback(mod, function() args.callee.apply(null, args));
+			callback(mod, CreationFunction);
 			DBG && ReportNotice( 'Module '+url+ ' loaded.' );
 		} catch(ex) {
 		
@@ -50,11 +60,13 @@ function MakeModuleFromHttp( url, callback ) {
 			ex.fileName = url;
 			DBG && ReportError('Failed to make the module: '+ExToText(ex));
 		}
-	});
+	}
 }
 
 
 function MakeModuleFromPath( path, callback ) {
+
+	function CreationFunction() arguments.callee.apply(null, arguments);
 
 	DBG && ReportNotice( 'Loading module from: '+path );
 
@@ -62,7 +74,7 @@ function MakeModuleFromPath( path, callback ) {
 	try {
 		
 		var mod = new (Exec(path, false)); // do not save compiled version of the script
-		callback(mod, function() args.callee.apply(null, args));
+		callback(mod, CreationFunction);
 		DBG && ReportNotice( 'Module '+path+ ' loaded.' );
 	} catch(ex) {
 
@@ -177,7 +189,7 @@ function ClientCore( Configurator ) {
 	
 	function RawDataSender(buf) {
 
-		log.WriteLn( 'irc', '<-' + buf );
+		log.WriteLn( LOG_IRCMSG, '<-' + buf );
 		_connection.Write(buf).length && Failed('Unable to send (more) data.');
 		setData( _data.lastMessageTime, IntervalNow() );
 	}
@@ -197,7 +209,7 @@ function ClientCore( Configurator ) {
 			var message;
 			while ( (message = _receiveBuffer.ReadUntil(CRLF)) ) {
 				
-				log.WriteLn( 'irc', '->'+message);
+				log.WriteLn( LOG_IRCMSG, '->'+message);
 				try {
 
 //    message    =  [ ":" prefix SPACE ] command [ params ] crlf
@@ -299,57 +311,59 @@ function ClientCore( Configurator ) {
 		_state.Enter('connecting');
 	}
 	
+	var modulePrototype = {
+		AddMessageListener:_messageListener.Add,
+		RemoveMessageListener:_messageListener.Remove,
+		ToggleMessageListener:_messageListener.Toggle,
+		AddModuleListener:_moduleListener.Add,
+		RemoveModuleListener:_moduleListener.Remove,
+		ToggleModuleListener:_moduleListener.Toggle,
+		FireModuleListener:_moduleListener.Fire,
+		Send:this.Send,
+		data:_data,
+		api:_api
+	};
+	
 	this.AddModule = function( mod, creationFunction ) {
 		
 		if ( mod.disabled )
 			return;
 			
-		mod.Reload = creationFunction;
-
 		if ( mod.stateListener )
 			for each ( let {set:set, reset:reset, trigger:trigger} in mod.stateListener )
 				_state.AddStateListener(set, reset, trigger);
 
 		if ( mod.moduleApi )
-			for ( let f in mod.moduleApi ) {
-			
+			for ( let f in mod.moduleApi )
 				if ( f in _api )
 					Failed( 'API Already defined' );
 				else
 					_api[f] = mod.moduleApi[f];
-			}
 		
-		mod.moduleListener && _moduleListener.Add( mod.moduleListener );
-		mod.messageListener && _messageListener.Add( mod.messageListener );
-
-		mod.AddMessageListener = _messageListener.Add;
-		mod.RemoveMessageListener = _messageListener.Remove;
-		mod.ToggleMessageListener = _messageListener.Toggle;
-
-		mod.AddModuleListener = _moduleListener.Add;
-		mod.RemoveModuleListener = _moduleListener.Remove;
-		mod.ToggleModuleListener = _moduleListener.Toggle;
-		mod.FireModuleListener = _moduleListener.Fire;
+		if ( mod.moduleListener )
+			_moduleListener.Add( mod.moduleListener );
 		
-		mod.Send = this.Send;
-		mod.data = _data;
-		mod.api = _api;
+		if ( mod.messageListener )
+			_messageListener.Add( mod.messageListener );
+		
+		mod.__proro__ = modulePrototype;
+		mod.Reload = creationFunction;
 		_modules.push(mod);
-
 		_state.Enter(mod.name); // don't move this line
 	}
 	
 	this.RemoveModule = function( mod ) {
-	
-		var pos = _modules.indexOf(mod);
-		if ( pos == -1 )
+		
+		if ( !DeleteArrayElement(_modules, mod) ) // remove the module from the module list
 			return;
-		_modules.splice(pos, 1); // remove the module from the module list
 
 		_state.Leave(mod.name);
 
-		mod.messageListener && _messageListener.Remove( mod.messageListener );
-		mod.moduleListener && _moduleListener.Remove( mod.moduleListener );
+		if ( mod.messageListener )
+			_messageListener.Remove( mod.messageListener );
+
+		if ( mod.moduleListener )
+			_moduleListener.Remove( mod.moduleListener );
 		
 		if ( mod.moduleApi )
 			for ( var f in mod.moduleApi )
@@ -359,7 +373,7 @@ function ClientCore( Configurator ) {
 			for each ( let {set:set, reset:reset, trigger:trigger} in mod.stateListener )
 				_state.RemoveStateListener(set, reset, trigger);
 
-		Clear(mod);
+		Clear(mod); 
 	}
 	
 	this.ReloadModule = function( mod ) {
@@ -391,13 +405,13 @@ function ClientCore( Configurator ) {
 
 
 var log = new Log;
-log.AddFilter( MakeLogFile('jsircbot.log', false), 'irc net http error warning failure notice debug' );
-log.AddFilter( MakeLogScreen(), 'irc net http error warning failure notice debug' );
+log.AddFilter( MakeLogFile('jsircbot.log', false), LOG_ALL );
+log.AddFilter( MakeLogScreen(), LOG_ALL - LOG_IRCMSG );
 
-function ReportNotice(text) log.WriteLn( 'notice', text);
-function ReportWarning(text) log.WriteLn( 'warning', text)
-function ReportError(text) log.WriteLn( 'error', text);
-function ReportFailure(text) log.WriteLn( 'failure', text);
+function ReportNotice(text) log.WriteLn( LOG_NOTICE, text);
+function ReportWarning(text) log.WriteLn( LOG_WARNING, text)
+function ReportError(text) log.WriteLn( LOG_ERROR, text);
+function ReportFailure(text) log.WriteLn( LOG_FAILURE, text);
 
 DBG && ReportNotice('log initialized @ '+(new Date()));
 // starting

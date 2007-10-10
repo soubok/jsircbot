@@ -30,6 +30,10 @@ function(data) {
 	setData(data.ident.realname, 'real_TremVipBot');
 
 // default module
+	setData(data.moduleLoadRetry, 3);
+	setData(data.moduleLoadRetryPause, 5*SECOND);
+
+// default module
 	setData(data.DefaultModule.lagProbeInterval, 2*MINUTE);
 
 // configure chans

@@ -281,7 +281,7 @@ function HttpRequest( url, data, timeout, OnResponse ) {
 
 	TCPGet( ud.host, ud.port||80, statusLine + CRLF + MakeHeaders(headers) + CRLF + body, timeout, function( status, response ) {
 	
-//		DBG && ReportNotice( 'HTTP GET: ' + url+' = \n'+response+'\n' ); // cannot read the response because this empty the buffer :)
+//		DBG && log.WriteLn( LOG_HTTP, 'HTTP GET: ' + url+' = \n'+response+'\n' ); // cannot read the response because this empty the buffer :)
 
 		if ( status != OK ) {
 			

@@ -59,7 +59,7 @@
 
 	function accessInfoParser(msg, request) {
 
-		DBG && log.WriteLn( 'notice', 'entering accessInfoParser');
+		DBG && log.WriteLn( LOG_NOTICE, 'entering accessInfoParser');
 		
 		try {
 	
@@ -83,7 +83,7 @@
 
 		} catch(ex if ex == ERR) {
 			
-			DBG && log.WriteLn( 'error', 'accessInfoParser: parsing error');
+			DBG && log.WriteLn( LOG_ERROR, 'accessInfoParser: parsing error');
 			Done(BADRESPONSE);
 			return;
 		}
@@ -157,7 +157,7 @@
 	
 	function StartRequest( service, query, parser, callback) {
 		
-//		DBG && log.WriteLn( 'debug', _mod.name+'::'+arguments.callee.name+'('+Array.slice(arguments)+') .. '+'');
+//		DBG && log.WriteLn( LOG_DEBUG, _mod.name+'::'+arguments.callee.name+'('+Array.slice(arguments)+') .. '+'');
 	
 		var syncKey = RandomString(8);
 		_requestList.push({ service:service, message:[syncKey, query], parser:WaitSync(syncKey, parser), callback:callback });

@@ -30,7 +30,7 @@
 			dccSocket.Connect( ip, port );
 		} catch ( ex if ex instanceof IoError ) {
 		
-			log.WriteLn( 'error', 'Failed to connect for DCC' );
+			log.WriteLn( LOG_ERROR, 'Failed to connect for DCC' );
 			return;
 		}
 		
@@ -39,7 +39,7 @@
 			file.Open( File.CREATE_FILE + File.WRONLY );
 		} catch ( ex if ex instanceof IoError ) {
 			
-			log.WriteLn( 'error', 'Failed to create the file '+fileName+' in '+destinationPath );
+			log.WriteLn( LOG_ERROR, 'Failed to create the file '+fileName+' in '+destinationPath );
 			dccSocket.Close();						
 			return;
 		}
