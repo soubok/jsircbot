@@ -260,7 +260,7 @@
 					!hostWhois.isIdentified && CancelInvitation('You are not identified on IRC.');
 
 					var [status, accessList] = yield function(callback) _mod.api.AccessInfo(pv.vipChannel, callback);
-					status != OK && CancelInvitation('Unable to get AccessInfo.');
+					status != OK && CancelInvitation('Unable to get AccessInfo. (status: '+status+')');
 
 					var hostLevel = [ user.level for each ( user in accessList ) if (user.hostmask.toLowerCase() == hostNick.toLowerCase()) ][0];
 					var hasBeenOpByChanServ = getData( _mod.data.channel[pv.vipChannel].names[hostNick].operator.by ) == pv.chanServ;
