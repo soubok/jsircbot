@@ -146,7 +146,7 @@
 						else
 							connection.Write(data + LF);
 					}
-					log.AddFilter( LogFilter, 'irc net http error warning failure notice' ); // or cmdData
+					log.AddFilter( LogFilter, LOG_ALL ); // or cmdData
 					connection.OnDisconnected = function() log.RemoveFilter( LogFilter );
 				});
 			},
