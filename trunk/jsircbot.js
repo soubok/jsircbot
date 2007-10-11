@@ -127,7 +127,7 @@ function MakeFloodSafeMessageSender( maxMessage, maxData, time, RawDataSender, s
 
 	function Process() {
 
-		DBG && log.WriteLn( LOG_DEBUG, 'MakeFloodSafeMessageSender:: COUNT:'+ _count + ' BYTES:'+ _bytes+' QUEUE_LENGTH:'+_messageQueue.length );
+		DBG && log.Write( LOG_DEBUG, 'MakeFloodSafeMessageSender:: COUNT:'+ _count + ' BYTES:'+ _bytes+' QUEUE_LENGTH:'+_messageQueue.length );
 
 		var buffer = '';
 		function PrepMessage([messages, OnSent]) {
@@ -188,7 +188,7 @@ function ClientCore( Configurator ) {
 	
 	function RawDataSender(buf) {
 
-		log.WriteLn( LOG_IRCMSG, '<-' + buf );
+		log.Write( LOG_IRCMSG, '<-' + buf );
 		_connection.Write(buf).length && Failed('Unable to send (more) data.');
 		setData( _data.lastMessageTime, IntervalNow() );
 	}
@@ -208,7 +208,7 @@ function ClientCore( Configurator ) {
 			var message;
 			while ( (message = _receiveBuffer.ReadUntil(CRLF)) ) {
 				
-				log.WriteLn( LOG_IRCMSG, '->'+message);
+				log.Write( LOG_IRCMSG, '->'+message);
 				try {
 
 //    message    =  [ ":" prefix SPACE ] command [ params ] crlf
@@ -409,10 +409,10 @@ var log = new Log;
 log.AddFilter( MakeLogFile('jsircbot.log', false), LOG_ALL );
 log.AddFilter( MakeLogScreen(), LOG_ALL/* - LOG_IRCMSG - LOG_DEBUG*/ );
 
-function ReportNotice(text) log.WriteLn( LOG_NOTICE, text);
-function ReportWarning(text) log.WriteLn( LOG_WARNING, text)
-function ReportError(text) log.WriteLn( LOG_ERROR, text);
-function ReportFailure(text) log.WriteLn( LOG_FAILURE, text);
+function ReportNotice(text) log.Write( LOG_NOTICE, text);
+function ReportWarning(text) log.Write( LOG_WARNING, text)
+function ReportError(text) log.Write( LOG_ERROR, text);
+function ReportFailure(text) log.Write( LOG_FAILURE, text);
 
 DBG && ReportNotice('log initialized @ '+(new Date()));
 // starting
