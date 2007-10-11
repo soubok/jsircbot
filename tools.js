@@ -12,6 +12,9 @@
  * License.
  * ***** END LICENSE BLOCK ***** */
 
+
+function CONST(name, value) this[name] = { toString:function() name, valueOf:function() arguments.length == 1 ? value : name };
+
 /////////////////////////////////////////////////////// Chars
 
 const NUL = '\0';
@@ -23,15 +26,14 @@ const SPC = ' ';
 
 /////////////////////////////////////////////////////// status objects
 
-
-const OK = { toString:function() 'OK' };
-const ERROR = { toString:function() 'ERROR' };
-const UNAVAILABLE = { toString:function() 'UNAVAILABLE' };
-const UNREACHABLE = { toString:function() 'UNREACHABLE' };
-const BADREQUEST = { toString:function() 'BADREQUEST' };
-const BADRESPONSE = { toString:function() 'BADRESPONSE' };
-const TIMEOUT = { toString:function() 'TIMEOUT' };
-const NOTFOUND = { toString:function() 'NOTFOUND' };
+CONST( 'OK' );
+CONST( 'ERROR' };
+CONST( 'TIMEOUT' };
+CONST( 'NOTFOUND' };
+CONST( 'BADREQUEST' };
+CONST( 'BADRESPONSE' };
+CONST( 'UNAVAILABLE' };
+CONST( 'UNREACHABLE' };
 
 
 /////////////////////////////////////////////////////// Date and Time
@@ -180,18 +182,19 @@ function ToggleAsyncProc( procedure, polarity ) {
 
 /////////////////////////////////////////////////////// LOG system
 
-function BIT(n) 1<<n;
-var b = 0;
+var bit = 1;
+CONST( 'LOG_FAILURE', bit*=2 );
+CONST( 'LOG_ERROR', bit*=2 );
+CONST( 'LOG_WARNING', bit*=2 );
+CONST( 'LOG_NOTICE', bit*=2 );
+CONST( 'LOG_IRCMSG', bit*=2 );
+CONST( 'LOG_NET', bit*=2 );
+CONST( 'LOG_HTTP', bit*=2 );
+CONST( 'LOG_DEBUG', bit*=2 );
+CONST( 'LOG_PROC', bit*=2 );
+CONST( 'LOG_ALL', (bit*=2)-1 );
 
-const LOG_FAILURE = BIT(b++);
-const LOG_ERROR = BIT(b++);
-const LOG_WARNING = BIT(b++);
-const LOG_NOTICE = BIT(b++);
-const LOG_IRCMSG = BIT(b++);
-const LOG_NET = BIT(b++);
-const LOG_HTTP = BIT(b++);
-const LOG_DEBUG = BIT(b++);
-const LOG_ALL = BIT(b++)-1;
+
 
 const LOG_CLOSE_FILTER = { toString:function() '' };
 
@@ -263,13 +266,12 @@ function Log(data) {
 		_outputList.splice(0);
 	}
 
-	function Write(type, data) {
-		
+	this.Write = function(type /*, data, ...*/) {
+
+		var data = FormatedTime()+' '+String(type)+' '+Array.slice(arguments,1).join(' ; ');
 		for each ( let [output, typeList] in _outputList )
 			typeList & type && void output(data);
 	}
-
-	this.WriteLn = function(type, data) void Write(type, FormatedTime()+' '+data);
 }
 
 
