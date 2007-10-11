@@ -13,7 +13,11 @@
  * ***** END LICENSE BLOCK ***** */
 
 
-function CONST(name, value) this[name] = { toString:function() name, valueOf:function() arguments.length == 1 ? value : name };
+function ENUM(constMap) {
+	
+	for ( let [name, value] in Iterator(constMap) )
+		this[name] = { toString:function() name, valueOf:function() value };
+}
 
 /////////////////////////////////////////////////////// Chars
 
@@ -26,14 +30,16 @@ const SPC = ' ';
 
 /////////////////////////////////////////////////////// status objects
 
-CONST( 'OK' );
-CONST( 'ERROR' };
-CONST( 'TIMEOUT' };
-CONST( 'NOTFOUND' };
-CONST( 'BADREQUEST' };
-CONST( 'BADRESPONSE' };
-CONST( 'UNAVAILABLE' };
-CONST( 'UNREACHABLE' };
+ENUM({
+	OK:undefined,
+	ERROR:undefined,
+	TIMEOUT:undefined,
+	NOTFOUND:undefined,
+	BADREQUEST:undefined,
+	BADRESPONSE:undefined,
+	UNAVAILABLE:undefined,
+	UNREACHABLE:undefined
+});
 
 
 /////////////////////////////////////////////////////// Date and Time
@@ -183,18 +189,18 @@ function ToggleAsyncProc( procedure, polarity ) {
 /////////////////////////////////////////////////////// LOG system
 
 var bit = 1;
-CONST( 'LOG_FAILURE', bit*=2 );
-CONST( 'LOG_ERROR', bit*=2 );
-CONST( 'LOG_WARNING', bit*=2 );
-CONST( 'LOG_NOTICE', bit*=2 );
-CONST( 'LOG_IRCMSG', bit*=2 );
-CONST( 'LOG_NET', bit*=2 );
-CONST( 'LOG_HTTP', bit*=2 );
-CONST( 'LOG_DEBUG', bit*=2 );
-CONST( 'LOG_PROC', bit*=2 );
-CONST( 'LOG_ALL', (bit*=2)-1 );
-
-
+ENUM({
+	LOG_FAILURE: bit*=2,
+	LOG_ERROR: bit*=2,
+	LOG_WARNING: bit*=2,
+	LOG_NOTICE: bit*=2,
+	LOG_DEBUG: bit*=2,
+	LOG_IRCMSG: bit*=2,
+	LOG_NET: bit*=2,
+	LOG_HTTP: bit*=2,
+	LOG_PROC: bit*=2,
+	LOG_ALL: (bit*=2)-1
+});
 
 const LOG_CLOSE_FILTER = { toString:function() '' };
 
