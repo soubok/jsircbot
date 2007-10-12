@@ -13,9 +13,9 @@
  * ***** END LICENSE BLOCK ***** */
 
 
-function ENUM(constMap) {
-	
-	for ( let [name, value] in Iterator(constMap) )
+function ENUM(enumMap) {
+
+	for ( let [name, value] in Iterator(enumMap) )
 		this[name] = { toString:function() name, valueOf:function() value };
 }
 
