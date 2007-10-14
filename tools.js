@@ -16,7 +16,8 @@
 function ENUM(enumMap) {
 
 	for ( let [name, value] in Iterator(enumMap) )
-		this[name] = { toString:function() name, valueOf:function() value };
+		let (n = name, v = value)
+			this[name] = { toString:function() let (name=name) n, valueOf:function() v };
 }
 
 /////////////////////////////////////////////////////// Chars

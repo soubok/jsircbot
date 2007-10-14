@@ -188,7 +188,7 @@ function ClientCore( Configurator ) {
 	
 	function RawDataSender(buf) {
 
-		log.Write( LOG_IRCMSG, '<-' + buf );
+		log.Write( LOG_IRCMSG, '< ' + buf );
 		_connection.Write(buf).length && Failed('Unable to send (more) data.');
 		setData( _data.lastMessageTime, IntervalNow() );
 	}
@@ -208,7 +208,7 @@ function ClientCore( Configurator ) {
 			var message;
 			while ( (message = _receiveBuffer.ReadUntil(CRLF)) ) {
 				
-				log.Write( LOG_IRCMSG, '->'+message);
+				log.Write( LOG_IRCMSG, '> '+message);
 				try {
 
 //    message    =  [ ":" prefix SPACE ] command [ params ] crlf
