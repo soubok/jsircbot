@@ -184,7 +184,7 @@
 					
 					if ( status != OK ) {
 					
-						_mod.api.Privmsg( replyTo, 'Sorry, the server does not respond.' );
+						_mod.api.Privmsg( replyTo, 'Sorry, the server does not respond. ('+String(status)+')' );
 						AbortAsyncProc();
 						return;
 					}
