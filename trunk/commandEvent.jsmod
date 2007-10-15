@@ -33,177 +33,166 @@
 	
 	_mod.moduleApi = {
 	
-		Whois: function( nick, OnReply ) {
+		Whois: function( nick, OnReply ) ScheduleCall(function() {
 
-			ScheduleCall(function() {
+			var pingData = RandomString(16);
+			var timeoutId, events = NewDataObj(), result = NewDataObj();
 
-				var pingData = RandomString(16);
-				var timeoutId, events = NewDataObj(), result = NewDataObj();
-				
-				_mod.AddMessageListener(events);
+			_mod.AddMessageListener(events);
 
-				function End(status, reply) {
+			function End(status, reply) {
 
-					_mod.RemoveMessageListener(events);
-					io.RemoveTimeout(timeoutId);
-					NextCall();
-					OnReply(status, reply);
+				_mod.RemoveMessageListener(events);
+				io.RemoveTimeout(timeoutId);
+				NextCall();
+				OnReply(status, reply);
+			}
+
+			events.PONG = function(command, from, server, data) {
+
+				if ( data != pingData )
+					return;
+				delete events.PONG;
+
+				events.RPL_WHOISUSER = function( command, from, to, nick, user, host, star, realName ) {
+
+					result.nick = nick
+					result.user = user
+					result.host = host;
+					result.realName = realName;
 				}
+				events.RPL_WHOISCHANNELS = function( command, from, to, nick, channelList ) {
 
-				events.PONG = function(command, from, server, data) {
-
-					if ( data != pingData )
-						return;
-					delete events.PONG;
-					
-					events.RPL_WHOISUSER = function( command, from, to, nick, user, host, star, realName ) {
-						
-						result.nick = nick
-						result.user = user
-						result.host = host;
-						result.realName = realName;
-					}
-					events.RPL_WHOISCHANNELS = function( command, from, to, nick, channelList ) {
-
-						result.channelList = RTrim(channelList).split(' ');
-					}
-					events.RPL_WHOISSERVER = function( command, from, to, nick, server, serverInfo ) {
-						result.server = server;
-						result.serverInfo = serverInfo;
-					}
-					events[320] = function( command, from, to, nick ) { // is identified to services (freenode only ?)
-					
-						result.isIdentified = true;
-					}
-					events.RPL_ENDOFWHOIS = function( command, from, to, nick ) {
-						
-						End(OK, result);
-					}
-					events.ERR_NOSUCHSERVER = function() End(NOTFOUND);
-					events.ERR_NONICKNAMEGIVEN = function() End(BADREQUEST);
-					events.ERR_NOSUCHNICK = function() End(NOTFOUND);
+					result.channelList = RTrim(channelList).split(' ');
 				}
-				
-				_mod.Send( ['PING '+pingData, 'WHOIS '+nick], false, function() { // PING to sync the request
-
-					timeoutId = io.AddTimeout(getData(_mod.data[_mod.name].maxServerReplyInterval), function() End(TIMEOUT) );
-				});
-			});		
-		},
-
-
-		UserHost: function( nickList, OnReply ) {
-
-			ScheduleCall(function() {
-
-				var pingData = RandomString(16);
-				var timeoutId;
-				var events = NewDataObj();
-				
-				function End(status, reply) {
-
-					_mod.RemoveMessageListener(events);
-					io.RemoveTimeout(timeoutId);
-					NextCall();
-					OnReply(status, reply);
+				events.RPL_WHOISSERVER = function( command, from, to, nick, server, serverInfo ) {
+					result.server = server;
+					result.serverInfo = serverInfo;
 				}
+				events[320] = function( command, from, to, nick ) { // is identified to services (freenode only ?)
 
-				events.PONG = function(command, from, server, data) {
-
-					if ( data != pingData )
-						return;
-					delete events.PONG;
-					events.RPL_USERHOST = function( command, from, to, hostList ) {
-
-						var result = NewDataObj();
-						for each ( var userhost in hostList.split(' ') ) {
-
-							var match = /(.+?)(\*?)=(\+?)(?:.*?)@(.*)/(userhost);
-							if ( userhost && match ) {
-
-								var [, nick, ircOp, hasAwayMsg, host] = match;
-								result[nick] = host;
-							}
-						}
-						End(OK, result);
-					};
-
-					events.ERR_NEEDMOREPARAMS = function( command, from, to, erroneousCommand, reasonPhrase ) erroneousCommand == 'USERHOST' && End(BADREQUEST);
-				};
-
-				_mod.AddMessageListener(status, events);
-				
-				_mod.Send( ['PING '+pingData, 'USERHOST '+nickList.join(' ')], false, function() {
-
-					timeoutId = io.AddTimeout(getData(_mod.data[_mod.name].maxServerReplyInterval), function() End(TIMEOUT) ); // start the timeout ONLY vhen the message has been sent
-				});
-			});
-		},
-		
-
-		Prompt: function( nick, message, OnReply ) {
-			
-			ScheduleCall(function() {
-
-				var timeoutId, events = NewDataObj();
-
-				function End(status, message) {
-
-					_mod.RemoveMessageListener(events);
-					io.RemoveTimeout(timeoutId);
-					NextCall();
-					OnReply(status, message);
+					result.isIdentified = true;
 				}
+				events.RPL_ENDOFWHOIS = function( command, from, to, nick ) {
 
-				events.PRIVMSG = function( command, from, to, message ) {
-
-					if ( to == getData(_mod.data.nick) && nick == StrBefore(from, '!') )
-						End(OK, message);
-				};
-				events.ERR_NORECIPIENT = function() End(BADREQUEST);
-				events.ERR_NOTEXTTOSEND = function() End(BADREQUEST);
-				events.ERR_CANNOTSENDTOCHAN = function() End(ERROR);
-				events.ERR_NOTOPLEVEL = function() End(ERROR);
-				events.ERR_WILDTOPLEVEL = function() End(ERROR);
-				events.ERR_TOOMANYTARGETS = function() End(ERROR);
+					End(OK, result);
+				}
+				events.ERR_NOSUCHSERVER = function() End(NOTFOUND);
+				events.ERR_NONICKNAMEGIVEN = function() End(BADREQUEST);
 				events.ERR_NOSUCHNICK = function() End(NOTFOUND);
-				events.RPL_AWAY = function() End(UNAVAILABLE);
+			}
 
-				_mod.AddMessageListener(events);
-				_mod.api.Privmsg( nick, message, function() {
+			_mod.Send( ['PING '+pingData, 'WHOIS '+nick], false, function() { // PING to sync the request
 
-					timeoutId = io.AddTimeout(getData(_mod.data[_mod.name].maxUserReplyInterval), function() End(TIMEOUT) ); // start the timeout ONLY vhen the message has been sent
-				});
+				timeoutId = io.AddTimeout(getData(_mod.data[_mod.name].maxServerReplyInterval), function() End(TIMEOUT) );
 			});
-		},
+		}),
+
+
+		UserHost: function( nickList, OnReply ) ScheduleCall(function() {
+
+			var pingData = RandomString(16);
+			var timeoutId;
+			var events = NewDataObj();
+
+			function End(status, reply) {
+
+				_mod.RemoveMessageListener(events);
+				io.RemoveTimeout(timeoutId);
+				NextCall();
+				OnReply(status, reply);
+			}
+
+			events.PONG = function(command, from, server, data) {
+
+				if ( data != pingData )
+					return;
+				delete events.PONG;
+				events.RPL_USERHOST = function( command, from, to, hostList ) {
+
+					var result = NewDataObj();
+					for each ( var userhost in hostList.split(' ') ) {
+
+						var match = /(.+?)(\*?)=(\+?)(?:.*?)@(.*)/(userhost);
+						if ( userhost && match ) {
+
+							var [, nick, ircOp, hasAwayMsg, host] = match;
+							result[nick] = host;
+						}
+					}
+					End(OK, result);
+				};
+
+				events.ERR_NEEDMOREPARAMS = function( command, from, to, erroneousCommand, reasonPhrase ) erroneousCommand == 'USERHOST' && End(BADREQUEST);
+			};
+
+			_mod.AddMessageListener(status, events);
+
+			_mod.Send( ['PING '+pingData, 'USERHOST '+nickList.join(' ')], false, function() {
+
+				timeoutId = io.AddTimeout(getData(_mod.data[_mod.name].maxServerReplyInterval), function() End(TIMEOUT) ); // start the timeout ONLY vhen the message has been sent
+			});
+		}),
 		
 
-		Sync: function( OnReply ) {
-			
-			ScheduleCall(function() {
+		Prompt: function( nick, message, OnReply ) ScheduleCall(function() {
 
-				var pingData = IntervalNow();
-				var timeoutId, events;
+			var timeoutId, events = NewDataObj();
 
-				function End(status) {
+			function End(status, message) {
 
-					_mod.RemoveMessageListener(events);
-					io.RemoveTimeout(timeoutId);
-					NextCall();
-					OnReply(status);
-				}
-				
-				function Reply( command, from, server, data ) data == pingData && End(true);
+				_mod.RemoveMessageListener(events);
+				io.RemoveTimeout(timeoutId);
+				NextCall();
+				OnReply(status, message);
+			}
 
-				events = { PONG:Reply };
+			events.PRIVMSG = function( command, from, to, message ) {
 
-				_mod.AddMessageListener(events);
-				_mod.Send( 'PING '+pingData, false, function() {
+				if ( to == getData(_mod.data.nick) && nick == StrBefore(from, '!') )
+					End(OK, message);
+			};
+			events.ERR_NORECIPIENT = function() End(BADREQUEST);
+			events.ERR_NOTEXTTOSEND = function() End(BADREQUEST);
+			events.ERR_CANNOTSENDTOCHAN = function() End(ERROR);
+			events.ERR_NOTOPLEVEL = function() End(ERROR);
+			events.ERR_WILDTOPLEVEL = function() End(ERROR);
+			events.ERR_TOOMANYTARGETS = function() End(ERROR);
+			events.ERR_NOSUCHNICK = function() End(NOTFOUND);
+			events.RPL_AWAY = function() End(UNAVAILABLE);
 
-					timeoutId = io.AddTimeout(getData(_mod.data[_mod.name].maxServerReplyInterval), End ); // start the timeout ONLY vhen the message has been sent
-				});
+			_mod.AddMessageListener(events);
+			_mod.api.Privmsg( nick, message, function() {
+
+				timeoutId = io.AddTimeout(getData(_mod.data[_mod.name].maxUserReplyInterval), function() End(TIMEOUT) ); // start the timeout ONLY vhen the message has been sent
 			});
-		}
+		}),
+		
+
+		Sync: function( OnReply ) ScheduleCall(function() {
+
+			var pingData = IntervalNow();
+			var timeoutId, events;
+
+			function End(status) {
+
+				_mod.RemoveMessageListener(events);
+				io.RemoveTimeout(timeoutId);
+				NextCall();
+				OnReply(status);
+			}
+
+			function Reply( command, from, server, data ) data == pingData && End(true);
+
+			events = { PONG:Reply };
+
+			_mod.AddMessageListener(events);
+			_mod.Send( 'PING '+pingData, false, function() {
+
+				timeoutId = io.AddTimeout(getData(_mod.data[_mod.name].maxServerReplyInterval), End ); // start the timeout ONLY vhen the message has been sent
+			});
+		})
+
 		
 	};
 })

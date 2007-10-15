@@ -61,4 +61,8 @@ function(data) {
 
 // freenodeModule
 	setData(data.freenodeModule.maxServiceBotReply, 15*SECOND );
+	setData(data.freenodeModule.nickServ, 'NickServ!NickServ@services.' );
+	setData(data.freenodeModule.chanServ, 'ChanServ!ChanServ@services.' );
+	
+	
 }
