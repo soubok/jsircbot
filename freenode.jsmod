@@ -17,177 +17,210 @@
 	
 	this.name = this.constructor.name;
 	var _mod = this;
+//	function _Data() _mod.data[_mod.name];
 
-	var _requestList = [];
-	var _timeoutId;
 
-	function channelInfoParser(msg, request) {
+	var _callList = [];
+	function ScheduleCall(fct) {
+		
+		_callList.push(fct);
+		_callList.length == 1 && void _callList[0]();
+	}
 	
-		if ( msg.indexOf('is not registered') != -1 ) {
-			
-			Done(NOTFOUND);
-			return;
-		}
-		var [field, data] = LTrim(msg).split(': ',2);
-		switch ( field ) {
-			case 'Channel':
-				request.reply = NewDataObj();
-				request.reply.channel = data;
-				break;
-			case 'Contact':
-				request.reply.Contact = StrBefore(data,' ');
-				request.reply.isContactOnline = (data.indexOf('ONLINE') != -1);
-				break;
-			case 'Registered':
-				request.reply.registered = data;
-				break;
-			case 'Topic':
-				request.reply.topic = data;
-				break;
-			case 'Contact URI':
-				request.reply.contactUri = data;
-				break;
-			case 'Options':
-				request.reply.options = data.split(', ');
-				break;
-			case 'Mode Lock':
-				request.reply.modeLock = data;
-				Done(OK);
-				break;
-		}
+	function NextCall() {
+		
+		_callList.shift();
+		_callList.length && _callList[0]();
 	}
 
-	function accessInfoParser(msg, request) {
 
-		DBG && log.Write( LOG_NOTICE, 'entering accessInfoParser');
-		
-		try {
-	
-			if ( msg.indexOf('is not registered') != -1 ) {
-				Done(NOTFOUND);
-				return;
+	_mod.moduleApi = {
+
+		SetChannelAccessLevel: function(channel, nick, level) void _mod.api.Privmsg( getData(_mod.data[_mod.name].chanServ), 'ACCESS '+channel+' ADD '+nick+' '+level ),
+
+		// Syntax: ACCESS <channel> LIST [FULL|mask]
+		AccessInfo: function( channel, OnReply ) ScheduleCall( function() {
+
+			var result = [], timeoutId, events = NewDataObj(), syncData = RandomString(8);
+			_mod.AddMessageListener(events);
+
+			function End(status, reply) { // response OR timeout
+
+				_mod.RemoveMessageListener(events);
+				io.RemoveTimeout(timeoutId);
+				NextCall();
+				OnReply(status, reply);
 			}
-			if ( msg.indexOf('End of list') != -1 ) {
-			
-				Done(OK);
-				return;
+
+			events.NOTICE = function( command, from, to, msg ) {
+
+				if ( msg.indexOf(syncData) != -1 ) // the message do not contains the sync key ( -NickServ- Unknown command [<syncData>] )
+					return;
+
+				events.NOTICE = function( command, from, to, msg ) {
+
+					if ( from != getData(_mod.data[_mod.name].chanServ) || to != getData(_mod.data.nick) )
+						return;
+
+					if ( msg.indexOf('is not registered') != -1 ) {
+
+						End(NOTFOUND);
+						return;
+					}
+
+					if ( msg.indexOf('End of list') != -1 ) {
+
+						End(OK, result);
+						return;
+					}
+
+					var match = /^([0-9]+) +([0-9]+) +([^ ]+) +(.*?) *$/(msg);
+					match && result.push( MakeObj( { num:1, level:2, hostmask:3, time:4 }, match ) );
+					// End(BADRESPONSE);
+				}
 			}
-			if ( msg.indexOf('Access List for') != -1 ) {
 
-				request.reply = [];
-				return;
-			}
-		
-			var match = /^([0-9]+) +([0-9]+) +([^ ]+) +(.*?) *$/(msg);
-			match && request.reply.push( MakeObj( { num:1, level:2, hostmask:3, time:4 }, match ) );
+			_mod.api.Privmsg( getData(_mod.data[_mod.name].chanServ), [syncData, 'ACCESS '+channel+' LIST'], function() {
 
-		} catch(ex if ex == ERR) {
-			
-			DBG && log.Write( LOG_ERROR, 'accessInfoParser: parsing error');
-			Done(BADRESPONSE);
-			return;
-		}
-	}
-	
-	
-	function infoParser(msg, request) {
-		
-		if ( msg.indexOf('is not registered') != -1 ) {
-		
-			Done(NOTFOUND);
-			return;
-		}
-		var [field, data] = LTrim(msg).split(': ',2);
-		switch ( field ) {
-			case 'Nickname':
-				request.reply = NewDataObj();
-				request.reply.nick = StrBefore(data,' ');
-				request.reply.isOnline = (data.indexOf('ONLINE') != -1);
-				break;
-			case 'Registered':
-				request.reply.registred = data;
-				break;
-			case 'Last Seen':
-				request.reply.lastSeen = data;
-				break;
-			case 'Last Seen Address':
-				request.reply.lastSeenAddress = data;
-				break;
-			case 'Last Seen Quit Msg':
-				request.reply.lastSeenQuitMsg = data;
-				break;
-			case 'Email Address':
-				request.reply.emailAddress = data;
-				break;
-			case 'UIN':
-				request.reply.UIN = data;
-				break;
-			case 'Nickname Options':
-				request.reply.nicknameOptions = data.split(', ');
-				Done(OK);
-				break;
-		}
-	}
+				timeoutId = io.AddTimeout( getData(_mod.data[_mod.name].maxServiceBotReply), function() End(TIMEOUT) );
+			});
+		}),
 
-	// WaitSync generates a parser that waits for the sync signal and then set the regular message parser.
-	function WaitSync(syncKey, commandParser) {
-		
-		return function(msg, request) {
-		
-			if ( msg.indexOf(syncKey) != -1 ) // the message contains the sync key ( -NickServ- Unknown command [<key>] )
-				request.parser = commandParser;
-		}
-	}
-	
-	function Done(status) {
-	
-		io.RemoveTimeout(_timeoutId);
-		void _requestList[0].callback(status, _requestList[0].reply || undefined);
-		_requestList.shift();
-		_requestList.length && ProcessRequest();
-	}
-	
-	function ProcessRequest() {
-
-		_mod.api.Privmsg( _requestList[0].service, _requestList[0].message, function() {
-
-			_timeoutId = io.AddTimeout( getData(_mod.data[_mod.name].maxServiceBotReply), function() Done(TIMEOUT) );
-		});
-	}
-	
-	function StartRequest( service, query, parser, callback) {
-		
-//		DBG && log.Write( LOG_DEBUG, _mod.name+'::'+arguments.callee.name+'('+Array.slice(arguments)+') .. '+'');
-	
-		var syncKey = RandomString(8);
-		_requestList.push({ service:service, message:[syncKey, query], parser:WaitSync(syncKey, parser), callback:callback });
-		_requestList.length == 1 && ProcessRequest();
-	}
-	
-	this.messageListener = {
-
-		NOTICE: function( command, from, to, msg ) {
-		
-			if ( _requestList.length && from == _requestList[0].service && to == getData(_mod.data.nick) )
-				_requestList[0].parser(msg, _requestList[0]);
-		}
-	}
-	
-// we can sync the NickServ or ChanServ with a bad TEST command. The response will be:  ["NOTICE", "NickServ!NickServ@services.", "TremVipBot", "Unknown command [TEST]"]
-	
-	this.moduleApi = {
-
-		SetChannelAccessLevel: function(channel, nick, level) void _mod.api.Privmsg( 'ChanServ!ChanServ@services.', 'ACCESS '+channel+' ADD '+nick+' '+level ),
-
-		// Syntax: INFO <nickname>	
-		NickInfo: function(nick, callback) StartRequest( 'NickServ!NickServ@services.', 'INFO '+nick, infoParser, callback ),
 
 		// Syntax: INFO <channel>
-		ChanInfo: function(channel, callback) StartRequest( 'ChanServ!ChanServ@services.', 'INFO '+channel, channelInfoParser, callback ),
-		
+		ChanInfo: function( channel, OnReply ) ScheduleCall( function() {
+
+			var result = NewDataObj(), timeoutId, events = NewDataObj(), syncData = RandomString(8);
+			_mod.AddMessageListener(events);
+
+			function End(status, reply) { // response OR timeout
+
+				_mod.RemoveMessageListener(events);
+				io.RemoveTimeout(timeoutId);
+				NextCall();
+				OnReply(status, reply);
+			}
+
+			events.NOTICE = function( command, from, to, msg ) {
+
+				if ( msg.indexOf(syncData) == -1 ) // the message do not contains the sync key ( -NickServ- Unknown command [<syncData>] )
+					return;
+
+				events.NOTICE = function( command, from, to, msg ) {
+
+					if ( from != getData(_mod.data[_mod.name].chanServ) || to != getData(_mod.data.nick) )
+						return;
+
+					if ( msg.indexOf('is not registered') != -1 ) {
+
+						End(NOTFOUND);
+						return;
+					}
+
+					var [field, data] = LTrim(msg).split(': ',2);
+					switch ( field ) {
+						case 'Channel':
+							result.channel = data;
+							break;
+						case 'Contact':
+							result.Contact = StrBefore(data,' ');
+							result.isContactOnline = (data.indexOf('ONLINE') != -1);
+							break;
+						case 'Registered':
+							result.registered = data;
+							break;
+						case 'Topic':
+							result.topic = data;
+							break;
+						case 'Contact URI':
+							result.contactUri = data;
+							break;
+						case 'Options':
+							result.options = data.split(', ');
+							break;
+						case 'Mode Lock': // (TBD) find a better end-of-ChanInfo marker
+							result.modeLock = data;
+							End(OK);
+							break;
+					}
+				}
+			}
+
+			_mod.api.Privmsg( getData(_mod.data[_mod.name].chanServ), [syncData, 'INFO '+channel], function() {
+
+				timeoutId = io.AddTimeout( getData(_mod.data[_mod.name].maxServiceBotReply), function() End(TIMEOUT) );
+			});
+		}),
+
+
 		// Syntax: ACCESS <channel> LIST [FULL|mask]
-		AccessInfo: function(channel, callback) StartRequest( 'ChanServ!ChanServ@services.', 'ACCESS '+channel+' LIST', accessInfoParser, callback )
-	}
+		NickInfo: function( channel, OnReply ) ScheduleCall( function() {
+
+			var result = NewDataObj(), timeoutId, events = NewDataObj(), syncData = RandomString(8);
+			_mod.AddMessageListener(events);
+
+			function End(status, reply) { // response OR timeout
+
+				_mod.RemoveMessageListener(events);
+				io.RemoveTimeout(timeoutId);
+				NextCall();
+				OnReply(status, reply);
+			}
+
+			events.NOTICE = function( command, from, to, msg ) {
+
+				if ( msg.indexOf(syncData) != -1 ) // the message do not contains the sync key ( -NickServ- Unknown command [<syncData>] )
+					return;
+
+				events.NOTICE = function( command, from, to, msg ) {
+
+					if ( from != getData(_mod.data[_mod.name].nickServ) || to != getData(_mod.data.nick) )
+						return;
+
+					if ( msg.indexOf('is not registered') != -1 ) {
+
+						End(NOTFOUND);
+						return;
+					}
+					
+					var [field, data] = LTrim(msg).split(': ',2);
+					switch ( field ) {
+						case 'Nickname':
+							result.nick = StrBefore(data,' ');
+							result.isOnline = (data.indexOf('ONLINE') != -1);
+							break;
+						case 'Registered':
+							result.registred = data;
+							break;
+						case 'Last Seen':
+							result.lastSeen = data;
+							break;
+						case 'Last Seen Address':
+							result.lastSeenAddress = data;
+							break;
+						case 'Last Seen Quit Msg':
+							result.lastSeenQuitMsg = data;
+							break;
+						case 'Email Address':
+							result.emailAddress = data;
+							break;
+						case 'UIN':
+							result.UIN = data;
+							break;
+						case 'Nickname Options': // (TBD) find a better end-of-NickInfo marker
+							result.nicknameOptions = data.split(', ');
+							End(OK);
+							break;
+					}
+				}
+			}
+
+			_mod.api.Privmsg( getData(_mod.data[_mod.name].nickServ), [syncData, 'INFO '+nick], function() {
+
+				timeoutId = io.AddTimeout( getData(_mod.data[_mod.name].maxServiceBotReply), function() End(TIMEOUT) );
+			});
+		})
+	} // moduleApi
 })
 
 
@@ -196,13 +229,4 @@ freenode modes:
 	http://freenode.net/using_the_network.shtml
 
 // _mod.Send('CAPAB IDENTIFY-MSG'); // ask the server to prefix all messages with '+' if the nick is resistred	
-
-
-
-
-_mod.api.AccessInfo('#trem-vips', DArgs );
-
-
-
-
 */

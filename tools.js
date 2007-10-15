@@ -17,7 +17,7 @@ function ENUM(enumMap) {
 
 	for ( let [name, value] in Iterator(enumMap) )
 		let (n = name, v = value)
-			this[name] = { toString:function() let (name=name) n, valueOf:function() v };
+			this[name] = { toString:function() n, valueOf:function() v };
 }
 
 /////////////////////////////////////////////////////// Chars
@@ -371,7 +371,7 @@ function RandomString(length) {
 function RandomRange( min, max )	min + Math.random() * (max - min);
 
 
-function MakeObj( tpl, arr ) {
+function MakeObj( tpl, arr ) { // { num:1, level:2, hostmask:3, time:4 } , [1, 10, 'host.com', 1249012873401] = { num:1, level:2, hostmask:'host.com', time:1249012873401 }
 	
 	var obj = NewDataObj();
 	if ( arr )
