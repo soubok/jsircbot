@@ -39,7 +39,7 @@ function MakeModuleFromHttp( url, retry, callback ) {
 			var [status, statusCode, reasonPhrase, headers, body] = yield function(cb) HttpRequest(url, '', 10*SECOND, cb);
 			if ( status == OK && statusCode == 200 )
 				break;
-			DBG && ReportError('Failed to load the module from '+url+' (status:'+status+', reason:'+reasonPhrase+')');
+			DBG && ReportError('Failed to load the module from '+url+' (status:'+String(status)+', reason:'+reasonPhrase+')');
 			if ( --retry <= 0 || Match(status, BADREQUEST, BADRESPONSE, NOTFOUND, ERROR) || status == OK && statusCode > 500 )
 				return; // cannot retry in this case
 			yield function(cb) io.AddTimeout( getData(data.moduleLoadRetryPause), cb ); // async pause
