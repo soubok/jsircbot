@@ -96,6 +96,7 @@ function StateKeeper() {
 		
 		if ( !state == !_stateList[stateName] ) // if state is already set
 			return;
+		DBG && DebugTrace( 'CHANGING STATE', stateName, state );
 		_stateList[stateName] = state;
 		for each ( let item in _predicateList ) {
 			var callback = item[2];
@@ -158,6 +159,7 @@ function Listener() {
 
 function StartAsyncProc( procedure ) {
 	
+	DBG && DebugTrace( 'START ASYNC PROC', procedure.name );
 	try {
 		void procedure.next()(function(result) {
 
@@ -175,6 +177,7 @@ function AbortAsyncProc() { // used inside a procedure
 
 function StopAsyncProc( procedure ) { // used outside a procedure
 	
+	DBG && DebugTrace( 'STOP ASYNC PROC', procedure.name );
 	procedure.close();
 }
 
@@ -247,7 +250,7 @@ function MakeLogEMail(mailTo) {
 	}
 }
 
-function Log(data) {
+var log = new function(data) {
 
 	var _outputList = [];
 	var _time0 = Now();
@@ -280,6 +283,13 @@ function Log(data) {
 			typeList & type && void output(data);
 	}
 }
+
+function DebugTrace(text) log.Write.apply( null, [LOG_DEBUG].concat(Array.slice(arguments)) );
+
+function ReportNotice(text) log.Write.apply( null, [LOG_NOTICE].concat(Array.slice(arguments)) );
+function ReportWarning(text) log.Write.apply( null, [LOG_WARNING].concat(Array.slice(arguments)) );
+function ReportError(text) log.Write.apply( null, [LOG_ERROR].concat(Array.slice(arguments)) );
+function ReportFailure(text) log.Write.apply( null, [LOG_FAILURE].concat(Array.slice(arguments)) );
 
 
 /////////////////////////////////////////////////////// HTTP tools
