@@ -360,7 +360,7 @@
 							TremulousServerCommand( pv.vipTremServer, 'rcon '+pv.vipTremServerRcon+' m '+ playerStatusInfo.num +' Now your level is '+pv.vipTremServerVipLevel+', try !help command.', Noop );
 							guestNick && TremulousServerCommand( pv.vipTremServer, 'rcon '+pv.vipTremServerRcon+' say Welcome to '+guestNick+'^7 the new VIP !', Noop );
 							_mod.playerListToSetlevel.splice(i, 1); // remove processed item
-							QueryVIPDatabase({ action:'setlevelDone', nick:guestNick, tremName:guestNick }, callback);
+							QueryVIPDatabase({ action:'setlevelDone', nick:guestNick, tremName:playerStatusInfo.name }, callback);
 							break loop; // because the list has been splice(), we can only process one item
 						}
 

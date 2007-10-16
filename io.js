@@ -280,8 +280,13 @@ function HttpRequest( url, data, timeout, OnResponse ) {
 	}
 
 	TCPGet( ud.host, ud.port||80, statusLine + CRLF + MakeHeaders(headers) + CRLF + body, timeout, function( status, response ) {
-	
-//		DBG && log.Write( LOG_HTTP, 'HTTP GET: ' + url+' = \n'+response+'\n' ); // cannot read the response because this empty the buffer :)
+		
+		if ( DBG ) {
+
+			let buf = response.Read();
+			log.Write( LOG_HTTP, 'HTTP GET: ' +url+' = \n'+buf+'\n' );
+			response.Write(buf);
+		}
 
 		if ( status != OK ) {
 			

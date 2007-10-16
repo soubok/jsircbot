@@ -278,7 +278,7 @@ var log = new function(data) {
 
 	this.Write = function(type /*, data, ...*/) {
 
-		var data = FormatedTime()+' '+String(type)+' '+Array.slice(arguments,1).join(' ; ');
+		var data = FormatedTime()+' '+String(type)+' '+Array.slice(arguments,1).join(' -- ');
 		for each ( let [output, typeList] in _outputList )
 			typeList & type && void output(data);
 	}
