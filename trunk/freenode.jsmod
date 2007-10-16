@@ -41,7 +41,7 @@
 		// Syntax: ACCESS <channel> LIST [FULL|mask]
 		AccessInfo: function( channel, OnReply ) ScheduleCall( function() {
 
-			var result = [], timeoutId, events = NewDataObj(), syncData = RandomString(8);
+			var result = [], timeoutId, events = NewDataObj(), startMarker = RandomString(8);
 			_mod.AddMessageListener(events);
 
 			function End(status, reply) { // response OR timeout
@@ -54,7 +54,7 @@
 
 			events.NOTICE = function( command, from, to, msg ) {
 
-				if ( msg.indexOf(syncData) != -1 ) // the message do not contains the sync key ( -NickServ- Unknown command [<syncData>] )
+				if ( msg.indexOf(startMarker) != -1 ) // the message do not contains the sync key ( -NickServ- Unknown command [<startMarker>] )
 					return;
 
 				events.NOTICE = function( command, from, to, msg ) {
@@ -80,7 +80,7 @@
 				}
 			}
 
-			_mod.api.Privmsg( getData(_mod.data[_mod.name].chanServ), [syncData, 'ACCESS '+channel+' LIST'], function() {
+			_mod.api.Privmsg( getData(_mod.data[_mod.name].chanServ), [startMarker, 'ACCESS '+channel+' LIST'], function() {
 
 				timeoutId = io.AddTimeout( getData(_mod.data[_mod.name].maxServiceBotReply), function() End(TIMEOUT) );
 			});
@@ -90,7 +90,7 @@
 		// Syntax: INFO <channel>
 		ChanInfo: function( channel, OnReply ) ScheduleCall( function() {
 
-			var result = NewDataObj(), timeoutId, events = NewDataObj(), syncData = RandomString(8);
+			var result = NewDataObj(), timeoutId, events = NewDataObj(), startMarker = RandomString(8), endMarker = RandomString(8);
 			_mod.AddMessageListener(events);
 
 			function End(status, reply) { // response OR timeout
@@ -103,10 +103,16 @@
 
 			events.NOTICE = function( command, from, to, msg ) {
 
-				if ( msg.indexOf(syncData) == -1 ) // the message do not contains the sync key ( -NickServ- Unknown command [<syncData>] )
+				if ( msg.indexOf(startMarker) == -1 ) // the message do not contains the sync key ( -NickServ- Unknown command [<startMarker>] )
 					return;
 
 				events.NOTICE = function( command, from, to, msg ) {
+
+					if ( msg.indexOf(endMarker) == -1 ) {
+
+						End(OK, result);
+						return;
+					}
 
 					if ( from != getData(_mod.data[_mod.name].chanServ) || to != getData(_mod.data.nick) )
 						return;
@@ -140,13 +146,12 @@
 							break;
 						case 'Mode Lock': // (TBD) find a better end-of-ChanInfo marker
 							result.modeLock = data;
-							End(OK);
 							break;
 					}
 				}
 			}
 
-			_mod.api.Privmsg( getData(_mod.data[_mod.name].chanServ), [syncData, 'INFO '+channel], function() {
+			_mod.api.Privmsg( getData(_mod.data[_mod.name].chanServ), [startMarker, 'INFO '+channel, endMarker], function() {
 
 				timeoutId = io.AddTimeout( getData(_mod.data[_mod.name].maxServiceBotReply), function() End(TIMEOUT) );
 			});
@@ -156,7 +161,7 @@
 		// Syntax: ACCESS <channel> LIST [FULL|mask]
 		NickInfo: function( channel, OnReply ) ScheduleCall( function() {
 
-			var result = NewDataObj(), timeoutId, events = NewDataObj(), syncData = RandomString(8);
+			var result = NewDataObj(), timeoutId, events = NewDataObj(), startMarker = RandomString(8), endMarker = RandomString(8);
 			_mod.AddMessageListener(events);
 
 			function End(status, reply) { // response OR timeout
@@ -169,10 +174,16 @@
 
 			events.NOTICE = function( command, from, to, msg ) {
 
-				if ( msg.indexOf(syncData) != -1 ) // the message do not contains the sync key ( -NickServ- Unknown command [<syncData>] )
+				if ( msg.indexOf(startMarker) != -1 ) // the message do not contains the sync key ( -NickServ- Unknown command [<startMarker>] )
 					return;
 
 				events.NOTICE = function( command, from, to, msg ) {
+
+					if ( msg.indexOf(endMarker) != -1 ) {// the message do not contains the sync key ( -NickServ- Unknown command [<syncBegin>] )
+						
+						End(OK, result);
+						return;
+					}
 
 					if ( from != getData(_mod.data[_mod.name].nickServ) || to != getData(_mod.data.nick) )
 						return;
@@ -209,13 +220,12 @@
 							break;
 						case 'Nickname Options': // (TBD) find a better end-of-NickInfo marker
 							result.nicknameOptions = data.split(', ');
-							End(OK);
 							break;
 					}
 				}
 			}
 
-			_mod.api.Privmsg( getData(_mod.data[_mod.name].nickServ), [syncData, 'INFO '+nick], function() {
+			_mod.api.Privmsg( getData(_mod.data[_mod.name].nickServ), [startMarker, 'INFO '+nick, endMarker], function() {
 
 				timeoutId = io.AddTimeout( getData(_mod.data[_mod.name].maxServiceBotReply), function() End(TIMEOUT) );
 			});

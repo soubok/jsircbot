@@ -372,7 +372,7 @@ function TCPConnection( host, port ) {
 		
 		this.Connect = function( timeout ) {
 		
-			DBG && ReportNotice( 'TCP CONNECTING TO: ' + host+':'+port );
+			DBG && ReportNotice( 'TCP CONNECTING TO: '+host+':'+port );
 
 			function ConnectionFailed() {
 

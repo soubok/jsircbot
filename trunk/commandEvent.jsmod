@@ -171,8 +171,7 @@
 
 		Sync: function( OnReply ) ScheduleCall(function() {
 
-			var pingData = IntervalNow();
-			var timeoutId, events;
+			var timeoutId, events, pingData = IntervalNow();
 
 			function End(status) {
 
@@ -182,17 +181,34 @@
 				OnReply(status);
 			}
 
-			function Reply( command, from, server, data ) data == pingData && End(true);
+			function Reply( command, from, server, data ) data == pingData && End(OK);
 
 			events = { PONG:Reply };
 
 			_mod.AddMessageListener(events);
 			_mod.Send( 'PING '+pingData, false, function() {
 
-				timeoutId = io.AddTimeout(getData(_mod.data[_mod.name].maxServerReplyInterval), End ); // start the timeout ONLY vhen the message has been sent
+				timeoutId = io.AddTimeout(getData(_mod.data[_mod.name].maxServerReplyInterval), function() End(TIMEOUT) ); // start the timeout ONLY vhen the message has been sent
 			});
-		})
+		}),
 
+
+
+		Response: function( commandName, OnReply ) ScheduleCall(function() {
+
+			var timeoutId, events = {};
+			function End() {
+
+				_mod.RemoveMessageListener(events);
+				io.RemoveTimeout(timeoutId);
+				NextCall();
+				OnReply.apply(null, arguments);
+			}
+			_mod.AddMessageListener(events);
+			events[commandName] = function( command, from, server, data ) End( OK, command, from, server, data );
+			timeoutId = io.AddTimeout(getData(_mod.data[_mod.name].maxServerReplyInterval), function() End(TIMEOUT) );
+		})
+		
 		
 	};
 })

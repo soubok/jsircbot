@@ -405,16 +405,10 @@ function ClientCore( Configurator ) {
 ///////////////////////////////////////////////// MAIN /////////////////////////////////////////////
 
 
-var log = new Log;
 log.AddFilter( MakeLogFile('jsircbot.log', false), LOG_ALL );
 log.AddFilter( MakeLogScreen(), LOG_ALL/* - LOG_IRCMSG - LOG_DEBUG*/ );
 
-function ReportNotice(text) log.Write( LOG_NOTICE, text);
-function ReportWarning(text) log.Write( LOG_WARNING, text)
-function ReportError(text) log.Write( LOG_ERROR, text);
-function ReportFailure(text) log.Write( LOG_FAILURE, text);
-
-DBG && ReportNotice('log initialized @ '+(new Date()));
+ReportNotice('Start at '+(new Date()));
 // starting
 var core = new ClientCore(Exec('configuration.js'));
 
