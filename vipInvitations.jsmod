@@ -84,7 +84,7 @@
 
 		HttpRequest( pv.invitationURL, data, 3*SECOND, function(status, statusCode, reasonPhrase, headers, body) {
 			
-			DBG && DebugTrace( 'QueryVIPDatabase: STATUS:'+OK+' REQUEST:'+data.toSource()+' RESPONSE:'+body );
+			DBG && DebugTrace( 'QueryVIPDatabase', OK, data.toSource(), body );
 
 			if ( status != OK ) {
 				
@@ -116,7 +116,6 @@
 	function TremulousServerCommand( server, command, OnResult ) {
 
 		DBG && DebugTraceCall();
-	
 		var [host,port] = pv.vipTremServer.split(':', 2);
 		UDPGet( host, port, tremQueryPrefix + command, 3*SECOND, OnResult );
 	}
@@ -329,7 +328,7 @@
 			var [status, result] = yield function(callback) QueryTremServerStatus( pv.vipTremServer, callback );
 			if ( status != OK ) {
 			
-				yield AsyncSleep( 1*MINUTE );
+				yield AsyncSleep( 2*MINUTE );
 				continue;
 			}
 
@@ -358,8 +357,10 @@
 		for (;;) {
 
 			var [status, result] = yield function(callback) TremulousServerCommand( pv.vipTremServer, 'rcon '+pv.vipTremServerRcon+' status', callback );
+			
+			DBG && DebugTrace( 'TremulousServerCommand response', status, result );
 
-			if ( status == OK ) // no response or timeout or failure
+			if ( status == OK ) { // no response or timeout or failure
 				loop:
 				for each ( let playerStatusInfo in ParseRconStatus(result) ) // ParseRconStatus returns undefined on error
 					for each ( let [i, [guestIp, guestNick, date]] in Iterator(_mod.playerListToSetlevel) )
@@ -372,7 +373,7 @@
 							QueryVIPDatabase({ action:'setlevelDone', nick:guestNick, tremName:playerStatusInfo.name }, callback);
 							break loop; // because the list has been splice(), we can only process one item
 						}
-
+			}
 			yield AsyncSleep( 1*MINUTE );
 		}
 	}

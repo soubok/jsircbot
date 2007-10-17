@@ -64,43 +64,6 @@ var io = new function() {
 		INSPECT.push(function() let ( now=IntervalNow() ) 'TIMEOUT '+[(date-now)+':'+fct.name for ( [date,fct] in Iterator(_tlist) )].join(' ')+' MIN='+(_min-now)+'');
 	}
 
-
-/*
-	var _timeout = new function() {
-
-		var _tlist = NewDataObj();
-		
-		this.Add = function( time, func ) {
-			
-			DBG && isNaN(time) && FAILED('the timeout is not a number');
-			var when = IntervalNow() + time;
-			while ( when in _tlist )
-				when++; // avoid same time because we use the time as timer id
-			_tlist[when] = func;
-			return when; // timer id
-		}
-
-		this.Remove = function(when) delete _tlist[when];
-
-		this.Process = function(next) {
-		
-			var now = IntervalNow();
-			for ( let w in _tlist )
-				if ( w <= now ) {
-
-					void _tlist[w]();
-					delete _tlist[w];
-				} else {
-
-					if ( w - now < next )
-						next = w - now;
-				}
-			return next;
-		}
-	}
-
-*/
-
 	var _descriptorList = [];
 	
 	this.AddTimeout = _timeout.Add;
@@ -113,11 +76,8 @@ var io = new function() {
 
 	this.Process = function( endPredicate ) {
 		
-		while ( !endPredicate() ) {
-
-//			Print('-');
+		while ( !endPredicate() )
 			Poll(_descriptorList, Math.min(_timeout.Process(), 500));
-		}
 	}
 	
 	this.Close = function() {
@@ -133,8 +93,12 @@ var io = new function() {
 function GetHostByName( hostName ) {
 
 	try {
+	
 		return Socket.GetHostsByName(hostName).shift(); // GetHostsByName returns an array of IP
-	} catch(ex if ex instanceof IoError) {}
+	} catch(ex if ex instanceof IoError) {
+	
+		DBG && ReportError( 'GetHostByName failed', hostName, ex.code, ex.text );
+	}
 	return undefined;
 }
 
@@ -162,9 +126,11 @@ function UDPGet( host, port, data, timeout, OnResponse ) {
 	socket.nonblocking = true;
 
 	try {
+	
 		socket.Connect( host, port );
 	} catch(ex) {
-		OnResponse && OnResponse.call(OnResponse, UNREACHABLE); // UDP, never UNREACHABLE
+	
+		OnResponse && OnResponse.call(OnResponse, UNREACHABLE); // UDP, never UNREACHABLE ?
 	}
 
 	socket.writable = function() {
@@ -220,8 +186,10 @@ function TCPGet( host, port, data, timeout, OnResponse ) {
 	socket.noDelay = true;
 
 	try {
+	
 		socket.Connect( host, port );
 	} catch(ex) {
+	
 		OnResponse && OnResponse.call(OnResponse, UNREACHABLE);
 	}
 
@@ -283,8 +251,8 @@ function HttpRequest( url, data, timeout, OnResponse ) {
 		
 		if ( DBG ) {
 
-			let buf = response.Read();
-			log.Write( LOG_HTTP, 'HTTP GET: ' +url+' = \n'+buf+'\n' );
+			let buf = response.ReadUntil(CRLF+CRLF);
+			log.Write( LOG_HTTP, url+' :\n'+buf+'  ...' );
 			response.Unread(buf);
 		}
 

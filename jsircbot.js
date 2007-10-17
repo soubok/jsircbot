@@ -108,7 +108,7 @@ function LoadModuleFromURL( core, url ) {
 				MakeModuleFromPath( path, InstallLoadedModule );
 			break;
 		case 'http':
-			MakeModuleFromHttp( url, getData(core.data.moduleLoadRetry), getData(data.moduleLoadRetryPause), InstallLoadedModule );
+			MakeModuleFromHttp( url, getData(core.data.moduleLoadRetry), getData(core.data.moduleLoadRetryPause), InstallLoadedModule );
 			break;
 		default:
 			DBG && ReportError('Invalid module source: URL not supported ('+url+')');
@@ -188,7 +188,7 @@ function ClientCore( Configurator ) {
 	
 	function RawDataSender(buf) {
 
-		log.Write( LOG_IRCMSG, '< ' + buf );
+		log.Write( LOG_IRCMSG, 'out', buf );
 		_connection.Write(buf).length && Failed('Unable to send (more) data.');
 		setData( _data.lastMessageTime, IntervalNow() );
 	}
@@ -208,7 +208,7 @@ function ClientCore( Configurator ) {
 			var message;
 			while ( (message = _receiveBuffer.ReadUntil(CRLF)) ) {
 				
-				log.Write( LOG_IRCMSG, '> '+message);
+				log.Write( LOG_IRCMSG, 'in', message);
 				try {
 
 //    message    =  [ ":" prefix SPACE ] command [ params ] crlf
@@ -406,7 +406,7 @@ function ClientCore( Configurator ) {
 
 
 log.AddFilter( MakeLogFile('jsircbot.log', false), LOG_ALL );
-log.AddFilter( MakeLogScreen(), LOG_ALL/* - LOG_IRCMSG - LOG_DEBUG*/ );
+log.AddFilter( MakeLogScreen(), LOG_FAILURE | LOG_ERROR | LOG_WARNING );
 
 ReportNotice('Start at '+(new Date()));
 // starting
