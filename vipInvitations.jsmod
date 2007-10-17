@@ -20,6 +20,8 @@
 	
 	var pv = Exec('_privateData.js', false);
 	
+	function AsyncSleep(delay) function(callback) io.AddTimeout( delay, callback ); // This is a simple helper function
+	
 	const tremQueryPrefix = '\xFF\xFF\xFF\xFF';
 	
 	function ColorTremToIrc(str) {
@@ -36,7 +38,10 @@
 			}
 		return out;
 	}
-
+	
+	function StripTremText(text) text.replace(/\^./g,'');
+	
+	function StripIrcText(text) text.replace(/\x03(N|(B|V|U|S|I).|F.\d?|P(P|F)|C([0-9,A-F]|#[0-9,A-F]{6}){0,2})/ig,''); // see. http://www.invlogic.com/irc/ctcp2_2.html
 
 	function ParsePlayer( playerInfo ) {
 		
@@ -79,7 +84,7 @@
 
 		HttpRequest( pv.invitationURL, data, 3*SECOND, function(status, statusCode, reasonPhrase, headers, body) {
 			
-			DBG && ReportNotice( 'QueryVIPDatabase:: STATUS:'+OK+' REQUEST:'+data.toSource()+' RESPONSE:'+body );
+			DBG && DebugTrace( 'QueryVIPDatabase: STATUS:'+OK+' REQUEST:'+data.toSource()+' RESPONSE:'+body );
 
 			if ( status != OK ) {
 				
@@ -109,6 +114,8 @@
 
 
 	function TremulousServerCommand( server, command, OnResult ) {
+
+		DBG && DebugTraceCall();
 	
 		var [host,port] = pv.vipTremServer.split(':', 2);
 		UDPGet( host, port, tremQueryPrefix + command, 3*SECOND, OnResult );
@@ -118,6 +125,8 @@
 	function QueryTremServerStatus( server, OnResult ) {
 
 		TremulousServerCommand( server, 'getstatus', function(status, buf) {
+
+			DBG && DebugTraceCall('TremulousServerCommand response');
 			
 			if ( status != OK ) {
 
@@ -231,7 +240,7 @@
 					status != OK && CancelForceinvite('Service unavailable. Please retry later.');
 					response.error && CancelForceinvite(response.error);
 
-					var guestIp = GetHostsByName(guestWhois.host);
+					var guestIp = GetHostByName(guestWhois.host);
 					if ( guestIp ) {
 
 						var [status, response] = yield function(callback) QueryVIPDatabase({ action:'setIp', nick:guestNick, ip:guestIp }, callback);
@@ -299,7 +308,7 @@
 
 						_mod.api.Invite( guestNick, pv.vipChannel );
 
-						var guestIp = GetHostsByName(guestWhois.host);
+						var guestIp = GetHostByName(guestWhois.host);
 						if ( guestIp ) {
 
 							var [status, response] = yield function(callback) QueryVIPDatabase({ action:'setIp', nick:guestNick, ip:guestIp }, callback);
@@ -320,13 +329,13 @@
 			var [status, result] = yield function(callback) QueryTremServerStatus( pv.vipTremServer, callback );
 			if ( status != OK ) {
 			
-				yield function(callback) io.AddTimeout( 1*MINUTE, callback ); // async pause
+				yield AsyncSleep( 1*MINUTE );
 				continue;
 			}
 
 			if ( result.playerList.length < 3 || result.playerList.length > 10 ) {
 				
-				yield function(callback) io.AddTimeout( 1*MINUTE, callback ); // async pause
+				yield AsyncSleep( 1*MINUTE );
 				continue;
 			}
 
@@ -339,7 +348,7 @@
 				prevDisplayedStatusDate = Now();
 			}
 
-			yield function(callback) io.AddTimeout( 1*MINUTE, callback ); // async pause
+			yield AsyncSleep( 1*MINUTE );
 		}
 	}
 
@@ -364,7 +373,7 @@
 							break loop; // because the list has been splice(), we can only process one item
 						}
 
-			yield function(callback) io.AddTimeout( 1*MINUTE, callback ); // async pause
+			yield AsyncSleep( 1*MINUTE );
 		}
 	}
 
@@ -382,11 +391,11 @@
 						_mod.playerListToSetlevel.push([ip, '', 0]); // cf. end of !invite procedure  
 				
 				// ok, we got the list, then reload it in 2 hours
-				yield function(callback) io.AddTimeout( 2*HOUR, callback ); // async pause
+				yield AsyncSleep( 2*HOUR );
 			} else {
 				
 				// failed to get the list, then retry soon
-				yield function(callback) io.AddTimeout( 10*MINUTE, callback ); // async pause
+				yield AsyncSleep( 10*MINUTE );
 			}
 		}
 	}
