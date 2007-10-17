@@ -312,10 +312,10 @@ var log = new function(data) {
 
 function DebugTrace(text) log.Write.apply( null, [LOG_DEBUG].concat(Array.slice(arguments)) );
 
-function ReportNotice(text) log.Write.apply( null, [LOG_NOTICE].concat(Array.slice(arguments)) );
-function ReportWarning(text) log.Write.apply( null, [LOG_WARNING].concat(Array.slice(arguments)) );
-function ReportError(text) log.Write.apply( null, [LOG_ERROR].concat(Array.slice(arguments)) );
-function ReportFailure(text) log.Write.apply( null, [LOG_FAILURE].concat(Array.slice(arguments)) );
+function ReportNotice() log.Write.apply( null, [LOG_NOTICE].concat(Array.slice(arguments)) );
+function ReportWarning() log.Write.apply( null, [LOG_WARNING].concat(Array.slice(arguments)) );
+function ReportError() log.Write.apply( null, [LOG_ERROR].concat(Array.slice(arguments)) );
+function ReportFailure() log.Write.apply( null, [LOG_FAILURE].concat(Array.slice(arguments)) );
 
 
 

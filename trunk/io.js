@@ -251,7 +251,7 @@ function HttpRequest( url, data, timeout, OnResponse ) {
 		
 		if ( DBG ) {
 
-			let buf = response.ReadUntil(CRLF+CRLF);
+			let buf = response.Read(300);
 			log.Write( LOG_HTTP, url+' :\n'+buf+'  ...' );
 			response.Unread(buf);
 		}
