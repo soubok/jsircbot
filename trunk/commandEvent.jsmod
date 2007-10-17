@@ -18,22 +18,11 @@
 	this.name = this.constructor.name;
 	var _mod = this;
 	
-	var _callList = [];
-	function ScheduleCall(fct) {
-		
-		_callList.push(fct);
-		_callList.length == 1 && void _callList[0]();
-	}
-	
-	function NextCall() {
-		
-		_callList.shift();
-		_callList.length && _callList[0]();
-	}
+	var _cs = new CallScheduler;
 	
 	_mod.moduleApi = {
 	
-		Whois: function( nick, OnReply ) ScheduleCall(function() {
+		Whois: function( nick, OnReply ) _cs.Add(function() {
 
 			var pingData = RandomString(16);
 			var timeoutId, events = NewDataObj(), result = NewDataObj();
@@ -44,7 +33,7 @@
 
 				_mod.RemoveMessageListener(events);
 				io.RemoveTimeout(timeoutId);
-				NextCall();
+				_cs.Next();
 				OnReply(status, reply);
 			}
 
@@ -73,13 +62,13 @@
 
 					result.isIdentified = true;
 				}
+				events.ERR_NOSUCHSERVER = function() End(NOTFOUND);
+				events.ERR_NONICKNAMEGIVEN = function() End(BADREQUEST);
+				events.ERR_NOSUCHNICK = function() End(NOTFOUND);
 				events.RPL_ENDOFWHOIS = function( command, from, to, nick ) {
 
 					End(OK, result);
 				}
-				events.ERR_NOSUCHSERVER = function() End(NOTFOUND);
-				events.ERR_NONICKNAMEGIVEN = function() End(BADREQUEST);
-				events.ERR_NOSUCHNICK = function() End(NOTFOUND);
 			}
 
 			_mod.Send( ['PING '+pingData, 'WHOIS '+nick], false, function() { // PING to sync the request
@@ -89,7 +78,7 @@
 		}),
 
 
-		UserHost: function( nickList, OnReply ) ScheduleCall(function() {
+		UserHost: function( nickList, OnReply ) _cs.Add(function() {
 
 			var pingData = RandomString(16);
 			var timeoutId;
@@ -99,7 +88,7 @@
 
 				_mod.RemoveMessageListener(events);
 				io.RemoveTimeout(timeoutId);
-				NextCall();
+				_cs.Next();
 				OnReply(status, reply);
 			}
 
@@ -135,7 +124,7 @@
 		}),
 		
 
-		Prompt: function( nick, message, OnReply ) ScheduleCall(function() {
+		Prompt: function( nick, message, OnReply ) _cs.Add(function() {
 
 			var timeoutId, events = NewDataObj();
 
@@ -143,15 +132,10 @@
 
 				_mod.RemoveMessageListener(events);
 				io.RemoveTimeout(timeoutId);
-				NextCall();
+				_cs.Next();
 				OnReply(status, message);
 			}
 
-			events.PRIVMSG = function( command, from, to, message ) {
-
-				if ( to == getData(_mod.data.nick) && nick == StrBefore(from, '!') )
-					End(OK, message);
-			};
 			events.ERR_NORECIPIENT = function() End(BADREQUEST);
 			events.ERR_NOTEXTTOSEND = function() End(BADREQUEST);
 			events.ERR_CANNOTSENDTOCHAN = function() End(ERROR);
@@ -160,6 +144,11 @@
 			events.ERR_TOOMANYTARGETS = function() End(ERROR);
 			events.ERR_NOSUCHNICK = function() End(NOTFOUND);
 			events.RPL_AWAY = function() End(UNAVAILABLE);
+			events.PRIVMSG = function( command, from, to, message ) {
+
+				if ( to == getData(_mod.data.nick) && nick == StrBefore(from, '!') )
+					End(OK, message);
+			};
 
 			_mod.AddMessageListener(events);
 			_mod.api.Privmsg( nick, message, function() {
@@ -169,7 +158,7 @@
 		}),
 		
 
-		Sync: function( OnReply ) ScheduleCall(function() {
+		Sync: function( OnReply ) _cs.Add(function() {
 
 			var timeoutId, events, pingData = IntervalNow();
 
@@ -177,7 +166,7 @@
 
 				_mod.RemoveMessageListener(events);
 				io.RemoveTimeout(timeoutId);
-				NextCall();
+				_cs.Next();
 				OnReply(status);
 			}
 
@@ -194,14 +183,14 @@
 
 
 
-		Response: function( commandName, OnReply ) ScheduleCall(function() {
+		Response: function( commandName, OnReply ) _cs.Add(function() {
 
 			var timeoutId, events = {};
 			function End() {
 
 				_mod.RemoveMessageListener(events);
 				io.RemoveTimeout(timeoutId);
-				NextCall();
+				_cs.Next();
 				OnReply.apply(null, arguments);
 			}
 			_mod.AddMessageListener(events);

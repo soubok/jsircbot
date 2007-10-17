@@ -189,6 +189,27 @@ function ToggleAsyncProc( procedure, polarity ) {
 		StopAsyncProc( procedure );
 }
 
+/////////////////////////////////////////////////////// Call Scheduler system
+
+
+function CallScheduler() {
+
+	var _callList = [];
+	
+	this.Add = function(fct) {
+		
+		_callList.push(fct);
+		_callList.length == 1 && void _callList[0].call(_callList[0]);
+	}
+
+	this.Next = function() {
+
+		_callList.shift();
+		_callList.length && _callList[0].call(_callList[0]);
+	}
+}
+
+
 
 /////////////////////////////////////////////////////// LOG system
 
@@ -573,5 +594,13 @@ function DArgs() { Print( 'Arguments: ', Array.slice(DArgs.caller.arguments).toS
 var INSPECT = [];
 function Inspect() '$'+[fct() for each (fct in INSPECT)].join(LF);
 
+
+function DebugTraceCall(name) DebugTrace( 'CALL', name||'', DebugTraceCall.caller.name, Array.slice(DArgs.caller.arguments).toSource() ) 
+
+
+
 var DBG = true;
+
+
+
 

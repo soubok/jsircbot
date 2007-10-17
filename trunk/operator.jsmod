@@ -126,7 +126,7 @@
 					if ( status != OK )
 						return;
 					
-					var userIp = GetHostsByName(user.host);
+					var userIp = GetHostByName(user.host);
 					_mod.api.Privmsg( replyTo, userIp );				
 				});
 			},

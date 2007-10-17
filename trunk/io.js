@@ -130,7 +130,7 @@ var io = new function() {
 
 ///////////////////////////////////////////////////////
 
-function GetHostsByName( hostName ) {
+function GetHostByName( hostName ) {
 
 	try {
 		return Socket.GetHostsByName(hostName).shift(); // GetHostsByName returns an array of IP
@@ -285,7 +285,7 @@ function HttpRequest( url, data, timeout, OnResponse ) {
 
 			let buf = response.Read();
 			log.Write( LOG_HTTP, 'HTTP GET: ' +url+' = \n'+buf+'\n' );
-			response.Write(buf);
+			response.Unread(buf);
 		}
 
 		if ( status != OK ) {

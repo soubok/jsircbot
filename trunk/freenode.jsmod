@@ -19,27 +19,14 @@
 	var _mod = this;
 //	function _Data() _mod.data[_mod.name];
 
-
-	var _callList = [];
-	function ScheduleCall(fct) {
-		
-		_callList.push(fct);
-		_callList.length == 1 && void _callList[0]();
-	}
-	
-	function NextCall() {
-		
-		_callList.shift();
-		_callList.length && _callList[0]();
-	}
-
+	var _cs = new CallScheduler;
 
 	_mod.moduleApi = {
 
 		SetChannelAccessLevel: function(channel, nick, level) void _mod.api.Privmsg( getData(_mod.data[_mod.name].chanServ), 'ACCESS '+channel+' ADD '+nick+' '+level ),
 
 		// Syntax: ACCESS <channel> LIST [FULL|mask]
-		AccessInfo: function( channel, OnReply ) ScheduleCall( function() {
+		AccessInfo: function( channel, OnReply ) _cs.Add( function() {
 
 			var result = [], timeoutId, events = NewDataObj(), startMarker = RandomString(8);
 			_mod.AddMessageListener(events);
@@ -48,7 +35,7 @@
 
 				_mod.RemoveMessageListener(events);
 				io.RemoveTimeout(timeoutId);
-				NextCall();
+				_cs.Next();
 				OnReply(status, reply);
 			}
 
@@ -88,7 +75,7 @@
 
 
 		// Syntax: INFO <channel>
-		ChanInfo: function( channel, OnReply ) ScheduleCall( function() {
+		ChanInfo: function( channel, OnReply ) _cs.Add( function() {
 
 			var result = NewDataObj(), timeoutId, events = NewDataObj(), startMarker = RandomString(8), endMarker = RandomString(8);
 			_mod.AddMessageListener(events);
@@ -97,7 +84,7 @@
 
 				_mod.RemoveMessageListener(events);
 				io.RemoveTimeout(timeoutId);
-				NextCall();
+				_cs.Next();
 				OnReply(status, reply);
 			}
 
@@ -159,7 +146,7 @@
 
 
 		// Syntax: ACCESS <channel> LIST [FULL|mask]
-		NickInfo: function( channel, OnReply ) ScheduleCall( function() {
+		NickInfo: function( channel, OnReply ) _cs.Add( function() {
 
 			var result = NewDataObj(), timeoutId, events = NewDataObj(), startMarker = RandomString(8), endMarker = RandomString(8);
 			_mod.AddMessageListener(events);
@@ -168,7 +155,7 @@
 
 				_mod.RemoveMessageListener(events);
 				io.RemoveTimeout(timeoutId);
-				NextCall();
+				_cs.Next();
 				OnReply(status, reply);
 			}
 

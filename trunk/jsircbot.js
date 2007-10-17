@@ -25,7 +25,7 @@ Exec('ident.js');
 ///////////////////////////////////////////////// TOOLS /////////////////////////////////////////////
 
 
-function MakeModuleFromHttp( url, retry, callback ) {
+function MakeModuleFromHttp( url, retry, retryPause, callback ) {
 
 	var args = arguments;
 	function CreationFunction() args.callee.apply(null, args);
@@ -42,7 +42,7 @@ function MakeModuleFromHttp( url, retry, callback ) {
 			DBG && ReportError('Failed to load the module from '+url+' (status:'+String(status)+', reason:'+reasonPhrase+')');
 			if ( --retry <= 0 || Match(status, BADREQUEST, BADRESPONSE, NOTFOUND, ERROR) || status == OK && statusCode > 500 )
 				return; // cannot retry in this case
-			yield function(cb) io.AddTimeout( getData(data.moduleLoadRetryPause), cb ); // async pause
+			yield function(cb) io.AddTimeout( retryPause, cb ); // async pause
 		}
 		
 		var relativeLineNumber;
@@ -108,7 +108,7 @@ function LoadModuleFromURL( core, url ) {
 				MakeModuleFromPath( path, InstallLoadedModule );
 			break;
 		case 'http':
-			MakeModuleFromHttp( url, getData(core.data.moduleLoadRetry), InstallLoadedModule );
+			MakeModuleFromHttp( url, getData(core.data.moduleLoadRetry), getData(data.moduleLoadRetryPause), InstallLoadedModule );
 			break;
 		default:
 			DBG && ReportError('Invalid module source: URL not supported ('+url+')');
