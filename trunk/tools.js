@@ -20,6 +20,8 @@ function ENUM(enumMap) {
 			this[name] = { toString:function() n, valueOf:function() v };
 }
 
+
+
 /////////////////////////////////////////////////////// Chars
 
 const NUL = '\0';
@@ -27,6 +29,7 @@ const CR = '\r';
 const LF = '\n';
 const CRLF = CR+LF;
 const SPC = ' ';
+
 
 
 /////////////////////////////////////////////////////// status objects
@@ -43,8 +46,8 @@ ENUM({
 });
 
 
-/////////////////////////////////////////////////////// Date and Time
 
+/////////////////////////////////////////////////////// Date and Time
 
 function Now() (new Date).getTime(); // returns the current date in ms
 
@@ -56,8 +59,8 @@ const WEEK = 7*DAY;
 const YEAR = 365*DAY + 5*HOUR + 48*MINUTE + 45*SECOND;
 
 
-/////////////////////////////////////////////////////// Errors
 
+/////////////////////////////////////////////////////// Errors
 
 function ExToText(ex, showStack) ex instanceof Error ? ex.name+': '+ex.message+' ('+(showStack ? ex.stack : (ex.fileName+':'+ex.lineNumber))+')' : ex.toString();
 
@@ -82,8 +85,9 @@ function CHKEQ(value, eq) value == eq ? value : ERR();
 
 function CHKNEQ(value, neq) value != neq ? value : ERR();
 
-/////////////////////////////////////////////////////// State Keeper
 
+
+/////////////////////////////////////////////////////// State Keeper
 
 function StateKeeper() {
 
@@ -96,7 +100,7 @@ function StateKeeper() {
 		
 		if ( !state == !_stateList[stateName] ) // if state is already set
 			return;
-		DBG && DebugTrace( 'CHANGING STATE', stateName, state );
+		DBG && DebugTrace( 'STATE', stateName, state );
 		_stateList[stateName] = state;
 		for each ( let item in _predicateList ) {
 			var callback = item[2];
@@ -120,8 +124,8 @@ function StateKeeper() {
 }
 
 
-/////////////////////////////////////////////////////// Event Listener
 
+/////////////////////////////////////////////////////// Event Listener
 
 function Listener() {
 	
@@ -154,12 +158,12 @@ function Listener() {
 }
 
 
-/////////////////////////////////////////////////////// start an asynchronus procedure
 
+/////////////////////////////////////////////////////// start an asynchronus procedure
 
 function StartAsyncProc( procedure ) {
 	
-	DBG && DebugTrace( 'START ASYNC PROC', procedure.name );
+	DBG && DebugTrace( 'START PROC', (procedure.name||'???')+'()' );
 	try {
 		void procedure.next()(function(result) {
 
@@ -177,7 +181,7 @@ function AbortAsyncProc() { // used inside a procedure
 
 function StopAsyncProc( procedure ) { // used outside a procedure
 	
-	DBG && DebugTrace( 'STOP ASYNC PROC', procedure.name );
+	DBG && DebugTrace( 'STOP PROC', procedure.name );
 	procedure.close();
 }
 
@@ -189,8 +193,9 @@ function ToggleAsyncProc( procedure, polarity ) {
 		StopAsyncProc( procedure );
 }
 
-/////////////////////////////////////////////////////// Call Scheduler system
 
+
+/////////////////////////////////////////////////////// Call Scheduler system
 
 function CallScheduler() {
 
@@ -299,7 +304,7 @@ var log = new function(data) {
 
 	this.Write = function(type /*, data, ...*/) {
 
-		var data = FormatedTime()+' '+String(type)+' '+Array.slice(arguments,1).join(' -- ');
+		var data = FormatedTime()+' '+String(type)+' <'+Array.slice(arguments,1).join('> <')+'>';
 		for each ( let [output, typeList] in _outputList )
 			typeList & type && void output(data);
 	}
@@ -313,8 +318,8 @@ function ReportError(text) log.Write.apply( null, [LOG_ERROR].concat(Array.slice
 function ReportFailure(text) log.Write.apply( null, [LOG_FAILURE].concat(Array.slice(arguments)) );
 
 
-/////////////////////////////////////////////////////// HTTP tools
 
+/////////////////////////////////////////////////////// HTTP tools
 
 function ParseUri(source) { // ParseUri 1.2; MIT License By Steven Levithan. http://blog.stevenlevithan.com/archives/ParseUri
 	var o = ParseUri.options, value = o.parser[o.strictMode ? "strict" : "loose"].exec(source);
@@ -362,8 +367,8 @@ function MakeStatusLine( method, path, version ) {
 }
 
 
-/////////////////////////////////////////////////////// Misc tools
 
+/////////////////////////////////////////////////////// Misc tools
 
 function False() false;
 
@@ -417,8 +422,8 @@ function DeleteArrayElement( array, element ) let (pos = array.lastIndexOf(eleme
 function SetOnceObject() new ObjEx( undefined,undefined,undefined, function(name, value) this[name] ? Failed('Property Already defined') : value );
 
 
-/////////////////////////////////////////////////////// String functions
 
+/////////////////////////////////////////////////////// String functions
 
 function StringPad( str, count, chr ) {
 	
@@ -499,6 +504,7 @@ function FileExtension(filename) {
 }
 
 
+
 /////////////////////////////////////////////////////// base64
 
 // This code was written by Tyler Akins and has been placed in the public domain.  It would be nice if you left this header intact.
@@ -563,20 +569,26 @@ function decode64(input) {
    return output;
 }
 
-
 // try: http://www.webtoolkit.info/
 
 
-/////////////////////////////////////////////////////// Manage exit value
 
+/////////////////////////////////////////////////////// Manage exit value
 
 var _exitValue;
 function SetExitValue(val) _exitValue = val;
 function GetExitValue() _exitValue;
 
 
-/////////////////////////////////////////////////////// Debug tools
 
+/////////////////////////////////////////////////////// Debug inspect
+
+var INSPECT = [];
+function Inspect() '$'+[fct() for each (fct in INSPECT)].join(LF);
+
+
+
+/////////////////////////////////////////////////////// Debug tools
 
 function DPrint() {
 	
@@ -591,12 +603,39 @@ function DStack() { try { throw Error() } catch(ex) { Print( 'Stack: ', ex.stack
 
 function DArgs() { Print( 'Arguments: ', Array.slice(DArgs.caller.arguments).toSource(), LF ) }
 
-var INSPECT = [];
-function Inspect() '$'+[fct() for each (fct in INSPECT)].join(LF);
 
+function DebugTraceCall(name) { 
 
-function DebugTraceCall(name) DebugTrace( 'CALL', name||'', DebugTraceCall.caller.name, Array.slice(DArgs.caller.arguments).toSource() ) 
+	var args = Array.slice(arguments.callee.caller.arguments);
+	var out = '';
+	for ( var i in args ) {
 
+		if ( typeof args[i] == 'string' ) {
+		
+			args[i] = '"'+args[i]+'"';
+			continue;
+		}
+		
+		if ( args[i] instanceof Function ) {
+
+			args[i] = (args[i].name||'???')+'()';
+			continue;
+		}
+
+		if ( typeof(args[i]) == 'object' && !('toString' in (args[i])) ) {
+			
+			var list = [];
+			for each ( var [k,v] in Iterator(args[i]) )
+				list.push( k+':'+v );
+			args[i] = '{ '+list.join(', ')+' }';
+			continue;
+		}
+		
+		args[i] = args[i].toString();
+	}
+
+	DebugTrace( 'CALL SPY', name, arguments.callee.caller.name, args.join(', ') );
+}
 
 
 var DBG = true;
