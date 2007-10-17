@@ -24,6 +24,10 @@
 						
 			if ( msg[0] != '!' ) // not a bot command
 				return;
+				
+			//DebugTraceCall('BOT COMMAND');
+			ReportNotice( 'BOT COMMAND', from, to, msg );
+			
 			var cmdName, cmdData;
 			var sp = msg.indexOf(' ');
 			if ( sp == -1 ) {
