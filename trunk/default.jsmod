@@ -18,10 +18,62 @@
 	this.name = this.constructor.name;
 	var _mod = this;
 	
+	
+	function TemporaryNick() {
+		
+		return 'tmp'+Math.random().toString(16).substr(2);
+	}
+	
 // [TBD] autodetect max message length ( with a self sent mesage )
 // [TBD] autodetect flood limit
 
 	this.messageListener = {
+	
+	
+		RPL_WELCOME: function( command, from, to ) {
+
+			setData(_mod.data.nick, to);
+			_mod.state.Toggle( 'rightNick', getData(_mod.data.nick) == getData(_mod.data.wishNick) );
+		},
+
+/*
+		ERR_NONICKNAMEGIVEN
+		ERR_ERRONEUSNICKNAME
+		ERR_NICKNAMEINUSE
+		ERR_NICKCOLLISION
+		ERR_UNAVAILRESOURCE
+		ERR_RESTRICTED
+*/
+
+		NICK:function( command, who, nick ) {
+
+			setData( _mod.data.nick, nick );
+			_mod.state.Toggle( 'rightNick', getData(_mod.data.nick) == getData(_mod.data.wishNick) );
+		},
+
+
+		ERR_RESTRICTED: function() {
+
+			_mod.api.Nick( TemporaryNick() );
+		},
+
+		ERR_NICKCOLLISION: function() {
+			
+			_mod.api.Nick( TemporaryNick() );
+		},
+
+		ERR_ERRONEUSNICKNAME: function() { // Erroneous nickname
+		  
+			_mod.api.Nick( TemporaryNick() );
+		},
+
+		ERR_NICKNAMEINUSE: function() { // ...try a random nick, then, when ready, periodically try a better nick
+			
+			_mod.api.Nick( TemporaryNick() );
+		},
+
+
+
 
 		RPL_USERHOST: function( command, from, to, hostList ) {
 			
@@ -30,29 +82,6 @@
 				var host = StrBefore(hostList, ' ');
 				setData( _mod.data.userhost, host.substr(host.lastIndexOf('=')+1) ); // hostinfo[0] = '+' or '-' : AWAY message set ???
 			}
-		},
-		
-		ERR_NICKCOLLISION: function() {
-			
-			delData( _mod.data.nick );
-		},
-		
-		ERR_ERRONEUSNICKNAME: function() { // Erroneous nickname
-		  
-			delData( _mod.data.nick );
-		  // ...try to find server nick policy
-		},
-
-		ERR_NICKNAMEINUSE: function() {
-		
-			var tmpNick = 'tmp'+Math.random().toString(16).substr(2); // ...try a random nick, then, when ready, try a better nick
-			_mod.Send( 'NICK '+tmpNick );
-			setData( _mod.data.nick, tmpNick );
-		},
-
-		NICK:function( command, who, nick ) {
-		
-			setData( _mod.data.nick, nick );
 		},
 		
 		PING: function( command, prefix, arg ) {
@@ -141,10 +170,10 @@
 	this.stateListener = [
 		{
 			set: function(s) s.connected,
-			reset: False,
+			reset: False, // never resets
 			trigger: function(polarity) {
 
-				_mod.Send( 'NICK '+getData(_mod.data.nick) );
+				_mod.Send( 'NICK '+getData(_mod.data.wishNick) );
 				_mod.Send( 'USER '+getData(_mod.data.ident.username)+' '+getData(_mod.data.hostname)+' '+getData(_mod.data.server)+' :'+getData(_mod.data.ident.realname) );
 			}
 		},
