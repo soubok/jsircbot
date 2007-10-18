@@ -34,12 +34,12 @@ function MakeModuleFromHttp( url, retry, retryPause, callback ) {
 
 		for (;;) {
 	
-			DBG && ReportNotice( 'Loading module from: '+url+' ('+retry+' tries left)' );
+			DBG && ReportNotice( 'Loading module from: '+url );
 	
 			var [status, statusCode, reasonPhrase, headers, body] = yield function(cb) HttpRequest(url, '', 10*SECOND, cb);
 			if ( status == OK && statusCode == 200 )
 				break;
-			DBG && ReportError('Failed to load the module from '+url+' (status:'+String(status)+', reason:'+reasonPhrase+')');
+			DBG && ReportError('Failed to load the module from '+url+' (status:'+String(status)+', reason:'+reasonPhrase+') ... '+(retry-1)+' tries left');
 			if ( --retry <= 0 || Match(status, BADREQUEST, BADRESPONSE, NOTFOUND, ERROR) || status == OK && statusCode > 500 )
 				return; // cannot retry in this case
 			yield function(cb) io.AddTimeout( retryPause, cb ); // async pause
@@ -86,9 +86,9 @@ function LoadModuleFromURL( core, url ) {
 	
 	function InstallLoadedModule( mod, creationFunction ) {
 		
-		var module = core.ModuleByName(mod.name);
-		if ( module )
-			core.RemoveModule(module); // remove existing module with the same name
+		for each ( mod in core.ModulesByName(mod.name) )
+			core.RemoveModule(mod); // remove existing module with the same name
+		// (TBD) manage multiples modules
 		core.AddModule(mod, creationFunction);
 	}
 
@@ -127,7 +127,7 @@ function MakeFloodSafeMessageSender( maxMessage, maxData, time, RawDataSender, s
 
 	function Process() {
 
-		DBG && log.Write( LOG_DEBUG, 'MakeFloodSafeMessageSender:: COUNT:'+ _count + ' BYTES:'+ _bytes+' QUEUE_LENGTH:'+_messageQueue.length );
+		DBG && DebugTrace( 'MakeFloodSafeMessageSender', _count, _bytes, _messageQueue.length );
 
 		var buffer = '';
 		function PrepMessage([messages, OnSent]) {
@@ -240,14 +240,15 @@ function ClientCore( Configurator ) {
 
 				} catch (ex if ex == ERR) {
 				
-					DBG && ReportError('Invalid IRC server message');
+					DBG && ReportError('Invalid IRC server message', message);
 				}
 			}
 		}
 
 		function OnDisconnected( remotelyDisconnected ) {
 			
-			DBG && ReportWarning( remotelyDisconnected ? 'Remotely disconnected' : 'Locally disconnected' );
+			DBG && remotelyDisconnected && ReportWarning( 'Remotely disconnected' );
+			DBG && !remotelyDisconnected && ReportNotice( 'Locally disconnected' );
 
 			_state.Leave('interactive');
 			_state.Leave('connected');
@@ -385,12 +386,9 @@ function ClientCore( Configurator ) {
 			DBG && ReportError('Unable to reload the module '+mod.name+': Reload function not found.');
 	}
 	
-	this.ModuleByName = function( name ) { // note: this.HasModuleName = function( name ) _modules.some(function(mod) mod.name == name);
+	this.ModulesByName = function( name ) { // note: this.HasModuleName = function( name ) _modules.some(function(mod) mod.name == name);
 
-		for each ( mod in _modules )
-			if ( mod.name == name )
-				return mod;
-		return undefined;
+		return [ mod for each ( mod in _modules ) if ( mod.name == name ) ];
 	}
 
 	this.ModuleList = function() _modules.slice(); // slice() to prevent dead-loop

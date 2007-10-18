@@ -13,6 +13,15 @@
  * ***** END LICENSE BLOCK ***** */
 
 
+function InitModule(mod) {
+	
+	mod.name = this.constructor.name;
+	return mod;
+}
+
+
+/////////////////////////////////////////////////////// Enum
+
 function ENUM(enumMap) {
 
 	for ( let [name, value] in Iterator(enumMap) )
@@ -94,7 +103,7 @@ function StateKeeper() {
 	var _stateList = NewDataObj();
 	var _predicateList = [];
 
-	function Is(stateName) stateName in _stateList;
+//	function Is(stateName) stateName in _stateList; // not needed fot the moment
 
 	function StateChanging(stateName, state) {
 		

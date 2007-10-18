@@ -92,8 +92,8 @@
 						
 							_mod.api && _mod.api.Privmsg && _mod.api.Privmsg( replyTo, 'Reloading '+moduleName );
 							
-							var mod = core.ModuleByName(moduleName);
-							core.ReloadModule(mod);
+							for each ( mod in core.ModulesByName(moduleName) )
+								core.ReloadModule(mod);
 						}
 				} else {
 
