@@ -322,6 +322,7 @@ function ClientCore( Configurator ) {
 		FireModuleListener:_moduleListener.Fire,
 		Send:this.Send,
 		data:_data,
+		state:_state,
 		api:_api
 	};
 	

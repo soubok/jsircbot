@@ -75,14 +75,10 @@
 		JOIN: function( command, who, channel ) { // :cdd_etf_bot!~cdd_etf_b@nost.net JOIN #soubok
 
 			// from i= / n= : http://freenode.net/faq.shtml#userequals		
-			
 			// channel name case may be wrong
 			
 			var nick = StrBefore(who, '!'); // [TBD] try to auto extract this
-			
-			
-			
-			
+
 			if ( nick == getData(_mod.data.nick) ) { // self
 				
 //				delData( _mod.data.channel[NormalizeChannelName(channel)] );

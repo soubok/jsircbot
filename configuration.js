@@ -20,7 +20,7 @@ function(data) {
 	setData( data.hostname, '127.0.0.1' ); // try something else
 
 // bot nick
-	setData(data.nick, 'TremVipBot');
+	setData(data.wishNick, 'TremVipBot');
 
 // ident
 	setData(data.ident, true);
