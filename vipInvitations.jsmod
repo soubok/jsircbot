@@ -15,7 +15,10 @@
 
 (function VipInvitationModule() {
 
-	this.name = this.constructor.name;
+	var _name = this.constructor.name;
+	
+	this.name = _name;
+
 	var _mod = this;
 	
 	var pv = Exec('_privateData.js', false);
@@ -274,7 +277,7 @@
 
 					var hostLevel = [ user.level for each ( user in accessList ) if (user.hostmask.toLowerCase() == hostNick.toLowerCase()) ][0];
 					var hasBeenOpByChanServ = getData( _mod.data.channel[pv.vipChannel].names[hostNick].operator.by ) == pv.chanServ;
-					!(hostLevel >= pv.vipChanLevel) && !hasBeenOpByChanServ && CancelInvitation('You must be a VIP to invite someone.');
+					!(hostLevel >= pv.vipChanLevel) && !hasBeenOpByChanServ && CancelInvitation('You must be a VIP to use invite command.');
 					hostLevel >= pv.vipChanLevel || hasBeenOpByChanServ && CancelInvitation('Please use your master nick before invite.');
 
 					var [status, hostDbInfo] = yield function(callback) QueryVIPDatabase({ action:'info', nick:hostNick }, callback);
@@ -413,8 +416,8 @@
 			}
 		},
 		{
-			set: function(s) s.VipInvitationModule && s.interactive && s.ChannelModule,
-			reset: function(s) !s.VipInvitationModule && s.interactive && s.ChannelModule,
+			set: function(s) with(s) VipInvitationModule && interactive && ChannelModule,
+			reset: function(s) with(s) !VipInvitationModule && interactive && ChannelModule,
 			trigger: function(polarity) {
 
 				if ( polarity )
@@ -424,8 +427,8 @@
 			}
 		},
 		{
-			set: function(s) s.VipInvitationModule && s.interactive && s.DefaultModule,
-			reset: function(s) !s.VipInvitationModule || !s.interactive || !s.DefaultModule,
+			set: function(s) with(s) VipInvitationModule && interactive && DefaultModule,
+			reset: function(s) with(s) !VipInvitationModule || !interactive || !DefaultModule,
 			trigger: function(polarity) {
 
 				ToggleAsyncProc( VipTremServerScanPlayers, polarity );
