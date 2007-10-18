@@ -1,4 +1,10 @@
 #labels Featured
+*!! NEW VERSION IN PROGRESS !!*
+
+*!! NEW VERSION IN PROGRESS !!*
+
+*!! NEW VERSION IN PROGRESS !!*
+
 ===Introduction===
 The aim of this page is to explain you how jsircbot works, an how to customize it.
 
