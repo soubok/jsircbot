@@ -18,11 +18,7 @@
 	this.name = this.constructor.name;
 	var _mod = this;
 	
-	
-	function TemporaryNick() {
-		
-		return 'tmp'+Math.random().toString(16).substr(2);
-	}
+	function TemporaryNick() '_'+RandomString(8);
 	
 // [TBD] autodetect max message length ( with a self sent mesage )
 // [TBD] autodetect flood limit
@@ -33,46 +29,56 @@
 		RPL_WELCOME: function( command, from, to ) {
 
 			setData(_mod.data.nick, to);
-			_mod.state.Toggle( 'rightNick', getData(_mod.data.nick) == getData(_mod.data.wishNick) );
+			_mod.state.Toggle( STATE_HAS_GOOD_NICK, getData(_mod.data.nick) == getData(_mod.data.wishNick) );
 		},
+		
+//(TBD)		// RPL_YOURHOST
 
-/*
-		ERR_NONICKNAMEGIVEN
-		ERR_ERRONEUSNICKNAME
-		ERR_NICKNAMEINUSE
-		ERR_NICKCOLLISION
-		ERR_UNAVAILRESOURCE
-		ERR_RESTRICTED
-*/
-
-		NICK:function( command, who, nick ) {
-
-			setData( _mod.data.nick, nick );
-			_mod.state.Toggle( 'rightNick', getData(_mod.data.nick) == getData(_mod.data.wishNick) );
-		},
+//		ERR_NONICKNAMEGIVEN
+//		ERR_ERRONEUSNICKNAME
+//		ERR_NICKNAMEINUSE
+//		ERR_NICKCOLLISION
+//		ERR_UNAVAILRESOURCE
+//		ERR_RESTRICTED
 
 
-		ERR_RESTRICTED: function() {
-
-			_mod.api.Nick( TemporaryNick() );
-		},
-
-		ERR_NICKCOLLISION: function() {
+		NICK:function( command, from, newNick ) { // WiZ!jto@tolsun.oulu.fi NICK Kilroy
 			
-			_mod.api.Nick( TemporaryNick() );
+			var nick = StrBefore(from, '!');
+			if ( nick != getData(_mod.data.nick) ) // only listen for self nickname changing.
+				return;
+			setData(_mod.data.nick, newNick);
+			_mod.state.Toggle( STATE_HAS_GOOD_NICK, getData(_mod.data.nick) == getData(_mod.data.wishNick) );
 		},
 
-		ERR_ERRONEUSNICKNAME: function() { // Erroneous nickname
+//		ERR_RESTRICTED: function() { // Your connection is restricted!
+//
+//			_mod.api.Nick( TemporaryNick() );
+//		},
+
+//		ERR_NICKCOLLISION: function( command, nick, nickCollisionPhrase ) { // Nickname collision KILL from <user>@<host>
+//			
+//			_mod.api.Nick( TemporaryNick() );
+//		},
+
+
+		ERR_ERRONEUSNICKNAME: function() { // Erroneous nickname ( see. IsNickValid() )
 		  
 			_mod.api.Nick( TemporaryNick() );
 		},
 
-		ERR_NICKNAMEINUSE: function() { // ...try a random nick, then, when ready, periodically try a better nick
+		ERR_NICKNAMEINUSE: function( nick, nickInUsePhrase ) { // Nickname is already in use
+		
+			// (TBD) try a random nick, then, when ready, periodically try a better nick
 			
-			_mod.api.Nick( TemporaryNick() );
+			_mod.api.Nick( TemporaryNick() ); // (TBD) enhance this 
+			
+			io.AddTimeout( getData(_mod.data[_mod.name].wishNickRetryInterval), function() {
+				
+				_mod.Send( 'NICK '+getData(_mod.data.wishNick) );
+			}); // async pause
+			
 		},
-
-
 
 
 		RPL_USERHOST: function( command, from, to, hostList ) {
@@ -131,6 +137,12 @@
 			str = str.replace('^', '~');
 			return str.toUpperCase();
 		},
+		
+		// special    =  %x5B-60 / %x7B-7D      ; "[", "]", "\", "`", "_", "^", "{", "|", "}"
+		// letter     =  %x41-5A / %x61-7A       ; A-Z / a-z
+		// digit      =  %x30-39                 ; 0-9
+		//  nickname   =  ( letter / special ) *8( letter / digit / special / "-" )
+		IsNickValid: function(nick) !!/^[A-Za-z\x5B-\x60\x7B-\x7D][A-Za-z0-9\x5B-\x60\x7B-\x7D\x2D]{0,8}$/(nick),
 
 		Topic: function( channel, topic ) void _mod.Send( 'TOPIC '+channel+' :'+topic ),
 		

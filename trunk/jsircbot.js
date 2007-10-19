@@ -22,6 +22,15 @@ Exec('io.js');
 Exec('ident.js');
 
 
+///////////////////////////////////////////////// CONST /////////////////////////////////////////////
+
+// Default state names
+const STATE_SEND_OVERFLOW = 'sendOverflow';
+const STATE_INTERACTIVE = 'interactive';
+const STATE_CONNECTED = 'connected';
+const STATE_CONNECTING = 'connecting';
+const STATE_HAS_GOOD_NICK = 'hasGoodNick';
+
 ///////////////////////////////////////////////// TOOLS /////////////////////////////////////////////
 
 
@@ -147,7 +156,7 @@ function MakeFloodSafeMessageSender( maxMessage, maxData, time, RawDataSender, s
 
 		buffer.length && RawDataSender(buffer);
 
-		state.Toggle('sendOverflow', _messageQueue.length > 0);
+		state.Toggle(STATE_SEND_OVERFLOW, _messageQueue.length > 0);
 
 		if ( !_timeoutId ) // do not reset the timeout
 			_timeoutId = io.AddTimeout(time, AntiFloodTimeout);
@@ -236,7 +245,7 @@ function ClientCore( Configurator ) {
 					_messageListener.Fire.apply( null, args );
 
 					if ( args[0] == 'RPL_WELCOME' )
-						_state.Enter('interactive');
+						_state.Enter(STATE_INTERACTIVE);
 
 				} catch (ex if ex == ERR) {
 				
@@ -250,8 +259,8 @@ function ClientCore( Configurator ) {
 			DBG && remotelyDisconnected && ReportWarning( 'Remotely disconnected' );
 			DBG && !remotelyDisconnected && ReportNotice( 'Locally disconnected' );
 
-			_state.Leave('interactive');
-			_state.Leave('connected');
+			_state.Leave(STATE_INTERACTIVE);
+			_state.Leave(STATE_CONNECTED);
 
 			for each ( mod in _core.ModuleList() )
 				_core.RemoveModule( mod );
@@ -269,8 +278,8 @@ function ClientCore( Configurator ) {
 			setData( _data.peerName, _connection.peerName );
 			_connection.OnData = OnData;
 			_connection.OnDisconnected = OnDisconnected;
-			_state.Leave('connecting');
-			_state.Enter('connected');
+			_state.Leave(STATE_CONNECTING);
+			_state.Enter(STATE_CONNECTED);
 			getData(_data.ident) && Ident( io, function(identRequest) identRequest + ' : '+getData(_data.ident.userid)+' : '+getData(_data.ident.opsys)+' : '+getData(_data.nick)+CRLF, 2*SECOND ); // let 2 seconds to the server to make the IDENT request
 		}
 
@@ -308,7 +317,7 @@ function ClientCore( Configurator ) {
 			setData( _data.connectTime, IntervalNow() );
 		}
 		TryNextServer();
-		_state.Enter('connecting');
+		_state.Enter(STATE_CONNECTING);
 	}
 	
 	var modulePrototype = {
@@ -404,7 +413,9 @@ function ClientCore( Configurator ) {
 ///////////////////////////////////////////////// MAIN /////////////////////////////////////////////
 
 
-log.AddFilter( MakeLogFile('jsircbot.log', false), LOG_ALL );
+function DateString() let ( d = new Date ) d.getFullYear() + StringPad(d.getMonth()+1,2,'0') + StringPad(d.getDate(),2,'0');
+
+log.AddFilter( MakeLogFile(function() 'jsircbot_'+DateString()+'.log', false), LOG_ALL );
 log.AddFilter( MakeLogScreen(), LOG_FAILURE | LOG_ERROR | LOG_WARNING );
 
 ReportNotice('Start at '+(new Date()));

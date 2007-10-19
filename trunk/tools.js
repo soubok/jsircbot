@@ -248,16 +248,27 @@ function MakeLogScreen() function(data) {
 	Print('    '+data+LF);
 }
 
-function MakeLogFile(fileName, append) {
+function MakeLogFile(fileNameMaker, append) { // fileNameMaker is a function that returns a filename
 
-	var file = new File(fileName);
-	file.Open(File.CREATE_FILE + File.WRONLY + (append ? File.APPEND : File.TRUNCATE));
+	var _fileName;
+	var _file;
+	
 	return function(data) {
 
 		if ( data === LOG_CLOSE_FILTER )
 			file.Close();
-		else
+		else {
+			
+			var newFileName = fileNameMaker();
+			if ( _fileName != newFileName ) {
+				
+				_fileName = newFileName;
+				file.Close();
+				file = new File(_fileName);
+				file.Open(File.CREATE_FILE + File.WRONLY + (append ? File.APPEND : File.TRUNCATE));
+			}
 			file.Write(data+LF);
+		}
 	}
 }
 
@@ -405,13 +416,20 @@ function IpToInt(ip) {
 function NumberToUint32NetworkOrderString(number) String.fromCharCode(number>>24 & 255)+String.fromCharCode(number>>16 & 255)+String.fromCharCode(number>>8 & 255)+String.fromCharCode(number & 255);
 
 
-function RandomString(length) {
+function RandomNumber(length) {
 	
 	var str = '';
 	for ( ; str.length < length; str += Math.random().toString().substr(2) );
 	return str.substr(0, length);
 }
 
+
+function RandomString(length) {
+    
+    var str = '';
+    for ( ; str.length < length; str += Math.random().toString(36).substr(2) );
+    return str.substr(0, length);
+}
 
 function RandomRange( min, max )	min + Math.random() * (max - min);
 
@@ -439,8 +457,8 @@ function StringPad( str, count, chr ) {
 	str += '';
 	chr = chr || SPC;
 	var diff = count - str.length;
-		while( diff-- > 0 )
-			str = chr + str;
+	while( diff-- > 0 )
+		str = chr + str;
 	return str;
 }
 

@@ -35,6 +35,7 @@ function(data) {
 
 // default module
 	setData(data.DefaultModule.lagProbeInterval, 2*MINUTE);
+	setData(data.DefaultModule.wishNickRetryInterval, 5*MINUTE);
 
 // configure chans
 	setData(data.ChannelModule.joinList, ['#soubok']);
