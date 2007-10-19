@@ -28,7 +28,7 @@
 		// Syntax: ACCESS <channel> LIST [FULL|mask]
 		AccessInfo: function( channel, OnReply ) _cs.Add( function() {
 
-			var result = [], timeoutId, events = NewDataObj(), startMarker = RandomString(8);
+			var result = [], timeoutId, events = NewDataObj(), startMarker = RandomNumber(8);
 			_mod.AddMessageListener(events);
 
 			function End(status, reply) { // response OR timeout
@@ -77,7 +77,7 @@
 		// Syntax: INFO <channel>
 		ChanInfo: function( channel, OnReply ) _cs.Add( function() {
 
-			var result = NewDataObj(), timeoutId, events = NewDataObj(), startMarker = RandomString(8), endMarker = RandomString(8);
+			var result = NewDataObj(), timeoutId, events = NewDataObj(), startMarker = RandomNumber(8), endMarker = RandomNumber(8);
 			_mod.AddMessageListener(events);
 
 			function End(status, reply) { // response OR timeout
@@ -148,7 +148,7 @@
 		// Syntax: ACCESS <channel> LIST [FULL|mask]
 		NickInfo: function( channel, OnReply ) _cs.Add( function() {
 
-			var result = NewDataObj(), timeoutId, events = NewDataObj(), startMarker = RandomString(8), endMarker = RandomString(8);
+			var result = NewDataObj(), timeoutId, events = NewDataObj(), startMarker = RandomNumber(8), endMarker = RandomNumber(8);
 			_mod.AddMessageListener(events);
 
 			function End(status, reply) { // response OR timeout

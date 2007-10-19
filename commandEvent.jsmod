@@ -24,7 +24,7 @@
 	
 		Whois: function( nick, OnReply ) _cs.Add(function() {
 
-			var pingData = RandomString(16);
+			var pingData = RandomNumber(16);
 			var timeoutId, events = NewDataObj(), result = NewDataObj();
 
 			_mod.AddMessageListener(events);
@@ -80,7 +80,7 @@
 
 		UserHost: function( nickList, OnReply ) _cs.Add(function() {
 
-			var pingData = RandomString(16);
+			var pingData = RandomNumber(16);
 			var timeoutId;
 			var events = NewDataObj();
 
