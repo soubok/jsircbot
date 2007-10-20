@@ -78,7 +78,6 @@ function MakeModuleFromPath( path, callback ) {
 
 	DBG && ReportNotice( 'Loading module from: '+path );
 
-	var args = arguments;
 	try {
 		
 		var mod = new (Exec(path, false)); // do not save compiled version of the script
@@ -95,8 +94,8 @@ function LoadModuleFromURL( core, url ) {
 	
 	function InstallLoadedModule( mod, creationFunction ) {
 		
-		for each ( mod in core.ModulesByName(mod.name) )
-			core.RemoveModule(mod); // remove existing module with the same name
+		for each ( m in core.ModulesByName(mod.name) )
+			core.RemoveModule(m); // remove existing module with the same name
 		// (TBD) manage multiples modules
 		core.AddModule(mod, creationFunction);
 	}

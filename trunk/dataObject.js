@@ -36,6 +36,7 @@ function setData( path, data ) {
 	for each ( let listener in aux.listenerList )
 		listener('set', data);
 	aux.data = data;
+	return data;
 	
 //	while ( path = (aux=ObjEx.Aux(path)).parent || undefined )
 //		aux.listener && aux.listener('set (children)');
