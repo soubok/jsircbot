@@ -24,6 +24,19 @@
 	_mod.moduleApi = {
 
 		SetChannelAccessLevel: function(channel, nick, level) void _mod.api.Privmsg( getData(_mod.data[_mod.name].chanServ), 'ACCESS '+channel+' ADD '+nick+' '+level ),
+		
+//		LinkNick: function( nickname, password ) void _mod.api.Privmsg( getData(_mod.data[_mod.name].nickServ), 'LINK '+nickname+' '+password ),
+		
+		RenameLink: function( newNick, password ) StartAsyncProc( new function() {
+			
+			var nickServ = getData(_mod.data[_mod.name].nickServ);
+			var [status, hostWhois] = yield function(callback) _mod.api.Whois(getData(_mod.data.nick), callback);
+			if ( status != OK || !hostWhois.isIdentified )
+				return;
+			_mod.api.Nick( newNick );
+			_mod.api.Privmsg( nickServ, 'REGISTER '+password );
+			_mod.api.Privmsg( nickServ, 'LINK '+hostWhois.nick+' '+password );
+		}),
 
 		// Syntax: ACCESS <channel> LIST [FULL|mask]
 		AccessInfo: function( channel, OnReply ) _cs.Add( function() {

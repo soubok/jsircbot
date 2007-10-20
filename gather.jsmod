@@ -1,0 +1,134 @@
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: GNU GPL 2.0
+ *
+ * The contents of this file are subject to the
+ * GNU General Public License Version 2.0; you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ * http://www.gnu.org/licenses/gpl.html
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ * ***** END LICENSE BLOCK ***** */
+
+
+(function Gather() {
+
+	this.name = this.constructor.name;
+	var _mod = this;
+	
+	const _channelList = ['#CY'];
+
+	this.stateListener = [
+		{
+			set: function(s) s.interactive && s.DefaultModule && s.ChannelModule,
+			reset: False, // state never resets
+			trigger: function(polarity) {
+
+				for each ( var channel in _channelList )
+					_mod.api.Join( channel );
+			}
+		}
+	];
+	
+	function Path(channel) _mod.data[_mod.name][channel];
+
+	this.moduleListener = {
+
+		botcmd: {
+		
+			gather: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+				
+				if ( _channelList.indexOf(to) == -1 )
+					return;
+
+				if ( !cmdData ) {
+
+					if ( !hasData(Path(to)) ) {
+
+						_mod.api.Privmsg(to, 'To create a gather, type: !gather <number players by team>' );
+						return;
+					}
+
+					var gatherData = getData(Path(to));
+					_mod.api.Privmsg(to, ObjPropertyCount(gatherData.nickList) + '/' + 2*gatherData.count + ': ' + [player for (player in gatherData.nickList)].join(', ') );
+				} else {
+
+					var count = parseInt(cmdData);
+					if ( count == 0 ) {
+
+						delData(Path(to));
+						_mod.api.Privmsg(to, 'Gather canceled.' );
+					}
+					if ( count > 0 ) { // do not use else to manage count isNaN
+
+						if ( hasData(Path(to)) ) {
+
+							_mod.api.Privmsg(to, 'Gather in progress. type !gather 0 to cancel the gather, or !gather to list current players.' );
+							return;
+						}
+
+						var gatherData = setData(Path(to), {} );
+						gatherData.count = count;
+						gatherData.nickList = NewDataObj();
+						_mod.api.Privmsg(to, 'Gather started.' );
+					}
+				}
+			},
+
+
+			del: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+			
+				if ( _channelList.indexOf(to) == -1 )
+					return;
+
+				if ( !hasData(Path(to)) ) {
+					
+					_mod.api.Privmsg(to, 'No gather in progress.' );
+					return;
+				}
+				var nick = StrBefore(from, '!');
+				delete getData(Path(to)).nickList[nick];
+			},
+			
+			
+			add: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+			
+				if ( _channelList.indexOf(to) == -1 )
+					return;
+
+				if ( !hasData(Path(to)) ) {
+					
+					_mod.api.Privmsg(to, 'No gather. To create a gather, type: !gather <number players by team>' );
+					return;
+				}
+
+				var gatherData = getData(Path(to));
+				var nick = StrBefore(from, '!');
+				if ( gatherData.nickList[nick] ) {
+					
+					_mod.api.Privmsg(to, 'You are already in the gather.' );
+					return;
+				}
+
+				gatherData.nickList[nick] = Now();
+				var currentCount = ObjPropertyCount(gatherData.nickList);
+
+				if ( currentCount >= gatherData.count * 2 ) {
+				
+					var players = [player for (player in gatherData.nickList)].sort(function() Math.random() - 0.5);
+					_mod.api.Privmsg(to, 'Alien team: '+players.slice(0, gatherData.count).join(', '));
+					_mod.api.Privmsg(to, 'Human team: '+players.slice(gatherData.count).join(', '));
+					delData(Path(to));
+				}
+//				else {
+//				
+//					_mod.api.Privmsg(to, gatherData.count * 2 - currentCount + ' slots available');
+//				}
+			}
+
+		}
+	}
+
+})

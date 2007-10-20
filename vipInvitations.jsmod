@@ -169,6 +169,8 @@
 
 		botcmd: {
 			
+			
+			
 			help: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 
 				if ( to != pv.vipChannel )
@@ -416,8 +418,8 @@
 			}
 		},
 		{
-			set: function(s) with(s) VipInvitationModule && interactive && ChannelModule,
-			reset: function(s) with(s) !VipInvitationModule && interactive && ChannelModule,
+			set: function(s) s.VipInvitationModule && s.interactive && s.ChannelModule,
+			reset: function(s) !s.VipInvitationModule && s.interactive && s.ChannelModule,
 			trigger: function(polarity) {
 
 				if ( polarity )
@@ -427,8 +429,8 @@
 			}
 		},
 		{
-			set: function(s) with(s) VipInvitationModule && interactive && DefaultModule,
-			reset: function(s) with(s) !VipInvitationModule || !interactive || !DefaultModule,
+			set: function(s) s.VipInvitationModule && s.interactive && s.DefaultModule,
+			reset: function(s) !s.VipInvitationModule || !s.interactive || !s.DefaultModule,
 			trigger: function(polarity) {
 
 				ToggleAsyncProc( VipTremServerScanPlayers, polarity );

@@ -227,6 +227,17 @@
 					connection.Close();
 				});
 			}
+/*			
+			,
+			
+			api: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+				
+				var args = cmdData.split(SPC);
+				var fct = args.shift();
+				
+				_mod.api.
+			}
+*/			
 			
 			
 		} // botcmd

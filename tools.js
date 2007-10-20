@@ -256,18 +256,18 @@ function MakeLogFile(fileNameMaker, append) { // fileNameMaker is a function tha
 	return function(data) {
 
 		if ( data === LOG_CLOSE_FILTER )
-			file.Close();
+			_file.Close();
 		else {
 			
 			var newFileName = fileNameMaker();
 			if ( _fileName != newFileName ) {
 				
 				_fileName = newFileName;
-				file.Close();
-				file = new File(_fileName);
-				file.Open(File.CREATE_FILE + File.WRONLY + (append ? File.APPEND : File.TRUNCATE));
+				_file && _file.Close();
+				_file = new File(_fileName);
+				_file.Open(File.CREATE_FILE + File.WRONLY + (append ? File.APPEND : File.TRUNCATE));
 			}
-			file.Write(data+LF);
+			_file.Write(data+LF);
 		}
 	}
 }
@@ -401,6 +401,13 @@ function Noop() {}
 
 function NewDataObj() ({ __proto__: null }); // create a really empty object ( without __parent__, __count__, __proto__, ... )
 
+
+function ObjPropertyCount(obj) {
+	
+	var count = 0;
+	for ( var p in obj ) count++;
+	return count;
+}
 
 function IntegerToIp(number) (number>>24 & 255)+'.'+(number>>16 & 255)+'.'+(number>>8 & 255)+'.'+(number & 255);
 

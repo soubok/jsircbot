@@ -42,7 +42,7 @@
 //		ERR_RESTRICTED
 
 
-		NICK:function( command, from, newNick ) { // WiZ!jto@tolsun.oulu.fi NICK Kilroy
+		NICK: function( command, from, newNick ) { // WiZ!jto@tolsun.oulu.fi NICK Kilroy
 			
 			var nick = StrBefore(from, '!');
 			if ( nick != getData(_mod.data.nick) ) // only listen for self nickname changing.
@@ -146,7 +146,7 @@
 
 		Topic: function( channel, topic ) void _mod.Send( 'TOPIC '+channel+' :'+topic ),
 		
-		Nick: function( nick ) void _mod.Send( 'NICK '+nick ),
+		Nick: function( nick, OnSent ) void _mod.Send( 'NICK '+nick, false, OnSent ),
 		
 		Privmsg: function( to, messages, OnSent ) {
 			
