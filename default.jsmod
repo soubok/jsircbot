@@ -119,6 +119,16 @@
 	
 	// export module API
 	_mod.moduleApi = {
+		
+		Color: function(fg, bg) {
+			
+			return '0x03'+fg+(bg!=undefined?','+bg);
+		},
+
+		Bold: function() {
+			
+			return '0x02';
+		},
 	
 		ToIRCLowerString: function( str ) { // {}|^ are considered to be the lower case equivalents of the characters []\~
 			

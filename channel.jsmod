@@ -21,6 +21,8 @@
 	
 	function NormalizeChannelName(channelName) channelName.toLowerCase(); // (TBD) check if we muse use _api.ToIRCLowerString instead !
 
+	function NormalizeNick(nickName) nickName;
+
 	function ParseModes( modes, args, chanData, setBy ) {
 
 		var simpleMode = { i:'inviteOnly', t:'topicByOp', p:'private', s:'secret', m:'moderated', n:'noExternalMessages', r:'reop', C:'noCtcp', N:'noExternalNotice', c:'noColor' };
@@ -192,10 +194,14 @@
 	};
 	
 	_mod.moduleApi = {
-	
+		
+		NormalizeChannelName: NormalizeChannelName,
+		
 		Join: function(channel) _mod.Send( 'JOIN ' + channel ),
 		Part: function(channel, message) _mod.Send( 'PART ' + channel + (message != undefined ? ' :'+message : '') ),
-		Invite: function(nick, channel) _mod.Send( 'INVITE ' + nick + ' ' + channel )
+		Invite: function(nick, channel) _mod.Send( 'INVITE ' + nick + ' ' + channel ),
+		
+		IsOp: function(channel, nick) !!getData(_mod.data.channel[NormalizeChannelName(channel)].names[NormalizeNick(nick)].operator)
 	}
 
 	this.stateListener = [
