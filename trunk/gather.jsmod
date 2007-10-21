@@ -18,7 +18,16 @@
 	this.name = this.constructor.name;
 	var _mod = this;
 	
-	const _channelList = ['#CY'];
+	const _channelList = ['#CY', '#trem-vips'];
+
+	_mod.moduleApi = {
+	
+		GatherRegisterChannel: function(channelName) {
+
+			_channelList.push(channelName);
+			_mod.api.Join(channel);
+		}
+	}
 
 	this.stateListener = [
 		{
@@ -32,48 +41,105 @@
 		}
 	];
 	
-	function Path(channel) _mod.data[_mod.name][channel];
+	
+	function Path(channelName) _mod.data[_mod.name][_mod.api.NormalizeChannelName(channelName)];
+	
+	function SendGatherStatus(channel) {
+		
+		if ( !hasData(Path(channel)) ) {
+		
+			_mod.api.Privmsg(channel, 'No gather in progress. To create a gather, type: !gather <number players by team> [<map name>]' );
+			return;
+		}
+		var gatherData = getData(Path(channel));
+		var currentCount = ObjPropertyCount(gatherData.nickList);
+		_mod.api.Privmsg(channel, 'Gather' + (gatherData.mapName ? ' on '+gatherData.mapName:'')+' with '+[player for (player in gatherData.nickList)].join(', ') + ' ... ' + (2*gatherData.count-ObjPropertyCount(gatherData.nickList))+' slots left.' );
+	}
+	
+	function StopGather(channel) {
 
+		var gatherData = getData(Path(channel));
+		var players = [player for (player in gatherData.nickList)].sort(function() Math.random() - 0.5);
+		_mod.api.Privmsg(channel, 'Alien team: '+players.slice(0, gatherData.count).join(', '));
+		_mod.api.Privmsg(channel, 'Human team: '+players.slice(gatherData.count).join(', '));
+		io.RemoveTimeout(gatherData.timeout);
+		delData(Path(channel));
+	}
+	
 	this.moduleListener = {
 
 		botcmd: {
+		
+			gathernow: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+			
+				if ( _channelList.indexOf(to) == -1 )
+					return;
+					
+				var nick = StrBefore(from, '!');
+				if ( !_mod.api.IsOp(to, nick) ) {
+				
+					_mod.api.Privmsg(to, 'Sorry, you are not a channel operator.' );
+					return;
+				}
+
+				if ( hasData(Path(to)) )
+					StopGather(to);
+			
+			},
 		
 			gather: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 				
 				if ( _channelList.indexOf(to) == -1 )
 					return;
 
+				var nick = StrBefore(from, '!');
+				if ( !_mod.api.IsOp(to, nick) ) {
+				
+					_mod.api.Privmsg(to, 'Sorry, you are not a channel operator.' );
+					return;
+				}
+
 				if ( !cmdData ) {
+					
+					SendGatherStatus(to);
+					return;
+				}
+				
+				var [count, mapName] = cmdData.split(SPC);
+				var count = parseInt(count);
+
+				if ( count == 0 ) {
 
 					if ( !hasData(Path(to)) ) {
-
-						_mod.api.Privmsg(to, 'To create a gather, type: !gather <number players by team>' );
+					
+						SendGatherStatus(to);
 						return;
 					}
 
 					var gatherData = getData(Path(to));
-					_mod.api.Privmsg(to, ObjPropertyCount(gatherData.nickList) + '/' + 2*gatherData.count + ': ' + [player for (player in gatherData.nickList)].join(', ') );
-				} else {
 
-					var count = parseInt(cmdData);
-					if ( count == 0 ) {
+					io.RemoveTimeout( gatherData.timeout );
+					delData(Path(to));
+					_mod.api.Privmsg(to, 'Gather canceled.' );
+					return;
+				}
 
-						delData(Path(to));
-						_mod.api.Privmsg(to, 'Gather canceled.' );
+				if ( count > 0 ) { // note: NaN > 0 == false and NaN < 0 == false
+
+					if ( hasData(Path(to)) ) {
+
+						_mod.api.Privmsg(to, 'Gather in progress. type !gather 0 to cancel the gather, or !gather to list current players.' );
+						return;
 					}
-					if ( count > 0 ) { // do not use else to manage count isNaN
 
-						if ( hasData(Path(to)) ) {
+					var gatherData = setData(Path(to), {} );
 
-							_mod.api.Privmsg(to, 'Gather in progress. type !gather 0 to cancel the gather, or !gather to list current players.' );
-							return;
-						}
+					gatherData.count = count;
+					gatherData.mapName = mapName;
+					gatherData.nickList = NewDataObj();
+					gatherData.timeout = io.AddTimeout( 3*MINUTE, function() SendGatherStatus(to) );
 
-						var gatherData = setData(Path(to), {} );
-						gatherData.count = count;
-						gatherData.nickList = NewDataObj();
-						_mod.api.Privmsg(to, 'Gather started.' );
-					}
+					SendGatherStatus(to);
 				}
 			},
 
@@ -85,11 +151,13 @@
 
 				if ( !hasData(Path(to)) ) {
 					
-					_mod.api.Privmsg(to, 'No gather in progress.' );
+					SendGatherStatus(to);
 					return;
 				}
+
 				var nick = StrBefore(from, '!');
 				delete getData(Path(to)).nickList[nick];
+				SendGatherStatus(to);
 			},
 			
 			
@@ -100,12 +168,13 @@
 
 				if ( !hasData(Path(to)) ) {
 					
-					_mod.api.Privmsg(to, 'No gather. To create a gather, type: !gather <number players by team>' );
+					SendGatherStatus(to);
 					return;
 				}
 
-				var gatherData = getData(Path(to));
 				var nick = StrBefore(from, '!');
+				var gatherData = getData(Path(to));
+
 				if ( gatherData.nickList[nick] ) {
 					
 					_mod.api.Privmsg(to, 'You are already in the gather.' );
@@ -116,16 +185,12 @@
 				var currentCount = ObjPropertyCount(gatherData.nickList);
 
 				if ( currentCount >= gatherData.count * 2 ) {
+					
+					StopGather(to);
+				} else {
 				
-					var players = [player for (player in gatherData.nickList)].sort(function() Math.random() - 0.5);
-					_mod.api.Privmsg(to, 'Alien team: '+players.slice(0, gatherData.count).join(', '));
-					_mod.api.Privmsg(to, 'Human team: '+players.slice(gatherData.count).join(', '));
-					delData(Path(to));
+					SendGatherStatus(to);
 				}
-//				else {
-//				
-//					_mod.api.Privmsg(to, gatherData.count * 2 - currentCount + ' slots available');
-//				}
 			}
 
 		}
