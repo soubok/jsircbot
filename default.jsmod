@@ -17,6 +17,9 @@
 	
 	this.name = this.constructor.name;
 	var _mod = this;
+
+	function AsyncSleep(delay) function(callback) io.AddTimeout( delay, callback ); // This is a simple helper function
+
 	
 	function TemporaryNick() '_'+RandomString(8);
 	
@@ -169,6 +172,7 @@
 		Quit: function(quitMessage) _mod.Send( 'QUIT :'+quitMessage, true ) // true = force the message to be post ASAP
 	}
 
+
 	var LagProbe = new function() {
 		
 		for (;;) {
@@ -177,7 +181,6 @@
 			yield function(callback) io.AddTimeout( getData(_mod.data[_mod.name].lagProbeInterval), callback ); // async pause
 		}
 	}
-	
 	
 		
 	var LagProbeResponse = {
@@ -188,6 +191,19 @@
 				setData( _mod.data.ping, IntervalNow() - parseInt(data.substr(3)) );
 		}
 	}
+
+
+
+	var FireMinute = new function() {
+		
+		for (;;) {
+		
+			yield AsyncSleep( 1*MINUTE );
+			_mod.FireModuleListener( 'timeout', 'minute' );
+		}
+	}
+
+
 
 	this.stateListener = [
 		{
@@ -209,6 +225,9 @@
 
 				if ( polarity )
 					_mod.Send( 'USERHOST '+getData(_mod.data.nick) );
+				
+				ToggleAsyncProc( FireMinute, polarity );
+				
 			}
 		}
 	];
