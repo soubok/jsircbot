@@ -192,17 +192,19 @@
 		}
 	}
 
-
-
-	var FireMinute = new function() {
+	var Clock = new function() {
+		
+		var count = 0;
 		
 		for (;;) {
 		
 			yield AsyncSleep( 1*MINUTE );
-			_mod.FireModuleListener( 'timeout', 'minute' );
+			count++;
+			
+			count % 1 || _mod.FireModuleListener( 'clock', 'minute' );
+			count % 60 || _mod.FireModuleListener( 'clock', 'hour' );
 		}
 	}
-
 
 
 	this.stateListener = [
@@ -226,8 +228,7 @@
 				if ( polarity )
 					_mod.Send( 'USERHOST '+getData(_mod.data.nick) );
 				
-				ToggleAsyncProc( FireMinute, polarity );
-				
+				ToggleAsyncProc( Clock, polarity );
 			}
 		}
 	];
