@@ -95,9 +95,13 @@ function dumpData( path, tab ) {
 				data = '"' + data + '"';
 				break;
 			case 'object':
-				if ( data instanceof Array )
+				if ( data instanceof Array ) {
+					
 					data = data.toSource();
-				break;
+					break;
+				}
+				if ( !data.toString && !data.valueOf )
+					data = '{'+[ p+':'+data[p] for ( var p in data ) ].join(', ')+'}';
 		}
 
 		out += tab + name + (has ? (' = ' + data) : '');
