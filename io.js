@@ -22,7 +22,8 @@ var io = new function() {
 		
 		this.Add = function(time, func) {
 			
-			DBG && isNaN(time) && FAILED('the timeout is not a number');
+			DBG && isNaN(time) && Failed('the timeout is not a number ('+time+')');
+			
 			var date = IntervalNow() + time;
 			while ( date in _tlist )
 				date++; // avoid same time because we use the time as timer id

@@ -101,7 +101,7 @@ function dumpData( path, tab ) {
 					break;
 				}
 				if ( !data.toString && !data.valueOf )
-					data = '{'+[ p+':'+data[p] for ( var p in data ) ].join(', ')+'}';
+					data = '{'+[ p+':'+data[p] for ( p in data ) ].join(', ')+'}';
 		}
 
 		out += tab + name + (has ? (' = ' + data) : '');

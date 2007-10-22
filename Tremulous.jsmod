@@ -1,0 +1,240 @@
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: GNU GPL 2.0
+ *
+ * The contents of this file are subject to the
+ * GNU General Public License Version 2.0; you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ * http://www.gnu.org/licenses/gpl.html
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ * ***** END LICENSE BLOCK ***** */
+
+
+(function TremulousModule() {
+	
+	this.name = this.constructor.name;
+	var _mod = this;
+
+
+	const tremQueryPrefix = '\xFF\xFF\xFF\xFF';
+	
+	
+	function TremulousServerCommand( server, command, OnResult ) {
+
+		DBG && DebugTraceCall();
+		var [host,port] = server.split(':', 2);
+		UDPGet( host, port, tremQueryPrefix + command, 1*SECOND, OnResult );
+	}
+	
+	function ParseStatus( statusLine ) {
+
+		var status = NewDataObj(), split = statusLine.split('\\');
+		split.shift(); // first is empty
+		while (split.length)
+			status[split.shift()] = split.shift();
+		return status;
+	}
+
+	function ParsePlayer( playerInfo ) {
+		
+		var res = /([0-9]+) ([0-9]+) "(.*)"/(playerInfo);
+		return res ? (res.shift(), res) : undefined;
+	}
+	
+	
+	function QueryTremServerStatus( server, OnResult ) {
+
+		TremulousServerCommand( server, 'getstatus', function(status, buf) {
+
+			DBG && DebugTraceCall('TremulousServerCommand response');
+			
+			if ( status != OK ) {
+
+				OnResult(status);
+				return;
+			}
+
+			var lines = buf.split('\n');
+			if ( !lines ) {
+
+				OnResult(BADRESPONSE);
+				return;
+			}
+
+			var serverStatus = NewDataObj();
+
+			try {
+
+				CHK( lines.shift() == tremQueryPrefix+'statusResponse' ); // remove header
+				serverStatus.info = CHK(ParseStatus(lines.shift()));
+				lines.pop(); // last line is empty
+				serverStatus.playerList = [ CHK(ParsePlayer(line))[2] for each ( line in lines ) ];
+			} catch(ex if ex == ERR) {
+
+				OnResult(BADRESPONSE);
+				return;
+			}
+
+			OnResult(OK, serverStatus);
+		});
+	}
+
+
+	function ColorTremToIrc(str) {
+		
+		var color = arguments.callee.color || ( arguments.callee.color = { 0:1, 1:4, 2:9, 3:8, 4:12, 5:11, 6:13, 7:0 } );
+		var out = '';
+		for ( let i = 0; i < str.length; i++ )
+			switch (str[i]) {
+				case '^':
+					out += '\x03' + color[String.charCodeAt(str[++i]) % 8];
+					break;
+				default:
+					out += str[i];
+			}
+		return out;
+	}
+
+	
+	function StripTremulousString(str) str.replace(/\^./g, '');
+
+
+	var tremulousServerList = NewDataObj();
+
+
+
+// procedures
+
+	var TremulousMasterServerListUpdate = new function() {
+	
+		for (;;) {
+		
+			var [status, data] = yield function(callback) UDPGet( 'master.tremulous.net', 30710, '\xFF\xFF\xFF\xFFgetservers 69', 30*SECOND, callback );
+			if ( status != OK ) {
+
+				ReportError( 'Tremulous Master Server List Update failed ('+status+')' );
+				yield AsyncSleep( 1*MINUTE );
+				continue;
+			}
+
+			var p = new Pack(new Buffer(data));
+			
+			var responseHdr = '\xFF\xFF\xFF\xFFgetserversResponse\\';
+			if ( p.buffer.Read(responseHdr.length) != responseHdr ) {
+
+				ReportError( 'Invalid Master Server response' );
+				yield AsyncSleep( 1*MINUTE );
+				continue;
+			}
+			
+			while ( p.buffer.length >= 7 ) {
+
+				var ip = p.ReadInt(1, false) + '.' + p.ReadInt(1, false) + '.' + p.ReadInt(1, false) + '.' + p.ReadInt(1, false);
+				var port = p.ReadInt(2, false, true);
+
+				if ( !p.buffer.Match('\\') ) {
+				
+					ReportError('Protocol error whileparsing master server response');
+					yield AsyncSleep( 5*MINUTE );
+					continue;
+				}
+				
+				var data = NewDataObj();
+				data.getDate = Now();
+				tremulousServerList[ip+':'+port] = data;
+			}
+
+			yield AsyncSleep( 15*MINUTE );
+		}
+	}
+	
+	
+	var TremulousServerPlayerScanner = new function() {
+
+		yield AsyncSleep( 5*SECOND );
+
+		for (;;) {
+	
+			for ( var server in tremulousServerList ) {
+
+				var data = tremulousServerList[server];
+				var [status, serverStatus] = yield function(callback) QueryTremServerStatus( server, callback );
+				if ( status != OK ) {
+					
+					ReportWarning( 'Tremulous Server Player Scanner failed ('+status+')');
+					if ( data.aliveDate + 3*DAY < Now() ) // remove inactive servers since 3 days
+						delete tremulousServerList[server];
+					continue;
+				}
+
+				data.aliveDate = Now();
+				data.serverStatus = serverStatus;
+			}
+
+			yield AsyncSleep( 3*MINUTE );
+		}
+	}
+	
+
+	this.moduleListener = {
+
+		botcmd: {
+			
+			'qc': function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+
+				if ( !_mod.api.IsBotOp(from) )
+					return;
+
+				var match = [];
+
+				for ( var server in tremulousServerList ) {	
+					
+					if ( !tremulousServerList[server].serverStatus )
+						continue;
+
+					for each ( var player in tremulousServerList[server].serverStatus.playerList )
+						if ( StripTremulousString(player).toLowerCase().indexOf(cmdData.toLowerCase()) != -1 ) {
+							
+							var serverName = tremulousServerList[server].serverStatus.info.sv_hostname;
+							match.push( '\x030,1'+ColorTremToIrc(player) + '\x0F on \x030,1' + ColorTremToIrc(serverName) + '\x0F' );
+						}
+
+				}
+
+				if ( match.length > 10 ) {
+				
+					_mod.api.Privmsg( to, 'Too much results ('+match.length+')' );
+					return;
+				}
+
+				if ( match.length == 0 ) {
+				
+					_mod.api.Privmsg( to, 'No match' );
+					return;
+				}
+
+				while ( match.length )
+					_mod.api.Privmsg( to, match.splice(0, 4).join(', ') );
+
+			}
+		}
+	}
+
+	
+	this.stateListener = [
+		{
+			set: function(s) s.running,
+			reset: False,
+			trigger: function(polarity) {
+				
+				ToggleAsyncProc( TremulousMasterServerListUpdate, polarity );
+				ToggleAsyncProc( TremulousServerPlayerScanner, polarity );
+			}
+		}
+	];
+
+	
+})

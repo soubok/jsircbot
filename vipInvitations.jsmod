@@ -117,7 +117,7 @@
 	function TremulousServerCommand( server, command, OnResult ) {
 
 		DBG && DebugTraceCall();
-		var [host,port] = pv.vipTremServer.split(':', 2);
+		var [host,port] = server.split(':', 2);
 		UDPGet( host, port, tremQueryPrefix + command, 3*SECOND, OnResult );
 	}
 	
