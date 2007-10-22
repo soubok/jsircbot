@@ -23,8 +23,6 @@
 	
 	var pv = Exec('_privateData.js', false);
 	
-	function AsyncSleep(delay) function(callback) io.AddTimeout( delay, callback ); // This is a simple helper function
-	
 	const tremQueryPrefix = '\xFF\xFF\xFF\xFF';
 	
 	function ColorTremToIrc(str) {

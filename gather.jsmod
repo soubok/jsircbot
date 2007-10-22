@@ -67,6 +67,12 @@
 	}
 	
 	this.moduleListener = {
+		
+		clock: {
+			5minutes: function() {
+			
+			}
+		}
 
 		botcmd: {
 		
@@ -106,8 +112,6 @@
 				}
 				
 				var [count, mapName] = cmdData.split(SPC);
-				var count = parseInt(count);
-
 				if ( count == 0 ) {
 
 					if ( !hasData(GatherPath(to)) ) {
@@ -117,14 +121,13 @@
 					}
 
 					var gatherData = getData(GatherPath(to));
-
 					io.RemoveTimeout( gatherData.timeout );
 					delData(GatherPath(to));
 					_mod.api.Privmsg( to, 'Gather canceled.' );
 					return;
 				}
 
-				if ( count > 0 ) { // note: NaN > 0 == false and NaN < 0 == false
+				if ( count > 0 ) {
 
 					if ( hasData(GatherPath(to)) ) {
 
@@ -134,7 +137,7 @@
 
 					var gatherData = setData(GatherPath(to), {} );
 
-					gatherData.count = count;
+					gatherData.count = parseInt(count);
 					gatherData.mapName = mapName;
 					gatherData.nickList = NewDataObj();
 					gatherData.timeout = io.AddTimeout( 3*MINUTE, function() SendGatherStatus(to) );

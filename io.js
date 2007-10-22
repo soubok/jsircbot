@@ -88,6 +88,12 @@ var io = new function() {
 	}
 }
 
+/////////////////////////////////////////////////////// Assync function helpers
+
+
+function AsyncSleep(delay) function(callback) io.AddTimeout( delay, callback );
+	
+
 ///////////////////////////////////////////////////////
 
 function GetHostByName( hostName ) {
