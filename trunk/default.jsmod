@@ -18,9 +18,6 @@
 	this.name = this.constructor.name;
 	var _mod = this;
 
-	function AsyncSleep(delay) function(callback) io.AddTimeout( delay, callback ); // This is a simple helper function
-
-	
 	function TemporaryNick() '_'+RandomString(8);
 	
 // [TBD] autodetect max message length ( with a self sent mesage )
@@ -201,8 +198,10 @@
 			yield AsyncSleep( 1*MINUTE );
 			count++;
 			
-			count % 1 || _mod.FireModuleListener( 'clock', 'minute' );
-			count % 60 || _mod.FireModuleListener( 'clock', 'hour' );
+			count % 1 || _mod.FireModuleListener( 'clock', '1minute' );
+			count % 5 || _mod.FireModuleListener( 'clock', '5minutes' );
+			count % 10 || _mod.FireModuleListener( 'clock', '10minutes' );
+			count % 60 || _mod.FireModuleListener( 'clock', '1hour' );
 		}
 	}
 
