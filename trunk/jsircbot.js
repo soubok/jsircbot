@@ -194,6 +194,8 @@ function ClientCore( Configurator ) {
 	var _api = NewDataObj(); // or new SetOnceObject();
 	var _state = new StateKeeper();
 	
+	_state.Enter('running');
+	
 	function RawDataSender(buf) {
 
 		log.Write( LOG_IRCMSG, 'out', buf );

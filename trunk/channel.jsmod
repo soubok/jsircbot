@@ -121,7 +121,7 @@
 		
 		NICK: function( command, who, newNick ) {
 
-			var nick = StrBefore(who, '!')
+			var nick = StrBefore(who, '!');
 //			if ( nick == getData( _mod.data.nick ) ) // do not manage bot nick change here! why ?
 //				return;
 			for each ( var chan in _mod.data.channel )
@@ -203,7 +203,7 @@
 		Invite: function(nick, channel) _mod.Send( 'INVITE ' + nick + ' ' + channel ),
 		
 		IsOp: function(channel, nick) !!getData(_mod.data.channel[NormalizeChannelName(channel)].names[NormalizeNickName(nick)].operator),
-		ChannelData: function(channel) getData(_mod.data.channel[NormalizeChannelName(channel)];
+		ChannelData: function(channel) getData(_mod.data.channel[NormalizeChannelName(channel)])
 	}
 
 	this.stateListener = [

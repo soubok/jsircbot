@@ -122,7 +122,7 @@
 		
 		Color: function(fg, bg) {
 			
-			return '0x03'+fg+(bg!=undefined?','+bg);
+			return '0x03'+fg+(bg!=undefined?','+bg:'');
 		},
 
 		Bold: function() {

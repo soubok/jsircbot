@@ -40,12 +40,6 @@
 		}
 	}
 	
-	this.interactive = function( stateName, polarity ) {
-
-		if ( !polarity )
-			return;
-		// 
-	}	
 	
 	this.stateListener = [
 		{

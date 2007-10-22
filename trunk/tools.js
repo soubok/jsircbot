@@ -639,6 +639,8 @@ function DArgs() { Print( 'Arguments: ', Array.slice(DArgs.caller.arguments).toS
 
 
 function DebugTraceCall(name) { 
+	
+	try {
 
 	var args = Array.slice(arguments.callee.caller.arguments);
 	var out = '';
@@ -669,6 +671,8 @@ function DebugTraceCall(name) {
 	}
 
 	DebugTrace( 'CALL SPY', name, arguments.callee.caller.name, args.join(', ') );
+	
+	} catch(ex) { DebugTrace( 'DEBUG TRACE ERROR' ) }
 }
 
 
