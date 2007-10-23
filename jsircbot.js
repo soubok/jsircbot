@@ -33,6 +33,22 @@ const STATE_HAS_GOOD_NICK = 'hasGoodNick';
 
 ///////////////////////////////////////////////// TOOLS /////////////////////////////////////////////
 
+/*
+
+
+
+function foo() {
+   
+    var a = core.api;
+    var s = core.state;
+    eval('(function(){Print(s)})')();
+}
+
+foo()
+
+
+*/
+
 
 function MakeModuleFromHttp( url, retry, retryPause, callback ) {
 
