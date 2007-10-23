@@ -108,7 +108,7 @@
 			if ( who == getData(_mod.data.nick) )
 				delData( _mod.data.channel[NormalizeChannelName(channel)] );
 			else
-				delData( _mod.data.channel[NormalizeChannelName(channel)].names[nick] );
+				delData( _mod.data.channel[NormalizeChannelName(channel)].names[who] );
 		},
 
 		QUIT: function( command, who ) {

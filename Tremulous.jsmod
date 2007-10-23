@@ -67,6 +67,8 @@
 	
 	
 	function TremulousServerStatus( server, OnResult ) {
+		
+		DebugTraceCall();
 
 		TremulousServerCommand( server, 'getstatus', function(status, buf) {
 
@@ -113,25 +115,25 @@
 				return;
 			}
 			
-			var status = ParseRconStatus(data);
+			var serverStatus = ParseRconStatus(data);
 			
-			if ( status == undefined ) {
+			if ( serverStatus == undefined ) {
 				
 				OnResult(BADRESPONSE);
 				return;
 			}
 
-			OnResult(OK, status);
+			OnResult(OK, serverStatus);
 		});
 	}
 
 
-	function TremulousMasterServerQuery( server, command, OnResult ) {
+	function TremulousMasterGetServerList( server, OnResult ) {
 		
 		var [host, port] = server.split(':',2);
-		UDPGet( host, port, tremQueryPrefix+command, 15*SECOND, function(status, data) {
+		UDPGet( host, port, tremQueryPrefix+ 'getservers 69 empty full', 15*SECOND, function(status, data) {
 			
-			if ( status != OK )
+			if ( status != OK ) {
 
 				OnResult(status);
 				return;
@@ -159,10 +161,11 @@
 				}
 				serverList.push(ip+':'+port);
 			}
+			OnResult(OK, serverList);
 		});
 	}
 	
-	function TremulousTextStrip(str) str.replace(/\^./g, '');
+	function TremulousTextStrip(str) str.replace(/[\x00-\x19]|\^./g, '');
 
 	function TremulousTextToIrc(str) {
 		
@@ -188,7 +191,7 @@
 		TremulousServerCommand:TremulousServerCommand,
 		TremulousServerStatus:TremulousServerStatus,
 		TremulousServerRconStatus:TremulousServerRconStatus,
-		TremulousMasterServerQuery:TremulousMasterServerQuery,
+		TremulousMasterGetServerList:TremulousMasterGetServerList,
 		TremulousTextStrip:TremulousTextStrip,
 		TremulousTextToIrc:TremulousTextToIrc
 	}
@@ -206,8 +209,7 @@
 			// doc. ftp://ftp.idsoftware.com/idstuff/quake3/docs/server.txt
 			// doc. http://cvs.icculus.org/cvs/twilight/dpmaster/Attic/techinfo.txt?view=markup
 			//   The message must contain a protocol version, and optionally "empty" and/or "full" depending on whether or not the client also wants to get empty or full servers.
-
-			var [status, serverList] = yield function(callback) QueryMasterServer( 'master.tremulous.net:30710', 'getservers 69 empty full', callback );
+			var [status, serverList] = yield function(callback) TremulousMasterGetServerList( 'master.tremulous.net:30710', callback );
 			if ( status != OK ) {
 
 				ReportError( 'QueryMasterServer failed: '+status );
@@ -219,7 +221,7 @@
 			
 			for each ( var server in serverList) {
 
-				var data = _mod.tremulousServerList[ip+':'+port] = NewDataObj();
+				var data = _mod.tremulousServerList[server] = NewDataObj();
 				data.masterDate = Now();
 			}
 
@@ -230,7 +232,7 @@
 	
 	var PlayerScanner = new function() {
 
-		yield AsyncSleep( 5*SECOND );
+		yield AsyncSleep( 5*SECOND ); // let ServerListUpdater do its job
 
 		for (;;) {
 			
@@ -239,6 +241,7 @@
 			for ( var server in _mod.tremulousServerList ) {
 
 				var data = _mod.tremulousServerList[server];
+
 				var [status, serverStatus] = yield function(callback) TremulousServerStatus( server, callback );
 				if ( status != OK ) {
 					
@@ -255,7 +258,7 @@
 
 			ReportNotice( 'PlayerScanner: '+playerCount+' players found');
 
-			yield AsyncSleep( 3*MINUTE );
+			yield AsyncSleep( 5*MINUTE );
 		}
 	}
 	
@@ -264,42 +267,52 @@
 
 		botcmd: {
 			
-			'qc': function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+			qc: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 
-				if ( !_mod.api.IsBotOp(from) )
+//				if ( !_mod.api.IsBotOp(from) )
+//					return;
+
+				var nick = StrBefore(from, '!');
+				var replyTo = to[0] == '#' ? to : nick;
+					
+				if ( cmdData.length < 2 ) {
+					
+					_mod.api.Privmsg( replyTo, 'too short' );
 					return;
+				}
 
-				var out = '';
-				var maxServer = 5;
+				var list = [];
+				
 				for ( var server in _mod.tremulousServerList ) {
 					
 					if ( !_mod.tremulousServerList[server].serverStatus )
 						continue;
 
-					var playerMatch = [];
-					var maxPlayerName = 5;
+					var players = [];
 					for each ( var player in _mod.tremulousServerList[server].serverStatus.playerList )
-						if ( TremulousTextStrip(player).toLowerCase().indexOf(cmdData.toLowerCase()) != -1 ) {
-						
-							out += '\x030,1' + TremulousTextToIrc(player) + '\x0F ';
-							if ( !--maxPlayerName ) {
-
-								out += ' ... ';
-								break;
-							}
-						}
-						
-					var serverName = _mod.tremulousServerList[server].serverStatus.info.sv_hostname;
-					out += 'on \x030,1' + TremulousTextToIrc(serverName) + '\x0F - ' );
+						if ( TremulousTextStrip(player).toLowerCase().indexOf(cmdData.toLowerCase()) != -1 )
+							players.push('\x030,1' + TremulousTextToIrc(player) + '\x0F');
 					
-					if ( !--maxServer ) {
-					
-						out += ' ... ';
-						break;
-					}
+					if ( players.length )
+						list.push( players.slice(0,5).join(', ') + ' on \x030,1' + TremulousTextToIrc(_mod.tremulousServerList[server].serverStatus.info.sv_hostname) + '\x0F' );
 				}
 
-				_mod.api.Privmsg( to, out||'No match' );
+
+				if ( _mod.lastQc > Now() - 10*SECOND ) { // anti-flood
+					
+					_mod.api.Privmsg( replyTo, 'Please don\'t spam, try again later.' );
+					return;
+				}
+
+				_mod.lastQc = Now();
+				
+				if ( list.length == 0 ) {
+					
+					_mod.api.Privmsg( replyTo, 'No match' );
+					return;
+				}
+
+				_mod.api.Privmsg( replyTo, list.slice(0,4).join(' and ') );
 			}
 		}
 	}
@@ -310,7 +323,7 @@
 			set: function(s) s.running,
 			reset: False,
 			trigger: function(polarity) {
-				
+
 				ToggleAsyncProc( ServerListUpdater, polarity );
 				ToggleAsyncProc( PlayerScanner, polarity );
 			}
