@@ -16,69 +16,14 @@
 (function VipInvitationModule() {
 
 	var _name = this.constructor.name;
-	
 	this.name = _name;
-
 	var _mod = this;
 	
+//	API alias  : _A_.TremulousTextToIrc
+// STATE alias: _S_.interactive
+
+
 	var pv = Exec('_privateData.js', false);
-	
-	const tremQueryPrefix = '\xFF\xFF\xFF\xFF';
-	
-	function ColorTremToIrc(str) {
-		
-		var color = arguments.callee.color || ( arguments.callee.color = { 0:1, 1:4, 2:9, 3:8, 4:12, 5:11, 6:13, 7:0 } );
-		var out = '';
-		for ( let i = 0; i < str.length; i++ )
-			switch (str[i]) {
-				case '^':
-					out += '\x03' + color[String.charCodeAt(str[++i]) % 8];
-					break;
-				default:
-					out += str[i];
-			}
-		return out;
-	}
-	
-	function StripTremText(text) text.replace(/\^./g,'');
-	
-	function StripIrcText(text) text.replace(/\x03(N|(B|V|U|S|I).|F.\d?|P(P|F)|C([0-9,A-F]|#[0-9,A-F]{6}){0,2})/ig,''); // see. http://www.invlogic.com/irc/ctcp2_2.html
-
-	function ParsePlayer( playerInfo ) {
-		
-		var res = /([0-9]+) ([0-9]+) "(.*)"/(playerInfo);
-		return res ? (res.shift(), res) : undefined;
-	}
-	
-	
-	function ParseStatus( statusLine ) {
-
-		var status = NewDataObj(), split = statusLine.split('\\');
-		split.shift(); // first is empty
-		while (split.length)
-			status[split.shift()] = split.shift();
-		return status;
-	}
-
-
-	function ParseRconStatus( data ) {
-		
-		var tpl = {num:1, score:2, ping:3, name:4, lastmsg:5, ip:6, port:7, qport:8, rate:9};
-		try {
-		
-			var lines = data.split('\n');
-			CHK( lines.shift() == tremQueryPrefix + 'print' );
-			var [,map] = CHK(/^map: (.*)$/(lines.shift()));
-			lines.shift(); // col names
-			lines.shift(); // --- -----
-			for ( var status = []; lines.length && lines[0]; lines.shift() )
-				status.push(MakeObj( tpl, CHK(  /^ *([0-9]+) *(-?[0-9]+) *([0-9]+) (.*?) *([0-9]+) *([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+):([0-9]+) *([0-9]+) *([0-9]+)$/(lines[0])  ) ));
-			return status;
-		} catch(ex if ex == ERR) {
-			
-			return undefined;
-		}
-	}
 
 
 	function QueryVIPDatabase( data, OnResult ) {
@@ -109,65 +54,20 @@
 				OnResult(BADRESPONSE);
 				return;
 			}
+			
 			OnResult(OK, responseObject); // don't include this in the try ... catch
 		});
 	}
 
 
-	function TremulousServerCommand( server, command, OnResult ) {
 
-		DBG && DebugTraceCall();
-		var [host,port] = server.split(':', 2);
-		UDPGet( host, port, tremQueryPrefix + command, 3*SECOND, OnResult );
-	}
-	
-	
-	function QueryTremServerStatus( server, OnResult ) {
 
-		TremulousServerCommand( server, 'getstatus', function(status, buf) {
 
-			DBG && DebugTraceCall('TremulousServerCommand response');
-			
-			if ( status != OK ) {
-
-				OnResult(status);
-				return;
-			}
-
-			var lines = buf.split('\n');
-			if ( !lines ) {
-
-				OnResult(BADRESPONSE);
-				return;
-			}
-
-			var serverStatus = NewDataObj();
-
-			try {
-
-				CHK( lines.shift() == tremQueryPrefix+'statusResponse' ); // remove header
-				serverStatus.info = CHK(ParseStatus(lines.shift()));
-				lines.pop(); // last line is empty
-				serverStatus.playerList = [ CHK(ParsePlayer(line))[2] for each ( line in lines ) ];
-			} catch(ex if ex == ERR) {
-
-				OnResult(BADRESPONSE);
-				return;
-			}
-
-			OnResult(OK, serverStatus);
-		});
-	}
-	
-	
 	_mod.playerListToSetlevel = [];
-	
 
 	this.moduleListener = {
 
 		botcmd: {
-			
-			
 			
 			help: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 
@@ -191,7 +91,7 @@
 
 					if ( _mod.lastServerQueryInterval && IntervalNow() - _mod.lastServerQueryInterval < 10*SECOND ) // anti-flood
 						_mod.api.Privmsg( replyTo, 'Please don\'t spam, try again later.' ), AbortAsyncProc();
-					var [status, result] = yield function(callback) QueryTremServerStatus(pv.vipTremServer, callback);
+					var [status, result] = yield function(callback) _mod.api.TremulousServerStatus(pv.vipTremServer, callback);
 					
 					if ( status != OK ) {
 					
@@ -200,8 +100,8 @@
 						return;
 					}
 
-					var nicePlayerList = [ '\x030,1'+ColorTremToIrc(player)+'\x0F' for each ( player in result.playerList ) ];
-					_mod.api.Privmsg( replyTo, ColorTremToIrc(result.info.sv_hostname) + '\x0F is running ' + result.info.mapname + ' with ' + result.playerList.length + ' player(s)' );
+					var nicePlayerList = [ '\x030,1'+_mod.api.TremulousTextToIrc(player)+'\x0F' for each ( player in result.playerList ) ];
+					_mod.api.Privmsg( replyTo, _mod.api.TremulousTextToIrc(result.info.sv_hostname) + '\x0F is running ' + result.info.mapname + ' with ' + result.playerList.length + ' player(s)' );
 					while ( nicePlayerList.length )
 						_mod.api.Privmsg( replyTo, nicePlayerList.splice(0, 8).join('  ') );
 					_mod.lastServerQueryInterval = IntervalNow();
@@ -328,7 +228,7 @@
 		var prevDisplayedStatusDate = 0;
 		for (;;) {
 
-			var [status, result] = yield function(callback) QueryTremServerStatus( pv.vipTremServer, callback );
+			var [status, result] = yield function(callback) _mod.api.TremulousServerStatus( pv.vipTremServer, callback );
 			if ( status != OK ) {
 			
 				yield AsyncSleep( 2*MINUTE );
@@ -343,8 +243,8 @@
 
 			if ( Now() - 10*MINUTE > prevDisplayedStatusDate ) {
 
-				var nicePlayerList = [ '\x030,1'+ColorTremToIrc(player)+'\x0F' for each ( player in result.playerList ) ];
-				_mod.api.Privmsg( pv.vipChannel, ColorTremToIrc(result.info.sv_hostname) + '\x0F is running ' + result.info.mapname + ' with ' + result.playerList.length + ' player(s)' );
+				var nicePlayerList = [ '\x030,1'+_mod.api.TremulousTextToIrc(player)+'\x0F' for each ( player in result.playerList ) ];
+				_mod.api.Privmsg( pv.vipChannel, _mod.api.TremulousTextToIrc(result.info.sv_hostname) + '\x0F is running ' + result.info.mapname + ' with ' + result.playerList.length + ' player(s)' );
 				while ( nicePlayerList.length )
 					_mod.api.Privmsg( pv.vipChannel, nicePlayerList.splice(0, 8).join('  ') ); // avoid long lines
 				prevDisplayedStatusDate = Now();
@@ -359,19 +259,17 @@
 		
 		for (;;) {
 
-			var [status, result] = yield function(callback) TremulousServerCommand( pv.vipTremServer, 'rcon '+pv.vipTremServerRcon+' status', callback );
-			
-			DBG && DebugTrace( 'TremulousServerCommand response', status, result );
+			var [status, rconStatus] = yield function(callback) _mod.api.TremulousServerRconStatus( pv.vipTremServer, pv.vipTremServerRcon, callback );
 
 			if ( status == OK ) { // no response or timeout or failure
 				loop:
-				for each ( let playerStatusInfo in ParseRconStatus(result) ) // ParseRconStatus returns undefined on error
+				for each ( let playerStatusInfo in rconStatus )
 					for each ( let [i, [guestIp, guestNick, date]] in Iterator(_mod.playerListToSetlevel) )
 						if ( playerStatusInfo.ip == guestIp ) {
 
-							TremulousServerCommand( pv.vipTremServer, 'rcon '+pv.vipTremServerRcon+' !setlevel '+playerStatusInfo.num+' '+pv.vipTremServerVipLevel, Noop );
-							TremulousServerCommand( pv.vipTremServer, 'rcon '+pv.vipTremServerRcon+' m '+ playerStatusInfo.num +' Now your level is '+pv.vipTremServerVipLevel+', try !help command.', Noop );
-							guestNick && TremulousServerCommand( pv.vipTremServer, 'rcon '+pv.vipTremServerRcon+' say Welcome to '+guestNick+'^7 the new VIP !', Noop );
+							_mod.api.TremulousServerCommand( pv.vipTremServer, 'rcon '+pv.vipTremServerRcon+' !setlevel '+playerStatusInfo.num+' '+pv.vipTremServerVipLevel, Noop );
+							_mod.api.TremulousServerCommand( pv.vipTremServer, 'rcon '+pv.vipTremServerRcon+' m '+ playerStatusInfo.num +' Now your level is '+pv.vipTremServerVipLevel+', try !help command.', Noop );
+							guestNick && _mod.api.TremulousServerCommand( pv.vipTremServer, 'rcon '+pv.vipTremServerRcon+' say Welcome to '+guestNick+'^7 the new VIP !', Noop );
 							_mod.playerListToSetlevel.splice(i, 1); // remove processed item
 							QueryVIPDatabase({ action:'setlevelDone', nick:guestNick, tremName:playerStatusInfo.name }, callback);
 							break loop; // because the list has been splice(), we can only process one item
@@ -448,9 +346,10 @@
 
 	this.messageListener = {
 
-		ERR_NICKNAMEINUSE: function( command, from, to, msg ) {
+		ERR_NICKNAMEINUSE: function( nick, nickInUsePhrase ) {
 
 			_mod.api.Privmsg( pv.nickServ, 'GHOST '+pv.botNick+' '+pv.password );
+			// (TBD) wait a response before changingthe nick ?
 			_mod.api.Nick( pv.botNick );
 		}
 	};
