@@ -617,9 +617,9 @@ function str_repeat(i, m) { for (var o = []; m > 0; o[--m] = i); return(o.join('
 function sprintf () {
   var i = 0, a, f = arguments[i++], o = [], m, p, c, x;
   while (f) {
-    if (m = /^[^\x25]+/.exec(f)) o.push(m[0]);
-    else if (m = /^\x25{2}/.exec(f)) o.push('%');
-    else if (m = /^\x25(?:(\d+)\$)?(\+)?(0|'[^$])?(-)?(\d+)?(?:\.(\d+))?([b-fosuxX])/.exec(f)) {
+    if ((m = /^[^\x25]+/.exec(f))) o.push(m[0]);
+    else if ((m = /^\x25{2}/.exec(f))) o.push('%');
+    else if ((m = /^\x25(?:(\d+)\$)?(\+)?(0|'[^$])?(-)?(\d+)?(?:\.(\d+))?([b-fosuxX])/.exec(f))) {
       if (((a = arguments[m[1] || i++]) == null) || (a == undefined)) throw("Too few arguments.");
       if (/[^s]/.test(m[7]) && (typeof(a) != 'number'))
         throw("Expecting number but found " + typeof(a));
