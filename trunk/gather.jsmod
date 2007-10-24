@@ -13,19 +13,20 @@
  * ***** END LICENSE BLOCK ***** */
 
 
-(function Gather() {
+(function Gather($D, $A) {
 
 	this.name = this.constructor.name;
-	var _mod = this;
-	
+	var $MD = $D[this.name];
+
+
 	const _channelList = ['#CY', '#trem-vips'];
 
-	_mod.moduleApi = {
+	this.moduleApi = {
 	
 		GatherRegisterChannel: function(channelName) {
 
 			_channelList.push(channelName);
-			_mod.api.Join(channel);
+			$A.Join(channel);
 		}
 	}
 
@@ -36,32 +37,32 @@
 			trigger: function(polarity) {
 
 				for each ( var channel in _channelList )
-					_mod.api.Join( channel );
+					$A.Join( channel );
 			}
 		}
 	];
 	
 	
-	function GatherPath(channelName) _mod.data[_mod.name][_mod.api.NormalizeChannelName(channelName)];
+	function GatherPath(channelName) $MD[$A.NormalizeChannelName(channelName)];
 	
 	function SendGatherStatus(channel) {
 		
 		if ( !hasData(GatherPath(channel)) ) {
 		
-			_mod.api.Privmsg(channel, 'No gather in progress. To create a gather, type: !gather <number players by team> [<map name>]' );
+			$A.Privmsg(channel, 'No gather in progress. To create a gather, type: !gather <number players by team> [<map name>]' );
 			return;
 		}
 		var gatherData = getData(GatherPath(channel));
 		var currentCount = ObjPropertyCount(gatherData.nickList);
-		_mod.api.Privmsg(channel, 'Gather' + (gatherData.mapName ? ' on '+gatherData.mapName:'')+' with '+[player for (player in gatherData.nickList)].join(', ') + ' ... ' + (2*gatherData.count-ObjPropertyCount(gatherData.nickList))+' slots left.' );
+		$A.Privmsg(channel, 'Gather' + (gatherData.mapName ? ' on '+gatherData.mapName:'')+' with '+[player for (player in gatherData.nickList)].join(', ') + ' ... ' + (2*gatherData.count-ObjPropertyCount(gatherData.nickList))+' slots left.' );
 	}
 	
 	function StopGather(channel) {
 
 		var gatherData = getData(GatherPath(channel));
 		var players = [player for (player in gatherData.nickList)].sort(function() Math.random() - 0.5);
-		_mod.api.Privmsg(channel, 'Alien team: '+players.slice(0, gatherData.count).join(', '));
-		_mod.api.Privmsg(channel, 'Human team: '+players.slice(gatherData.count).join(', '));
+		$A.Privmsg(channel, 'Alien team: '+players.slice(0, gatherData.count).join(', '));
+		$A.Privmsg(channel, 'Human team: '+players.slice(gatherData.count).join(', '));
 		io.RemoveTimeout(gatherData.timeout);
 		delData(GatherPath(channel));
 	}
@@ -82,9 +83,9 @@
 					return;
 					
 				var nick = StrBefore(from, '!');
-				if ( !_mod.api.IsOp(to, nick) ) {
+				if ( !$A.IsOp(to, nick) ) {
 				
-					_mod.api.Privmsg(to, 'Sorry, you are not a channel operator.' );
+					$A.Privmsg(to, 'Sorry, you are not a channel operator.' );
 					return;
 				}
 
@@ -99,9 +100,9 @@
 					return;
 
 				var nick = StrBefore(from, '!');
-				if ( !_mod.api.IsOp(to, nick) ) {
+				if ( !$A.IsOp(to, nick) ) {
 				
-					_mod.api.Privmsg(to, 'Sorry, you are not a channel operator.' );
+					$A.Privmsg(to, 'Sorry, you are not a channel operator.' );
 					return;
 				}
 
@@ -123,7 +124,7 @@
 					var gatherData = getData(GatherPath(to));
 					io.RemoveTimeout( gatherData.timeout );
 					delData(GatherPath(to));
-					_mod.api.Privmsg( to, 'Gather canceled.' );
+					$A.Privmsg( to, 'Gather canceled.' );
 					return;
 				}
 
@@ -131,7 +132,7 @@
 
 					if ( hasData(GatherPath(to)) ) {
 
-						_mod.api.Privmsg(to, 'Gather in progress. type !gather 0 to cancel the gather, or !gather to list current players.' );
+						$A.Privmsg(to, 'Gather in progress. type !gather 0 to cancel the gather, or !gather to list current players.' );
 						return;
 					}
 
@@ -180,7 +181,7 @@
 
 				if ( gatherData.nickList[nick] ) {
 					
-					_mod.api.Privmsg(to, 'You are already in the gather.' );
+					$A.Privmsg(to, 'You are already in the gather.' );
 					return;
 				}
 

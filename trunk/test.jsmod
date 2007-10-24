@@ -14,10 +14,8 @@
 
 
 (function testModule() {
-	
+
 	this.name = this.constructor.name;
-	var _mod = this;
-	
-	this.moduleListener = {
-	}
+	this.disabled = true;
+
 })

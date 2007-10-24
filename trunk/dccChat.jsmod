@@ -13,10 +13,10 @@
  * ***** END LICENSE BLOCK ***** */
 
 
-(function DCCChatModule() { // http://en.wikipedia.org/wiki/Direct_Client-to-Client
+(function DCCChatModule($D, $A) { // http://en.wikipedia.org/wiki/Direct_Client-to-Client
 	
 	this.name = this.constructor.name;
-	var _mod = this;
+	var $MD = $D[this.name];
 	
 	var _DCCConnectionsCount = 0;
 	
@@ -29,7 +29,7 @@
 				var [type,protocol,nip,nport] = data.split(' ');
 				if ( type != 'CHAT' )
 					return;
-				if ( _DCCConnectionsCount >= getData( _mod.data.DCC.maxDCCConnections ) ) {
+				if ( _DCCConnectionsCount >= getData( $D.DCC.maxDCCConnections ) ) {
 					
 					DBG && ReportError('Too many DCC CHAT connections.');
 					return;
@@ -39,18 +39,18 @@
 				
 				connection.OnData = function( buf ) {
 					
-					_mod.FireModuleListener( 'dcc', 'chatData', from, buf, connection );
+					$A.FireModuleListener( 'dcc', 'chatData', from, buf, connection );
 				}
 				
 				connection.OnConnected = function() {
 					
 					_DCCConnectionsCount++;
-					_mod.FireModuleListener( 'dcc', 'chatStart', from, connection );
+					$A.FireModuleListener( 'dcc', 'chatStart', from, connection );
 				}
 					
 				connection.OnDisconnected = function() { 
 					
-					_mod.FireModuleListener( 'dcc', 'chatEnd', from, connection );
+					$A.FireModuleListener( 'dcc', 'chatEnd', from, connection );
 					connection.Close();
 					_DCCConnectionsCount--;
 				}
@@ -61,20 +61,20 @@
 		}
 	};
 	
-	_mod.moduleApi = {
+	this.moduleApi = {
 	
 		OpenDCCChat: function( nick, callback ) {
 
-			var _dccAcceptTimeout, ip = getData( _mod.data.sockName );
-			var server = new TCPServer( getData( _mod.data.DCC.portRange ), ip );
+			var _dccAcceptTimeout, ip = getData( $D.sockName );
+			var server = new TCPServer( getData( $D.DCC.portRange ), ip );
 			server.OnIncoming = function(connection) {
 
 				io.RemoveTimeout(_dccAcceptTimeout);
 				server.Close(); // we accept only one connection
 				callback(connection);
 			}
-			_dccAcceptTimeout = io.AddTimeout( getData( _mod.data.DCC.requestTimeout ) , function() server.Close() );
-			_mod.api.CtcpRequest( nick, 'DCC', 'CHAT chat '+IpToInt(ip)+' '+server.port );
+			_dccAcceptTimeout = io.AddTimeout( getData( $D.DCC.requestTimeout ) , function() server.Close() );
+			$A.CtcpRequest( nick, 'DCC', 'CHAT chat '+IpToInt(ip)+' '+server.port );
 		}	
 	};
 

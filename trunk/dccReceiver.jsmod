@@ -13,14 +13,14 @@
  * ***** END LICENSE BLOCK ***** */
 
 
-(function DCCReceiverModule() { // http://en.wikipedia.org/wiki/Direct_Client-to-Client
+(function DCCReceiverModule($D, $A) { // http://en.wikipedia.org/wiki/Direct_Client-to-Client
 	
 	this.name = this.constructor.name;
-	var _mod = this;
-	
+	var $MD = $D[this.name];
+
 	function DCCReceive( ip, port, fileName, timeout ) { // receiver is a client socket / sender is the server
 
-		var destinationPath = getData(_mod.data[_mod.name].destinationPath );
+		var destinationPath = getData($MD.destinationPath );
 		
 		var dccSocket = new Socket();
 		var file = new File( destinationPath +'/' + fileName);

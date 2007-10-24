@@ -13,10 +13,11 @@
  * ***** END LICENSE BLOCK ***** */
 
 
-(function DefaultModule() {
+(function DefaultModule($D, $A, $S) {
 	
 	this.name = this.constructor.name;
-	var _mod = this;
+
+	var $MD = $D[this.name];
 
 	function TemporaryNick() '_'+RandomString(8);
 	
@@ -28,8 +29,8 @@
 	
 		RPL_WELCOME: function( command, from, to ) {
 
-			setData(_mod.data.nick, to);
-			_mod.state.Toggle( STATE_HAS_GOOD_NICK, getData(_mod.data.nick) == getData(_mod.data.wishNick) );
+			setData($D.nick, to);
+			$S.Toggle( STATE_HAS_GOOD_NICK, getData($D.nick) == getData($D.wishNick) );
 		},
 		
 //(TBD)		// RPL_YOURHOST
@@ -45,37 +46,37 @@
 		NICK: function( command, from, newNick ) { // WiZ!jto@tolsun.oulu.fi NICK Kilroy
 			
 			var nick = StrBefore(from, '!');
-			if ( nick != getData(_mod.data.nick) ) // only listen for self nickname changing.
+			if ( nick != getData($D.nick) ) // only listen for self nickname changing.
 				return;
-			setData(_mod.data.nick, newNick);
-			_mod.state.Toggle( STATE_HAS_GOOD_NICK, getData(_mod.data.nick) == getData(_mod.data.wishNick) );
+			setData($D.nick, newNick);
+			$S.Toggle( STATE_HAS_GOOD_NICK, getData($D.nick) == getData($D.wishNick) );
 		},
 
 //		ERR_RESTRICTED: function() { // Your connection is restricted!
 //
-//			_mod.api.Nick( TemporaryNick() );
+//			$A.Nick( TemporaryNick() );
 //		},
 
 //		ERR_NICKCOLLISION: function( command, nick, nickCollisionPhrase ) { // Nickname collision KILL from <user>@<host>
 //			
-//			_mod.api.Nick( TemporaryNick() );
+//			$A.Nick( TemporaryNick() );
 //		},
 
 
 		ERR_ERRONEUSNICKNAME: function() { // Erroneous nickname ( see. IsNickValid() )
 		  
-			_mod.api.Nick( TemporaryNick() );
+			$A.Nick( TemporaryNick() );
 		},
 
 		ERR_NICKNAMEINUSE: function( nick, nickInUsePhrase ) { // Nickname is already in use
 		
 			// (TBD) try a random nick, then, when ready, periodically try a better nick
 			
-			_mod.api.Nick( TemporaryNick() ); // (TBD) enhance this 
+			$A.Nick( TemporaryNick() ); // (TBD) enhance this 
 			
-			io.AddTimeout( getData(_mod.data[_mod.name].wishNickRetryInterval), function() {
+			io.AddTimeout( getData($MD.wishNickRetryInterval), function() {
 				
-				_mod.Send( 'NICK '+getData(_mod.data.wishNick) );
+				$A.Send( 'NICK '+getData($D.wishNick) );
 			}); // async pause
 			
 		},
@@ -83,17 +84,17 @@
 
 		RPL_USERHOST: function( command, from, to, hostList ) {
 			
-			if ( to == getData(_mod.data.nick) ) {
+			if ( to == getData($D.nick) ) {
 				
 				var host = StrBefore(hostList, ' ');
-				setData( _mod.data.userhost, host.substr(host.lastIndexOf('=')+1) ); // hostinfo[0] = '+' or '-' : AWAY message set ???
+				setData( $D.userhost, host.substr(host.lastIndexOf('=')+1) ); // hostinfo[0] = '+' or '-' : AWAY message set ???
 			}
 		},
 		
 		PING: function( command, prefix, arg ) {
 
-			_mod.Send( 'PONG '+arg );
-			setData( _mod.data.lastPingTime, Now() );
+			$A.Send( 'PONG '+arg );
+			setData( $D.lastPingTime, Now() );
 		},
 
 		NOTICE: function( command, from, to, message ) {
@@ -111,14 +112,14 @@
 				var res = /on ([0-9]+) ca ([0-9]+)\(([0-9]+)\) ft ([0-9]+)\(([0-9]+)\) *(tr)?$/(message);
 				if ( res == null )
 					return;
-//				_mod.RemoveMessageListener( 'NOTICE', oncafttrNotice );
+//				$A.RemoveMessageListener( 'NOTICE', oncafttrNotice );
 			}
 */
 		}
 	};
 	
 	// export module API
-	_mod.moduleApi = {
+	this.moduleApi = {
 
 // 	function StripIrcText(text) text.replace(/\x03(N|(B|V|U|S|I).|F.\d?|P(P|F)|C([0-9,A-F]|#[0-9,A-F]{6}){0,2})/ig,''); // see. http://www.invlogic.com/irc/ctcp2_2.html
 
@@ -157,19 +158,19 @@
 		//  nickname   =  ( letter / special ) *8( letter / digit / special / "-" )
 		IsNickValid: function(nick) !!/^[A-Za-z\x5B-\x60\x7B-\x7D][A-Za-z0-9\x5B-\x60\x7B-\x7D\x2D]{0,8}$/(nick),
 
-		Topic: function( channel, topic ) void _mod.Send( 'TOPIC '+channel+' :'+topic ),
+		Topic: function( channel, topic ) void $A.Send( 'TOPIC '+channel+' :'+topic ),
 		
-		Nick: function( nick, OnSent ) void _mod.Send( 'NICK '+nick, false, OnSent ),
+		Nick: function( nick, OnSent ) void $A.Send( 'NICK '+nick, false, OnSent ),
 		
 		Privmsg: function( to, messages, OnSent ) {
 			
 			if( !(messages instanceof Array) )
 				messages = [messages];
-			_mod.Send( [ 'PRIVMSG '+StrBefore(to,'!')+' :'+message for each ( message in messages ) ], false, OnSent )
+			$A.Send( [ 'PRIVMSG '+StrBefore(to,'!')+' :'+message for each ( message in messages ) ], false, OnSent )
 		},
 
 		// freenode network do not send a quit message if the client is connected for less than 5 mimutes
-		Quit: function(quitMessage) _mod.Send( 'QUIT :'+quitMessage, true ) // true = force the message to be post ASAP
+		Quit: function(quitMessage) $A.Send( 'QUIT :'+quitMessage, true ) // true = force the message to be post ASAP
 	}
 
 
@@ -177,8 +178,8 @@
 		
 		for (;;) {
 
-			_mod.Send( 'PING LAG'+IntervalNow(), true );
-			yield function(callback) io.AddTimeout( getData(_mod.data[_mod.name].lagProbeInterval), callback ); // async pause
+			$A.Send( 'PING LAG'+IntervalNow(), true );
+			yield function(callback) io.AddTimeout( getData($MD.lagProbeInterval), callback ); // async pause
 		}
 	}
 	
@@ -188,7 +189,7 @@
 		PONG: function( command, from, server, data ) {
 	
 			if ( data.substr(0,3) == 'LAG' )
-				setData( _mod.data.ping, IntervalNow() - parseInt(data.substr(3)) );
+				setData( $D.ping, IntervalNow() - parseInt(data.substr(3)) );
 		}
 	}
 
@@ -201,10 +202,10 @@
 			yield AsyncSleep( 1*MINUTE );
 			count++;
 			
-			count % 1 || _mod.FireModuleListener( 'clock', '1minute' );
-			count % 5 || _mod.FireModuleListener( 'clock', '5minutes' );
-			count % 10 || _mod.FireModuleListener( 'clock', '10minutes' );
-			count % 60 || _mod.FireModuleListener( 'clock', '1hour' );
+			count % 1 || $A.FireModuleListener( 'clock', '1minute' );
+			count % 5 || $A.FireModuleListener( 'clock', '5minutes' );
+			count % 10 || $A.FireModuleListener( 'clock', '10minutes' );
+			count % 60 || $A.FireModuleListener( 'clock', '1hour' );
 		}
 	}
 
@@ -215,8 +216,8 @@
 			reset: False, // never resets
 			trigger: function(polarity) {
 
-				_mod.Send( 'NICK '+getData(_mod.data.wishNick) );
-				_mod.Send( 'USER '+getData(_mod.data.ident.username)+' '+getData(_mod.data.hostname)+' '+getData(_mod.data.server)+' :'+getData(_mod.data.ident.realname) );
+				$A.Send( 'NICK '+getData($D.wishNick) );
+				$A.Send( 'USER '+getData($D.ident.username)+' '+getData($D.hostname)+' '+getData($D.server)+' :'+getData($D.ident.realname) );
 			}
 		},
 		{
@@ -224,11 +225,11 @@
 			reset: function(s) !s.interactive,
 			trigger: function(polarity) {
 
-				_mod.ToggleMessageListener( LagProbeResponse, polarity );
+				$A.ToggleMessageListener( LagProbeResponse, polarity );
 				ToggleAsyncProc( LagProbe, polarity );
 
 				if ( polarity )
-					_mod.Send( 'USERHOST '+getData(_mod.data.nick) );
+					$A.Send( 'USERHOST '+getData($D.nick) );
 				
 				ToggleAsyncProc( Clock, polarity );
 			}
