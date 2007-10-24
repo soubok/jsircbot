@@ -15,7 +15,7 @@
 
 (function TremulousModule($D, $A) {
 	
-	this.name = this.constructor.name;
+	var _name = this.name = this.constructor.name;
 
 
 	const tremQueryPrefix = '\xFF\xFF\xFF\xFF';
@@ -24,7 +24,7 @@
 
 		DBG && DebugTraceCall();
 		var [host,port] = server.split(':', 2);
-		UDPGet( host, port, tremQueryPrefix + command, 5*SECOND, OnResult );
+		UDPGet( host, port, tremQueryPrefix + command, 3*SECOND, OnResult );
 	}
 	
 	
@@ -130,7 +130,7 @@
 	function TremulousMasterGetServerList( server, OnResult ) {
 		
 		var [host, port] = server.split(':',2);
-		UDPGet( host, port, tremQueryPrefix+ 'getservers 69 empty full', 15*SECOND, function(status, data) {
+		UDPGet( host, port, tremQueryPrefix+ 'getservers 69 full', 10*SECOND, function(status, data) { // getservers 69 empty full
 			
 			if ( status != OK ) {
 
@@ -199,7 +199,8 @@
 
 // procedures
 
-	_tremulousServerList = NewDataObj();
+	var _tremulousServerList = NewDataObj();
+	var _tremPlayersCount;
 
 	var ServerListUpdater = new function() {
 	
@@ -224,7 +225,7 @@
 				data.masterDate = Now();
 			}
 
-			yield AsyncSleep( 30*MINUTE );
+			yield AsyncSleep( 5*MINUTE );
 		}
 	}
 	
@@ -235,7 +236,9 @@
 
 		for (;;) {
 			
-			var playerCount = 0;
+			_tremPlayersCount = 0;
+			
+			var scanStartTime = Now();
 			
 			for ( var server in _tremulousServerList ) {
 
@@ -252,12 +255,12 @@
 				}
 				data.aliveDate = Now();
 				data.serverStatus = serverStatus;
-				playerCount += serverStatus.playerList.length;
+				_tremPlayersCount += serverStatus.playerList.length;
 			}
 
-			ReportNotice( 'PlayerScanner: '+playerCount+' players found');
+			ReportNotice( 'PlayerScanner: '+_tremPlayersCount+' players found in '+((Now()-scanStartTime)/1000).toFixed(2)+' seconds.' );
 
-			yield AsyncSleep( 5*MINUTE );
+			yield AsyncSleep( 1*MINUTE );
 		}
 	}
 
@@ -267,13 +270,26 @@
 
 		botcmd: {
 			
-			qc: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
-
-//				if ( !$A.IsBotOp(from) )
-//					return;
+			help: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 
 				var nick = StrBefore(from, '!');
 				var replyTo = to[0] == '#' ? to : nick;
+			
+				$A.Privmsg( replyTo, 'use !q [<part of a player name>]' );
+			},
+			
+			qc: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+
+				var nick = StrBefore(from, '!');
+				var replyTo = to[0] == '#' ? to : nick;
+
+				if ( !cmdData ) {
+					
+					$A.Privmsg( replyTo, 'Currently, there are '+_tremPlayersCount+' tremulous players.' );
+					return;
+				}
+				
+				cmdData = $A.IrcTextStrip(cmdData);
 					
 				if ( cmdData.length < 2 ) {
 					
@@ -298,7 +314,7 @@
 				}
 
 
-				if ( _lastQc > Now() - 10*SECOND ) { // anti-flood
+				if ( _lastQc > Now() - 5*SECOND ) { // anti-flood
 					
 					$A.Privmsg( replyTo, 'Please don\'t spam, try again later.' );
 					return;
@@ -320,8 +336,8 @@
 	
 	this.stateListener = [
 		{
-			set: function(s) s.running,
-			reset: False,
+			set: function(s) s.running && s[_name],
+			reset: function(s) !s.running || !s[_name],
 			trigger: function(polarity) {
 
 				ToggleAsyncProc( ServerListUpdater, polarity );
