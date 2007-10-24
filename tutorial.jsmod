@@ -1,0 +1,109 @@
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: GNU GPL 2.0
+ *
+ * The contents of this file are subject to the
+ * GNU General Public License Version 2.0; you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ * http://www.gnu.org/licenses/gpl.html
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ * ***** END LICENSE BLOCK ***** */
+
+
+
+
+// This is a module constructor ( in JavaScript, a constructor is like a OOP class )
+// $D is initialized to core data structure. Data is not reachable directly, you need to use getData, setData, hasData API to handle data ( see dataObject.js )
+// $A contains the bot API and the exported module API ( defined in moduleApi )
+// $S is the core state object. 
+(function TutorialModule($D, $A, $S) {
+	
+	// this avoid the module to be loaded.
+	this.disabled = true;
+	
+	// first, the module has to define it's name, usualy, it is the constructor fonction's name ( "BlankModule" here )
+	this.name = this.constructor.name;
+	
+	// $MD is just a simple shortcut link to the core data. This allows an easy access to the module's part of the configuration ( see configuration.js )
+	var $MD = $D[this.name];
+
+	// messageListener is a tree where the leafs are functions, each tree level is an argument value of the final function.
+	// in the following case, PRIVMSG is the first level of the tree and is a filter to the first argument of the function. Only PRIVMSG commands will fire the function.
+	this.messageListener = {
+
+		PRIVMSG: function( command, from, to, msg ) {
+
+			// IsBotOp is an AIP function defined in the operator module ( operator.jsmod )
+			if ( !$A.IsBotOp(from) )
+				return;
+			
+			// this function is often used to extract the nickname from the 'from' argument that looks like "nickName!hostname.com"
+			var nick = StrBefore(from, '!');
+			
+			var replyTo = to[0] == '#' ? to : nick;
+			
+			// call Privmsg (defined in default.jsmod ) to send data to a user or a channel
+			$A.Privmsg( replyTo, 'listening' );
+		}
+	}
+
+	// like messageListener, moduleListener ise used to listen events  dispatched by other modules
+	this.moduleListener = {
+		
+		// botcmd messages are sent by bodCmd.jsmod module and allow you to manage commands like: !echo test
+		botcmd: {
+			
+			// this function is called when someone type !help
+			help: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+			
+				// if the !help command has only to be used in a channel context, not with a private message then use this:
+				if ( to[0] != '#' )
+					return;	
+				
+				// if you want to restrict this command to one channel only, you have to do this:
+				if ( $A.NormalizeChannelName(to) != '#jsircbot' )
+					return;
+				
+				$A.Privmsg( to, 'listening' );
+				
+			}
+		}
+	}
+	
+	// the following object contains API functions that the module wants to export to other modules.
+	// When the module is unloaded, this object isused to remove this API from the global core api ( alias $A )
+	this.moduleApi = {
+		
+		// This API function can be used in any module.
+		// BEWARE: because module loading is asynchronous, You have to ensure that the API is defined before using it.
+		SayHello:function(to) {
+		
+			$A.Privmsg( to, 'Hello' );
+		}
+	
+	}
+
+	// the state listener is used to be aware of any state changes ( eg. connecting state to connected state, ... )
+	// stateListener is an array of objects.
+	// When module is loaded ( module loading may be assynchronous ), its name is used as a state, then you can know when a module is loaded or unloaded.
+	this.stateListener = [
+		{
+			// set is a function that returns true or false. It contains the condition required to call the trigger function.
+			// in this case, trigger is call (with polarity=true) if the bot is in interactive state and the default module is loaded
+			set: function(s) s.interactive && s.DefaultModule,
+			
+			// reset give the condition to to call the trigger function with false as argument
+			reset: function(s) !s.interactive || !s.DefaultModule,
+			
+			// the trigger function is only call on state transition and when the state listener is defined
+			trigger: function(polarity) {
+				
+				//
+			}
+		}
+	];
+	
+})

@@ -13,40 +13,39 @@
  * ***** END LICENSE BLOCK ***** */
 
 
-(function freenodeModule() {
+(function freenodeModule($D, $A) {
 	
 	this.name = this.constructor.name;
-	var _mod = this;
-//	function _Data() _mod.data[_mod.name];
+	var $MD = $D[this.name];
 
 	var _cs = new CallScheduler;
 
-	_mod.moduleApi = {
+	this.moduleApi = {
 
-		SetChannelAccessLevel: function(channel, nick, level) void _mod.api.Privmsg( getData(_mod.data[_mod.name].chanServ), 'ACCESS '+channel+' ADD '+nick+' '+level ),
+		SetChannelAccessLevel: function(channel, nick, level) void $A.Privmsg( getData($MD.chanServ), 'ACCESS '+channel+' ADD '+nick+' '+level ),
 		
-//		LinkNick: function( nickname, password ) void _mod.api.Privmsg( getData(_mod.data[_mod.name].nickServ), 'LINK '+nickname+' '+password ),
+//		LinkNick: function( nickname, password ) void $A.Privmsg( getData($MD.nickServ), 'LINK '+nickname+' '+password ),
 		
 		RenameLink: function( newNick, password ) StartAsyncProc( new function() {
 			
-			var nickServ = getData(_mod.data[_mod.name].nickServ);
-			var [status, hostWhois] = yield function(callback) _mod.api.Whois(getData(_mod.data.nick), callback);
+			var nickServ = getData($MD.nickServ);
+			var [status, hostWhois] = yield function(callback) $A.Whois(getData($D.nick), callback);
 			if ( status != OK || !hostWhois.isIdentified )
 				return;
-			_mod.api.Nick( newNick );
-			_mod.api.Privmsg( nickServ, 'REGISTER '+password );
-			_mod.api.Privmsg( nickServ, 'LINK '+hostWhois.nick+' '+password );
+			$A.Nick( newNick );
+			$A.Privmsg( nickServ, 'REGISTER '+password );
+			$A.Privmsg( nickServ, 'LINK '+hostWhois.nick+' '+password );
 		}),
 
 		// Syntax: ACCESS <channel> LIST [FULL|mask]
 		AccessInfo: function( channel, OnReply ) _cs.Add( function() {
 
 			var result = [], timeoutId, events = NewDataObj(), startMarker = RandomNumber(8);
-			_mod.AddMessageListener(events);
+			$A.AddMessageListener(events);
 
 			function End(status, reply) { // response OR timeout
 
-				_mod.RemoveMessageListener(events);
+				$A.RemoveMessageListener(events);
 				io.RemoveTimeout(timeoutId);
 				_cs.Next();
 				OnReply(status, reply);
@@ -59,7 +58,7 @@
 
 				events.NOTICE = function( command, from, to, msg ) {
 
-					if ( from != getData(_mod.data[_mod.name].chanServ) || to != getData(_mod.data.nick) )
+					if ( from != getData($MD.chanServ) || to != getData($D.nick) )
 						return;
 
 					if ( msg.indexOf('is not registered') != -1 ) {
@@ -80,9 +79,9 @@
 				}
 			}
 
-			_mod.api.Privmsg( getData(_mod.data[_mod.name].chanServ), [startMarker, 'ACCESS '+channel+' LIST'], function() {
+			$A.Privmsg( getData($MD.chanServ), [startMarker, 'ACCESS '+channel+' LIST'], function() {
 
-				timeoutId = io.AddTimeout( getData(_mod.data[_mod.name].maxServiceBotReply), function() End(TIMEOUT) );
+				timeoutId = io.AddTimeout( getData($MD.maxServiceBotReply), function() End(TIMEOUT) );
 			});
 		}),
 
@@ -91,11 +90,11 @@
 		ChanInfo: function( channel, OnReply ) _cs.Add( function() {
 
 			var result = NewDataObj(), timeoutId, events = NewDataObj(), startMarker = RandomNumber(8), endMarker = RandomNumber(8);
-			_mod.AddMessageListener(events);
+			$A.AddMessageListener(events);
 
 			function End(status, reply) { // response OR timeout
 
-				_mod.RemoveMessageListener(events);
+				$A.RemoveMessageListener(events);
 				io.RemoveTimeout(timeoutId);
 				_cs.Next();
 				OnReply(status, reply);
@@ -114,7 +113,7 @@
 						return;
 					}
 
-					if ( from != getData(_mod.data[_mod.name].chanServ) || to != getData(_mod.data.nick) )
+					if ( from != getData($MD.chanServ) || to != getData($D.nick) )
 						return;
 
 					if ( msg.indexOf('is not registered') != -1 ) {
@@ -151,9 +150,9 @@
 				}
 			}
 
-			_mod.api.Privmsg( getData(_mod.data[_mod.name].chanServ), [startMarker, 'INFO '+channel, endMarker], function() {
+			$A.Privmsg( getData($MD.chanServ), [startMarker, 'INFO '+channel, endMarker], function() {
 
-				timeoutId = io.AddTimeout( getData(_mod.data[_mod.name].maxServiceBotReply), function() End(TIMEOUT) );
+				timeoutId = io.AddTimeout( getData($MD.maxServiceBotReply), function() End(TIMEOUT) );
 			});
 		}),
 
@@ -162,11 +161,11 @@
 		NickInfo: function( channel, OnReply ) _cs.Add( function() {
 
 			var result = NewDataObj(), timeoutId, events = NewDataObj(), startMarker = RandomNumber(8), endMarker = RandomNumber(8);
-			_mod.AddMessageListener(events);
+			$A.AddMessageListener(events);
 
 			function End(status, reply) { // response OR timeout
 
-				_mod.RemoveMessageListener(events);
+				$A.RemoveMessageListener(events);
 				io.RemoveTimeout(timeoutId);
 				_cs.Next();
 				OnReply(status, reply);
@@ -185,7 +184,7 @@
 						return;
 					}
 
-					if ( from != getData(_mod.data[_mod.name].nickServ) || to != getData(_mod.data.nick) )
+					if ( from != getData($MD.nickServ) || to != getData($D.nick) )
 						return;
 
 					if ( msg.indexOf('is not registered') != -1 ) {
@@ -225,9 +224,9 @@
 				}
 			}
 
-			_mod.api.Privmsg( getData(_mod.data[_mod.name].nickServ), [startMarker, 'INFO '+nick, endMarker], function() {
+			$A.Privmsg( getData($MD.nickServ), [startMarker, 'INFO '+nick, endMarker], function() {
 
-				timeoutId = io.AddTimeout( getData(_mod.data[_mod.name].maxServiceBotReply), function() End(TIMEOUT) );
+				timeoutId = io.AddTimeout( getData($MD.maxServiceBotReply), function() End(TIMEOUT) );
 			});
 		})
 	} // moduleApi
@@ -238,5 +237,5 @@
 freenode modes:
 	http://freenode.net/using_the_network.shtml
 
-// _mod.Send('CAPAB IDENTIFY-MSG'); // ask the server to prefix all messages with '+' if the nick is resistred	
+// $A.Send('CAPAB IDENTIFY-MSG'); // ask the server to prefix all messages with '+' if the nick is resistred	
 */

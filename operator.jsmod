@@ -13,10 +13,10 @@
  * ***** END LICENSE BLOCK ***** */
 
 
-(function OperatorManagerModule() {
+(function OperatorManagerModule($D, $A) {
 	
-	this.name = this.constructor.name;
-	var _mod = this;
+	var _name = this.name = this.constructor.name;
+	var modData = $D[_mod.name];
 	
 	this.moduleListener = {
 		
@@ -24,60 +24,60 @@
 
 			oops: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 
-				if ( !_mod.api.IsBotOp(from) )
+				if ( !$A.IsBotOp(from) )
 					return;
-				delData( _mod.data[_mod.name].password );
-				setData( _mod.data[_mod.name].list, [] );
+				delData( modData.password );
+				setData( modData.list, [] );
 				var replyTo = to[0] == '#' ? to : StrBefore(from, '!');
-				_mod.api.Privmsg( replyTo, 'Operator functions are locked.' );
+				$A.Privmsg( replyTo, 'Operator functions are locked.' );
 			},
 
 
 			isop: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 
 				var replyTo = to[0] == '#' ? to : StrBefore(from, '!');
-				_mod.api.Privmsg( replyTo, _mod.api.IsBotOp(from) ? 'yes' : 'no' );
+				$A.Privmsg( replyTo, $A.IsBotOp(from) ? 'yes' : 'no' );
 			},
 
 
 			op: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 				
 				var replyTo = to[0] == '#' ? to : StrBefore(from, '!');
-				if ( !_mod.api.IsBotOp(from) ) {
+				if ( !$A.IsBotOp(from) ) {
 	
-					var password = getData( _mod.data[_mod.name].password );
+					var password = getData( modData.password );
 					if ( password && cmdData == password ) {
 
-						getData( _mod.data[_mod.name].list ).push(from);
-						_mod.api.Privmsg( replyTo, 'Done.' );
+						getData( modData.list ).push(from);
+						$A.Privmsg( replyTo, 'Done.' );
 					}
 				} else {
 
-					_mod.api.Privmsg( replyTo, 'Already done.' );
+					$A.Privmsg( replyTo, 'Already done.' );
 				}
 			},
 
 
 			quit: function( modCmd, cmdName, cmdData, command, from ) {
 
-				if ( !_mod.api.IsBotOp(from) )
+				if ( !$A.IsBotOp(from) )
 					return;
-				_mod.api.Quit('bye.');
+				$A.Quit('bye.');
 			},
 
 
 			restart: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 
-				if ( !_mod.api.IsBotOp(from) )
+				if ( !$A.IsBotOp(from) )
 					return;
-				_mod.api.Quit('Restarting...');
+				$A.Quit('Restarting...');
 				SetExitValue(3);
 			},
 
 
 			reload: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 
-				if ( !_mod.api.IsBotOp(from) )
+				if ( !$A.IsBotOp(from) )
 					return;
 				var nick = StrBefore(from, '!');
 				var replyTo = to[0] == '#' ? to : nick;
@@ -90,54 +90,54 @@
 					for each ( var moduleName in moduleNameList )
 						if ( matchName(moduleName) ) {
 						
-							_mod.api && _mod.api.Privmsg && _mod.api.Privmsg( replyTo, 'Reloading '+moduleName );
+							$A && $A.Privmsg && $A.Privmsg( replyTo, 'Reloading '+moduleName );
 							
 							for each ( mod in core.ModulesByName(moduleName) )
 								core.ReloadModule(mod);
 						}
 				} else {
 
-					_mod.api.Privmsg && _mod.api.Privmsg( replyTo, 'list: '+moduleNameList.join('  ') );
+					$A.Privmsg && $A.Privmsg( replyTo, 'list: '+moduleNameList.join('  ') );
 				}
 			},
 
 			echo: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 
-				if ( !_mod.api.IsBotOp(from) )
+				if ( !$A.IsBotOp(from) )
 					return;
 
 				var nick = StrBefore(from, '!');
 				var replyTo = to[0] == '#' ? to : nick;
 				
-				_mod.api.Privmsg( replyTo, cmdData );
+				$A.Privmsg( replyTo, cmdData );
 			},
 
 			ip: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 
-				if ( !_mod.api.IsBotOp(from) )
+				if ( !$A.IsBotOp(from) )
 					return;
 
 				var nick = StrBefore(from, '!');
 				var replyTo = to[0] == '#' ? to : nick;
 
 
-				_mod.api.Whois(cmdData, function(status, user) {
+				$A.Whois(cmdData, function(status, user) {
 					
 					if ( status != OK )
 						return;
 					
 					var userIp = GetHostByName(user.host);
-					_mod.api.Privmsg( replyTo, userIp );				
+					$A.Privmsg( replyTo, userIp );				
 				});
 			},
 
 
 			log: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 				
-				if ( !_mod.api.IsBotOp(from) )
+				if ( !$A.IsBotOp(from) )
 					return;
 				var nick = StrBefore(from, '!');
-				_mod.api.OpenDCCChat( nick, function(connection) {
+				$A.OpenDCCChat( nick, function(connection) {
 
 					function LogFilter(data) {
 						
@@ -154,11 +154,11 @@
 
 			eval: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 				
-				if ( !_mod.api.IsBotOp(from) )
+				if ( !$A.IsBotOp(from) )
 					return;
 
 				var nick = StrBefore(from, '!');
-				_mod.api.OpenDCCChat( nick, function(connection) {
+				$A.OpenDCCChat( nick, function(connection) {
 					
 					var code = '';
 					connection.OnData = function(buf) {
@@ -184,44 +184,44 @@
 
 			raw: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 
-				if ( !_mod.api.IsBotOp(from) )
+				if ( !$A.IsBotOp(from) )
 					return;
 				var nick = StrBefore(from, '!');
 
 				function CreateSpy(connection) function() connection.Write( Array.slice(arguments).toSource() + LF );
 
-				_mod.api.OpenDCCChat( nick, function(connection) {
+				$A.OpenDCCChat( nick, function(connection) {
 
 					var spy = CreateSpy(connection);
-					_mod.AddMessageListener(spy);
+					$A.AddMessageListener(spy);
 					connection.OnData = function(buf) {
 						
-						_mod.Send( buf.replace(/\r?\n?$/,'') );
+						$A.Send( buf.replace(/\r?\n?$/,'') );
 					}
-					connection.OnDisconnected = function() _mod.RemoveMessageListener(spy);
+					connection.OnDisconnected = function() $A.RemoveMessageListener(spy);
 				});
 			},
 			
 			dump: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 
-				if ( !_mod.api.IsBotOp(from) )
+				if ( !$A.IsBotOp(from) )
 					return;
 				var nick = StrBefore(from, '!');
 				
-				_mod.api.OpenDCCChat( nick, function(connection) {
+				$A.OpenDCCChat( nick, function(connection) {
 					
-					connection.Write( dumpData(_mod.data) + LF );
+					connection.Write( dumpData($D) + LF );
 					connection.Close();
 				});
 			},
 			
 			inspect: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 
-				if ( !_mod.api.IsBotOp(from) )
+				if ( !$A.IsBotOp(from) )
 					return;
 				var nick = StrBefore(from, '!');
 				
-				_mod.api.OpenDCCChat( nick, function(connection) {	
+				$A.OpenDCCChat( nick, function(connection) {	
 					
 					connection.Write( [ fct() for each ( fct in INSPECT ) ].join(LF) + LF );
 					connection.Close();
@@ -235,7 +235,7 @@
 				var args = cmdData.split(SPC);
 				var fct = args.shift();
 				
-				_mod.api.
+				$A.
 			}
 */			
 			
@@ -246,14 +246,14 @@
 	
 	this.stateListener = [
 		{
-			set: function(s) s[_mod.name],
-			reset: function(s) !s[_mod.name],
+			set: function(s) s[_name],
+			reset: function(s) !s[_name],
 			trigger: function(polarity) {
 				
 				if ( polarity )
-					setData( _mod.data[_mod.name].list, [] );
+					setData( modData.list, [] );
 				else
-					delData( _mod.data[_mod.name].list );
+					delData( modData.list );
 			}
 		}
 	];
@@ -261,7 +261,7 @@
 	
 	this.moduleApi = {
 	
-		IsBotOp:function(from) getData( _mod.data[_mod.name].list ).indexOf(from) != -1
+		IsBotOp:function(from) getData( modData.list ).indexOf(from) != -1
 	}
 })
 

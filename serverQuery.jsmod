@@ -13,11 +13,10 @@
  * ***** END LICENSE BLOCK ***** */
 
 
-(function tremulousServerStatus() {
+(function tremulousServerStatus($D, $A) {
 	
 	this.name = this.constructor.name;
 	this.disabled = true;
-	var _mod = this;
 	
 	this.moduleListener = {
 	
@@ -31,7 +30,7 @@
 				UDPGet( 'master.tremulous.net', 30710, '\xFF\xFF\xFF\xFFgetservers 69', 5*SECOND, function(status, response) {
 
 					if ( status != OK ) {
-						_mod.api.Privmsg( replyTo, 'failed' );
+						$A.Privmsg( replyTo, 'failed' );
 					} else {
 
 						var serverList = [];
@@ -46,7 +45,7 @@
 							serverList.push([ip,port]);
 						}
 
-						_mod.api.Privmsg( replyTo, 'got '+serverList.length+' tremulous servers' );
+						$A.Privmsg( replyTo, 'got '+serverList.length+' tremulous servers' );
 					}
 				});
 			}

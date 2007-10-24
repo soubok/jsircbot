@@ -103,8 +103,6 @@ function StateKeeper() {
 	var _stateList = NewDataObj();
 	var _predicateList = [];
 
-//	function Is(stateName) stateName in _stateList; // not needed fot the moment
-
 	function StateChanging(stateName, state) {
 		
 		if ( !state == !_stateList[stateName] ) // if state is already set
@@ -120,9 +118,11 @@ function StateKeeper() {
 		}
 	}
 	
+	this.Is = function(stateName) stateName in _stateList;
 	this.Enter = function(stateName) StateChanging(stateName, true);
 	this.Leave = function(stateName)	StateChanging(stateName, false);
 	this.Toggle = function(stateName, polarity) StateChanging(stateName, polarity);
+
 
 	this.AddStateListener = function( setPredicate, resetPredicate, callback, initialState ) 
 		_predicateList.push(arguments);

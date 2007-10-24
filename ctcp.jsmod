@@ -12,13 +12,13 @@
  * License.
  * ***** END LICENSE BLOCK ***** */
 
-const X_DELIM = '\1';
-const X_QUOTE = '\134'; // back slash
 
-(function CTCPModule() {
+(function CTCPModule($D, $A) {
 
 	this.name = this.constructor.name;
-	var _mod = this;
+
+	const X_DELIM = '\1';
+	const X_QUOTE = '\134'; // back slash
 
 	function lowLevelCtcpQuote(data) { // NUL, NL, CR, QUOTE -> QUOTE 0, QUOTE n, QUOTE r, QUOTE QUOTE
 		
@@ -114,7 +114,7 @@ const X_QUOTE = '\134'; // back slash
 			tag = ctcpMessage.substring( 0, pos );
 			data = ctcpMessage.substring( pos + 1 );
 		}
-		_mod.FireModuleListener( 'ctcp', tag, from, to, data );
+		$A.FireModuleListener( 'ctcp', tag, from, to, data );
 	}
 
 
@@ -129,10 +129,10 @@ const X_QUOTE = '\134'; // back slash
 		}
 	}
 
-	_mod.moduleApi = {
+	this.moduleApi = {
 		
-		CtcpRequest:function(who, tag, data) _mod.Send( 'PRIVMSG ' + who + ' :' + lowLevelCtcpDequote( X_DELIM + ctcpLevelQuote(tag + SPC + data) + X_DELIM ) ),
-		CtcpResponse:function(who, tag, data) _mod.Send( 'NOTICE ' + who + ' :' + lowLevelCtcpDequote( X_DELIM + ctcpLevelQuote(tag + SPC + data) + X_DELIM ) )
+		CtcpRequest:function(who, tag, data) $A.Send( 'PRIVMSG ' + who + ' :' + lowLevelCtcpDequote( X_DELIM + ctcpLevelQuote(tag + SPC + data) + X_DELIM ) ),
+		CtcpResponse:function(who, tag, data) $A.Send( 'NOTICE ' + who + ' :' + lowLevelCtcpDequote( X_DELIM + ctcpLevelQuote(tag + SPC + data) + X_DELIM ) )
 	}
 })
 

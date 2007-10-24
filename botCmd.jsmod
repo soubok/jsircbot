@@ -13,10 +13,9 @@
  * ***** END LICENSE BLOCK ***** */
 
 
-(function BotCmdModule() {
+(function BotCmdModule($D, $A) {
 	
 	this.name = this.constructor.name;
-	var _mod = this;
 
 	this.messageListener = {
 	
@@ -38,7 +37,7 @@
 				cmdName = msg.substr(1, sp-1);
 				cmdData = msg.substr(sp+1);
 			}
-			_mod.FireModuleListener( 'botcmd', cmdName.toLowerCase(), cmdData, command, from, to, msg );
+			$A.FireModuleListener( 'botcmd', cmdName.toLowerCase(), cmdData, command, from, to, msg );
 		}
 	}
 })

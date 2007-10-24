@@ -13,25 +13,25 @@
  * ***** END LICENSE BLOCK ***** */
 
 
-(function CommandEventModule() {
+(function CommandEventModule($D, $A) {
 	
 	this.name = this.constructor.name;
-	var _mod = this;
+	var $MD = $D[this.name];
 	
 	var _cs = new CallScheduler;
 	
-	_mod.moduleApi = {
+	this.moduleApi = {
 	
 		Whois: function( nick, OnReply ) _cs.Add(function() {
 
 			var pingData = RandomNumber(16);
 			var timeoutId, events = NewDataObj(), result = NewDataObj();
 
-			_mod.AddMessageListener(events);
+			$A.AddMessageListener(events);
 
 			function End(status, reply) {
 
-				_mod.RemoveMessageListener(events);
+				$A.RemoveMessageListener(events);
 				io.RemoveTimeout(timeoutId);
 				_cs.Next();
 				OnReply(status, reply);
@@ -71,9 +71,9 @@
 				}
 			}
 
-			_mod.Send( ['PING '+pingData, 'WHOIS '+nick], false, function() { // PING to sync the request
+			$A.Send( ['PING '+pingData, 'WHOIS '+nick], false, function() { // PING to sync the request
 
-				timeoutId = io.AddTimeout(getData(_mod.data[_mod.name].maxServerReplyInterval), function() End(TIMEOUT) );
+				timeoutId = io.AddTimeout(getData($MD.maxServerReplyInterval), function() End(TIMEOUT) );
 			});
 		}),
 
@@ -86,7 +86,7 @@
 
 			function End(status, reply) {
 
-				_mod.RemoveMessageListener(events);
+				$A.RemoveMessageListener(events);
 				io.RemoveTimeout(timeoutId);
 				_cs.Next();
 				OnReply(status, reply);
@@ -115,11 +115,11 @@
 				events.ERR_NEEDMOREPARAMS = function( command, from, to, erroneousCommand, reasonPhrase ) erroneousCommand == 'USERHOST' && End(BADREQUEST);
 			};
 
-			_mod.AddMessageListener(status, events);
+			$A.AddMessageListener(status, events);
 
-			_mod.Send( ['PING '+pingData, 'USERHOST '+nickList.join(' ')], false, function() {
+			$A.Send( ['PING '+pingData, 'USERHOST '+nickList.join(' ')], false, function() {
 
-				timeoutId = io.AddTimeout(getData(_mod.data[_mod.name].maxServerReplyInterval), function() End(TIMEOUT) ); // start the timeout ONLY vhen the message has been sent
+				timeoutId = io.AddTimeout(getData($MD.maxServerReplyInterval), function() End(TIMEOUT) ); // start the timeout ONLY vhen the message has been sent
 			});
 		}),
 		
@@ -130,7 +130,7 @@
 
 			function End(status, message) {
 
-				_mod.RemoveMessageListener(events);
+				$A.RemoveMessageListener(events);
 				io.RemoveTimeout(timeoutId);
 				_cs.Next();
 				OnReply(status, message);
@@ -146,14 +146,14 @@
 			events.RPL_AWAY = function() End(UNAVAILABLE);
 			events.PRIVMSG = function( command, from, to, message ) {
 
-				if ( to == getData(_mod.data.nick) && nick == StrBefore(from, '!') )
+				if ( to == getData($D.nick) && nick == StrBefore(from, '!') )
 					End(OK, message);
 			};
 
-			_mod.AddMessageListener(events);
-			_mod.api.Privmsg( nick, message, function() {
+			$A.AddMessageListener(events);
+			$A.Privmsg( nick, message, function() {
 
-				timeoutId = io.AddTimeout(getData(_mod.data[_mod.name].maxUserReplyInterval), function() End(TIMEOUT) ); // start the timeout ONLY vhen the message has been sent
+				timeoutId = io.AddTimeout(getData($MD.maxUserReplyInterval), function() End(TIMEOUT) ); // start the timeout ONLY vhen the message has been sent
 			});
 		}),
 		
@@ -164,7 +164,7 @@
 
 			function End(status) {
 
-				_mod.RemoveMessageListener(events);
+				$A.RemoveMessageListener(events);
 				io.RemoveTimeout(timeoutId);
 				_cs.Next();
 				OnReply(status);
@@ -174,10 +174,10 @@
 
 			events = { PONG:Reply };
 
-			_mod.AddMessageListener(events);
-			_mod.Send( 'PING '+pingData, false, function() {
+			$A.AddMessageListener(events);
+			$A.Send( 'PING '+pingData, false, function() {
 
-				timeoutId = io.AddTimeout(getData(_mod.data[_mod.name].maxServerReplyInterval), function() End(TIMEOUT) ); // start the timeout ONLY vhen the message has been sent
+				timeoutId = io.AddTimeout(getData($MD.maxServerReplyInterval), function() End(TIMEOUT) ); // start the timeout ONLY vhen the message has been sent
 			});
 		}),
 
@@ -188,14 +188,14 @@
 			var timeoutId, events = {};
 			function End() {
 
-				_mod.RemoveMessageListener(events);
+				$A.RemoveMessageListener(events);
 				io.RemoveTimeout(timeoutId);
 				_cs.Next();
 				OnReply.apply(null, arguments);
 			}
-			_mod.AddMessageListener(events);
+			$A.AddMessageListener(events);
 			events[commandName] = function( command, from, server, data ) End( OK, command, from, server, data );
-			timeoutId = io.AddTimeout(getData(_mod.data[_mod.name].maxServerReplyInterval), function() End(TIMEOUT) );
+			timeoutId = io.AddTimeout(getData($MD.maxServerReplyInterval), function() End(TIMEOUT) );
 		})
 		
 		

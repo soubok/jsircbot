@@ -13,13 +13,12 @@
  * ***** END LICENSE BLOCK ***** */
 
 
-(function TremulousModule() {
+(function TremulousModule($D, $A) {
 	
 	this.name = this.constructor.name;
-	var _mod = this;
+
 
 	const tremQueryPrefix = '\xFF\xFF\xFF\xFF';
-
 	
 	function TremulousServerCommand( server, command, OnResult ) {
 
@@ -200,7 +199,7 @@
 
 // procedures
 
-	_mod.tremulousServerList = NewDataObj();
+	_tremulousServerList = NewDataObj();
 
 	var ServerListUpdater = new function() {
 	
@@ -221,7 +220,7 @@
 			
 			for each ( var server in serverList) {
 
-				var data = _mod.tremulousServerList[server] = NewDataObj();
+				var data = _tremulousServerList[server] = NewDataObj();
 				data.masterDate = Now();
 			}
 
@@ -238,9 +237,9 @@
 			
 			var playerCount = 0;
 			
-			for ( var server in _mod.tremulousServerList ) {
+			for ( var server in _tremulousServerList ) {
 
-				var data = _mod.tremulousServerList[server];
+				var data = _tremulousServerList[server];
 
 				var [status, serverStatus] = yield function(callback) TremulousServerStatus( server, callback );
 				if ( status != OK ) {
@@ -248,7 +247,7 @@
 					ReportError( 'PlayerScanner failed: '+status );
 					delete data.serverStatus;
 					if ( data.aliveDate + 1*HOUR < Now() ) // remove inactive servers
-						delete _mod.tremulousServerList[server];
+						delete _tremulousServerList[server];
 					continue;
 				}
 				data.aliveDate = Now();
@@ -261,7 +260,8 @@
 			yield AsyncSleep( 5*MINUTE );
 		}
 	}
-	
+
+	var _lastQc;	
 
 	this.moduleListener = {
 
@@ -269,7 +269,7 @@
 			
 			qc: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 
-//				if ( !_mod.api.IsBotOp(from) )
+//				if ( !$A.IsBotOp(from) )
 //					return;
 
 				var nick = StrBefore(from, '!');
@@ -277,42 +277,42 @@
 					
 				if ( cmdData.length < 2 ) {
 					
-					_mod.api.Privmsg( replyTo, 'too short' );
+					$A.Privmsg( replyTo, 'too short' );
 					return;
 				}
 
 				var list = [];
 				
-				for ( var server in _mod.tremulousServerList ) {
+				for ( var server in _tremulousServerList ) {
 					
-					if ( !_mod.tremulousServerList[server].serverStatus )
+					if ( !_tremulousServerList[server].serverStatus )
 						continue;
 
 					var players = [];
-					for each ( var player in _mod.tremulousServerList[server].serverStatus.playerList )
+					for each ( var player in _tremulousServerList[server].serverStatus.playerList )
 						if ( TremulousTextStrip(player).toLowerCase().indexOf(cmdData.toLowerCase()) != -1 )
 							players.push('\x030,1' + TremulousTextToIrc(player) + '\x0F');
 					
 					if ( players.length )
-						list.push( players.slice(0,5).join(', ') + ' on \x030,1' + TremulousTextToIrc(_mod.tremulousServerList[server].serverStatus.info.sv_hostname) + '\x0F' );
+						list.push( players.slice(0,5).join(', ') + ' on \x030,1' + TremulousTextToIrc(_tremulousServerList[server].serverStatus.info.sv_hostname) + '\x0F' );
 				}
 
 
-				if ( _mod.lastQc > Now() - 10*SECOND ) { // anti-flood
+				if ( _lastQc > Now() - 10*SECOND ) { // anti-flood
 					
-					_mod.api.Privmsg( replyTo, 'Please don\'t spam, try again later.' );
+					$A.Privmsg( replyTo, 'Please don\'t spam, try again later.' );
 					return;
 				}
 
-				_mod.lastQc = Now();
+				_lastQc = Now();
 				
 				if ( list.length == 0 ) {
 					
-					_mod.api.Privmsg( replyTo, 'No match' );
+					$A.Privmsg( replyTo, 'No match' );
 					return;
 				}
 
-				_mod.api.Privmsg( replyTo, list.slice(0,4).join(' and ') );
+				$A.Privmsg( replyTo, list.slice(0,4).join(' and ') );
 			}
 		}
 	}

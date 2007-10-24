@@ -12,13 +12,12 @@
  * License.
  * ***** END LICENSE BLOCK ***** */
 
-(function ChannelModule() {
+(function ChannelModule($D) {
 	
 	this.name = this.constructor.name;
-	var _mod = this;
+	var $MD = $D[this.name];
 	
-	const _nameParser = /(@?)(\+?)(.*)/;
-	
+
 	function NormalizeChannelName(channelName) channelName.toLowerCase(); // (TBD) check if we muse use _api.ToIRCLowerString instead !
 
 	function NormalizeNickName(nickName) nickName;
@@ -71,7 +70,7 @@
 	
 		RPL_CREATIONTIME: function( command, from, to, channel, time ) {
 
-			setData( _mod.data.channel[NormalizeChannelName(channel)].creationTime, parseInt(time) );
+			setData( $D.channel[NormalizeChannelName(channel)].creationTime, parseInt(time) );
 		},		
 
 		JOIN: function( command, who, channel ) { // :cdd_etf_bot!~cdd_etf_b@nost.net JOIN #soubok
@@ -81,40 +80,40 @@
 			
 			var nick = StrBefore(who, '!'); // [TBD] try to auto extract this
 
-			if ( nick == getData(_mod.data.nick) ) { // self
+			if ( nick == getData($D.nick) ) { // self
 				
-//				delData( _mod.data.channel[NormalizeChannelName(channel)] );
-				setData( _mod.data.channel[NormalizeChannelName(channel)], true );
+//				delData( $D.channel[NormalizeChannelName(channel)] );
+				setData( $D.channel[NormalizeChannelName(channel)], true );
 
-				_mod.Send( 'MODE '+channel ); // request modes
-				_mod.Send( 'MODE '+channel+' +b' ); // request banlist
+				$A.Send( 'MODE '+channel ); // request modes
+				$A.Send( 'MODE '+channel+' +b' ); // request banlist
 			} else {
 
-				setData( _mod.data.channel[NormalizeChannelName(channel)].names[nick], true );
+				setData( $D.channel[NormalizeChannelName(channel)].names[nick], true );
 			}
 		},
 			
 		PART: function( command, who, channel ) {
 
 			var nick = StrBefore(who, '!');
-			if ( nick == getData(_mod.data.nick) )
-				delData( _mod.data.channel[NormalizeChannelName(channel)] );
+			if ( nick == getData($D.nick) )
+				delData( $D.channel[NormalizeChannelName(channel)] );
 			else
-				delData( _mod.data.channel[NormalizeChannelName(channel)].names[nick] );
+				delData( $D.channel[NormalizeChannelName(channel)].names[nick] );
 		},
 
 		KICK: function( command, from, channel, who, message ) {
 
-			if ( who == getData(_mod.data.nick) )
-				delData( _mod.data.channel[NormalizeChannelName(channel)] );
+			if ( who == getData($D.nick) )
+				delData( $D.channel[NormalizeChannelName(channel)] );
 			else
-				delData( _mod.data.channel[NormalizeChannelName(channel)].names[who] );
+				delData( $D.channel[NormalizeChannelName(channel)].names[who] );
 		},
 
 		QUIT: function( command, who ) {
 
 			var nick = StrBefore(who, '!');
-			for each ( var chan in _mod.data.channel )
+			for each ( var chan in $D.channel )
 				if ( nick in chan.names )
 					delData( chan.names[nick] );
 		},
@@ -122,46 +121,46 @@
 		NICK: function( command, who, newNick ) {
 
 			var nick = StrBefore(who, '!');
-//			if ( nick == getData( _mod.data.nick ) ) // do not manage bot nick change here! why ?
+//			if ( nick == getData( $D.nick ) ) // do not manage bot nick change here! why ?
 //				return;
-			for each ( var chan in _mod.data.channel )
+			for each ( var chan in $D.channel )
 				if ( nick in chan.names )
 					moveData( chan.names[nick], chan.names[newNick] );
 		},
 
 		RPL_BANLIST: function( command, from, to, channel, ban, banBy, time ) {
 
-			setData( _mod.data.channel[NormalizeChannelName(channel)].bans[ban], true );
+			setData( $D.channel[NormalizeChannelName(channel)].bans[ban], true );
 		},
 
 		RPL_NOTOPIC: function( command, channel ) {
 
-			delData( _mod.data.channel[NormalizeChannelName(channel)].topic );
+			delData( $D.channel[NormalizeChannelName(channel)].topic );
 		},
 
 		TOPIC: function( command, from, channel, topic ) {
 			
 			var who = StrBefore(from, '!')			
 			var time = Math.floor( Now()/SECOND ); // adjust time because timezone ?
-			setData( _mod.data.channel[NormalizeChannelName(channel)].topic, topic );
-			setData( _mod.data.channel[NormalizeChannelName(channel)].topicWho, who );
-			setData( _mod.data.channel[NormalizeChannelName(channel)].topicWho, time );
+			setData( $D.channel[NormalizeChannelName(channel)].topic, topic );
+			setData( $D.channel[NormalizeChannelName(channel)].topicWho, who );
+			setData( $D.channel[NormalizeChannelName(channel)].topicWho, time );
 		},
 
 		RPL_TOPIC: function( command, from, to, channel, topic ) {
 
-			setData( _mod.data.channel[NormalizeChannelName(channel)].topic, topic );
+			setData( $D.channel[NormalizeChannelName(channel)].topic, topic );
 		},
 		
 		RPL_TOPICWHOTIME: function( command, from, to, channel, who, time ) {
 
-			setData( _mod.data.channel[NormalizeChannelName(channel)].topicWho, who );
-			setData( _mod.data.channel[NormalizeChannelName(channel)].topicWho, time );
+			setData( $D.channel[NormalizeChannelName(channel)].topicWho, who );
+			setData( $D.channel[NormalizeChannelName(channel)].topicWho, time );
 		},		
 
 		RPL_CHANNELMODEIS: function( command, from, to, channel, modes /*, ...*/ ) {
 
-			ParseModes( modes, Array.slice(arguments,5), _mod.data.channel[NormalizeChannelName(channel)], undefined );
+			ParseModes( modes, Array.slice(arguments,5), $D.channel[NormalizeChannelName(channel)], undefined );
 		},
 		
 		MODE: function( command, who, what, modes /*, ...*/ ) {
@@ -169,12 +168,12 @@
 			if ( what[0] != '#' ) // can be a user mode OR a mod for another channel
 				return;
 			
-			ParseModes( modes, Array.slice(arguments,4), _mod.data.channel[NormalizeChannelName(what)], who );
+			ParseModes( modes, Array.slice(arguments,4), $D.channel[NormalizeChannelName(what)], who );
 		},
 		
 		RPL_NAMREPLY: function( command, from, to, type, channel, list ) {
 		
-			var chanData = _mod.data.channel[NormalizeChannelName(channel)];
+			var chanData = $D.channel[NormalizeChannelName(channel)];
 			
 			setData( chanData.name, channel ); // this is the first time that the channel name is used with the right case,then save it
 			setData( chanData.secret, type == '@' );
@@ -183,7 +182,7 @@
 			for each ( var name in list.split(' ') ) {
 				
 				if ( !name ) continue;
-				var match = _nameParser(name);
+				var match = /(@?)(\+?)(.*)/(name);
 				if ( !match ) continue;
 				var [, op, voice, nick] = match;
 				setData( chanData.names[nick], true );
@@ -193,17 +192,17 @@
 		}
 	};
 	
-	_mod.moduleApi = {
+	this.moduleApi = {
 		
 		NormalizeChannelName: NormalizeChannelName,
 		NormalizeNickName: NormalizeNickName,
 		
-		Join: function(channel) _mod.Send( 'JOIN ' + channel ),
-		Part: function(channel, message) _mod.Send( 'PART ' + channel + (message != undefined ? ' :'+message : '') ),
-		Invite: function(nick, channel) _mod.Send( 'INVITE ' + nick + ' ' + channel ),
+		Join: function(channel) $A.Send( 'JOIN ' + channel ),
+		Part: function(channel, message) $A.Send( 'PART ' + channel + (message != undefined ? ' :'+message : '') ),
+		Invite: function(nick, channel) $A.Send( 'INVITE ' + nick + ' ' + channel ),
 		
-		IsOp: function(channel, nick) !!getData(_mod.data.channel[NormalizeChannelName(channel)].names[NormalizeNickName(nick)].operator),
-		ChannelData: function(channel) getData(_mod.data.channel[NormalizeChannelName(channel)])
+		IsOp: function(channel, nick) !!getData($D.channel[NormalizeChannelName(channel)].names[NormalizeNickName(nick)].operator),
+		ChannelData: function(channel) getData($D.channel[NormalizeChannelName(channel)])
 	}
 
 	this.stateListener = [
@@ -212,9 +211,9 @@
 			reset: False,
 			trigger: function(polarity) {
 
-				var chanList = getData(_mod.data[_mod.name].joinList);
+				var chanList = getData($MD.joinList);
 				for each ( var channel in chanList )
-				_mod.Send( 'JOIN ' + channel );
+				$A.Send( 'JOIN ' + channel );
 			}
 		}
 	];

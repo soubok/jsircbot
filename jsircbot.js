@@ -31,29 +31,12 @@ const STATE_CONNECTED = 'connected';
 const STATE_CONNECTING = 'connecting';
 const STATE_HAS_GOOD_NICK = 'hasGoodNick';
 
+
 ///////////////////////////////////////////////// TOOLS /////////////////////////////////////////////
-
-/*
-
-
-
-function foo() {
-   
-    var a = core.api;
-    var s = core.state;
-    eval('(function(){Print(s)})')();
-}
-
-foo()
-
-
-*/
-
 
 function MakeModuleFromHttp( url, retry, retryPause, callback ) {
 
-	var args = arguments;
-	function CreationFunction() args.callee.apply(null, args);
+	var CreationFunction = let ( args = arguments ) function() args.callee.apply(null, args);
 
 	StartAsyncProc( new function() {
 
@@ -74,47 +57,41 @@ function MakeModuleFromHttp( url, retry, retryPause, callback ) {
 		try {
 			
 			try { throw new Error() } catch(ex) { relativeLineNumber = ex.lineNumber }
-			var mod = new (eval(body));
-			callback(mod, CreationFunction);
-			DBG && ReportNotice( 'Module '+url+ ' loaded.' );
+			var modConstructor = eval(body);
 		} catch(ex) {
 		
 			ex.lineNumber -= relativeLineNumber;
 			ex.fileName = url;
 			DBG && ReportError('Failed to make the module: '+ExToText(ex));
+			return;
 		}
+
+		callback(modConstructor, CreationFunction, url);
+		DBG && ReportNotice( 'Module '+url+ ' loaded.' );
 	});
 }
 
 
 function MakeModuleFromPath( path, callback ) {
 	
-	var args = arguments;
-	function CreationFunction() args.callee.apply(null, args);
+	var CreationFunction = let ( args = arguments ) function() args.callee.apply(null, args);
 
 	DBG && ReportNotice( 'Loading module from: '+path );
 
 	try {
 		
-		var mod = new (Exec(path, false)); // do not save compiled version of the script
-		callback(mod, CreationFunction);
-		DBG && ReportNotice( 'Module '+path+ ' loaded.' );
+		var modConstructor = Exec(path, false); // do not save compiled version of the script
 	} catch(ex) {
 
 		DBG && ReportError('Failed to make the module from '+path+' ('+ExToText(ex)+')');
+		return;
 	}
+	callback(modConstructor, CreationFunction, path);
+	DBG && ReportNotice( 'Module '+path+ ' loaded.' );
 }
 
 
 function LoadModuleFromURL( core, url ) {
-	
-	function InstallLoadedModule( mod, creationFunction ) {
-		
-		for each ( m in core.ModulesByName(mod.name) )
-			core.RemoveModule(m); // remove existing module with the same name
-		// (TBD) manage multiples modules
-		core.AddModule(mod, creationFunction);
-	}
 
 	const defaultSufix = '.jsmod';
 	var ud = ParseUri(url);
@@ -127,12 +104,12 @@ function LoadModuleFromURL( core, url ) {
 				var entry, dir = new Directory(path, Directory.SKIP_BOTH);
 				for ( dir.Open(); (entry = dir.Read()); )
 					if ( StringEnd( entry, defaultSufix ) )
-						MakeModuleFromPath( path+entry, InstallLoadedModule );
+						MakeModuleFromPath( path+entry, core.AddModule );
 			} else
-				MakeModuleFromPath( path, InstallLoadedModule );
+				MakeModuleFromPath( path, core.AddModule );
 			break;
 		case 'http':
-			MakeModuleFromHttp( url, getData(core.data.moduleLoadRetry), getData(core.data.moduleLoadRetryPause), InstallLoadedModule );
+			MakeModuleFromHttp( url, getData(core.data.moduleLoadRetry), getData(core.data.moduleLoadRetryPause), core.AddModule );
 			break;
 		default:
 			DBG && ReportError('Invalid module source: URL not supported ('+url+')');
@@ -337,80 +314,80 @@ function ClientCore( Configurator ) {
 		_state.Enter(STATE_CONNECTING);
 	}
 	
-	var modulePrototype = {
+	_api.Send = _core.Send;
+	_api.AddMessageListener = _messageListener.Add;
+	_api.RemoveMessageListener = _messageListener.Remove;
+	_api.ToggleMessageListener = _messageListener.Toggle;
+	_api.AddModuleListener = _moduleListener.Add;
+	_api.RemoveModuleListener = _moduleListener.Remove;
+	_api.ToggleModuleListener = _moduleListener.Toggle;
+	_api.FireModuleListener = _moduleListener.Fire;
+
+	this.AddModule = function( moduleConstructor, creationFunction, source ) {
 	
-		AddMessageListener:_messageListener.Add,
-		RemoveMessageListener:_messageListener.Remove,
-		ToggleMessageListener:_messageListener.Toggle,
-		AddModuleListener:_moduleListener.Add,
-		RemoveModuleListener:_moduleListener.Remove,
-		ToggleModuleListener:_moduleListener.Toggle,
-		FireModuleListener:_moduleListener.Fire,
-		Send:this.Send,
-		data:_data,
-		state:_state,
-		api:_api
-	};
-	
-	this.AddModule = function( mod, creationFunction ) {
-	
-		if ( mod.disabled )
+		var module = new moduleConstructor(_data, _api, _state);
+
+		if ( module.disabled )
 			return;
+		
+		if ( module.moduleApi )
+			for ( let f in module.moduleApi )
+				if ( f in _api ) { // avoid module API do be overwritten
+					
+					ReportError( f+' function already defined in module API. Module '+source+' cannot be loaded.' );
+					RemoveModule(module);
+					return;
+				else
+					_api[f] = module.moduleApi[f];
 			
-		if ( mod.stateListener )
-			for each ( let {set:set, reset:reset, trigger:trigger} in mod.stateListener )
+		if ( module.stateListener )
+			for each ( let {set:set, reset:reset, trigger:trigger} in module.stateListener )
 				_state.AddStateListener(set, reset, trigger);
 
-		if ( mod.moduleApi )
-			for ( let f in mod.moduleApi )
-				if ( f in _api )
-					Failed( 'API Already defined' );
-				else
-					_api[f] = mod.moduleApi[f];
 		
-		if ( mod.moduleListener )
-			_moduleListener.Add( mod.moduleListener );
+		if ( module.moduleListener )
+			_moduleListener.Add( module.moduleListener );
 		
-		if ( mod.messageListener )
-			_messageListener.Add( mod.messageListener );
+		if ( module.messageListener )
+			_messageListener.Add( module.messageListener );
 		
-		mod.__proto__ = modulePrototype;
-		
-		mod.Reload = creationFunction;
-		_modules.push(mod);
-		_state.Enter(mod.name); // don't move this line
+		module.Reload = creationFunction; // this function allows the module to completly reload itself from the same source
+		module.name = module.name || moduleConstructor.name || IdOf(source).toString(36); // modules MUST have a name.
+		module.source = source; // not mendatory for the moment
+		_modules.push(module);
+		_state.Enter(module.name); // don't move this line
 	}
 	
-	this.RemoveModule = function( mod ) {
+	
+	this.RemoveModule = function( module ) {
 		
-		if ( !DeleteArrayElement(_modules, mod) ) // remove the module from the module list
+		if ( !DeleteArrayElement(_modules, module) ) // remove the module from the module list
 			return;
 
-		_state.Leave(mod.name);
+		_state.Leave(module.name);
 
-		if ( mod.messageListener )
-			_messageListener.Remove( mod.messageListener );
+		if ( module.messageListener )
+			_messageListener.Remove( module.messageListener );
 
-		if ( mod.moduleListener )
-			_moduleListener.Remove( mod.moduleListener );
+		if ( module.moduleListener )
+			_moduleListener.Remove( module.moduleListener );
 		
-		if ( mod.moduleApi )
-			for ( var f in mod.moduleApi )
+		if ( module.moduleApi )
+			for ( var f in module.moduleApi )
 				delete _api[f];
 				
-		if ( mod.stateListener )
-			for each ( let {set:set, reset:reset, trigger:trigger} in mod.stateListener )
+		if ( module.stateListener )
+			for each ( let {set:set, reset:reset, trigger:trigger} in module.stateListener )
 				_state.RemoveStateListener(set, reset, trigger);
 
-		Clear(mod); 
+		Clear(module); 
 	}
 	
-	this.ReloadModule = function( mod ) {
+	this.ReloadModule = function( module ) {
 
-		if ( mod.Reload && mod.Reload instanceof Function )
-			mod.Reload();
-		else
-			DBG && ReportError('Unable to reload the module '+mod.name+': Reload function not found.');
+		for each ( let m in _core.ModulesByName(module.name) )
+			_core.RemoveModule(m); // remove existing module with the same name
+		module.Reload();
 	}
 	
 	this.ModulesByName = function( name ) { // note: this.HasModuleName = function( name ) _modules.some(function(mod) mod.name == name);

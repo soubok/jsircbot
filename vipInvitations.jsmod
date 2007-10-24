@@ -13,18 +13,12 @@
  * ***** END LICENSE BLOCK ***** */
 
 
-(function VipInvitationModule() {
+(function VipInvitationModule($D, $A) {
 
-	var _name = this.constructor.name;
-	this.name = _name;
-	var _mod = this;
-	
-//	API alias  : _A_.TremulousTextToIrc
-// STATE alias: _S_.interactive
+	this.name = this.constructor.name;
 
 
 	var pv = Exec('_privateData.js', false);
-
 
 	function QueryVIPDatabase( data, OnResult ) {
 
@@ -63,7 +57,8 @@
 
 
 
-	_mod.playerListToSetlevel = [];
+	var _playerListToSetlevel = [];
+	var _lastServerQueryInterval;
 
 	this.moduleListener = {
 
@@ -75,7 +70,7 @@
 					return;
 				var nick = StrBefore(from, '!');
 				var replyTo = to[0] == '#' ? to : nick;
-				_mod.api.Privmsg( replyTo, 'Help: !invite [<nick>] || !server' );
+				$A.Privmsg( replyTo, 'Help: !invite [<nick>] || !server' );
 			},
 			
 			
@@ -89,22 +84,22 @@
 					var nick = StrBefore(from, '!');
 					var replyTo = to[0] == '#' ? to : nick;
 
-					if ( _mod.lastServerQueryInterval && IntervalNow() - _mod.lastServerQueryInterval < 10*SECOND ) // anti-flood
-						_mod.api.Privmsg( replyTo, 'Please don\'t spam, try again later.' ), AbortAsyncProc();
-					var [status, result] = yield function(callback) _mod.api.TremulousServerStatus(pv.vipTremServer, callback);
+					if ( _lastServerQueryInterval && IntervalNow() - _lastServerQueryInterval < 10*SECOND ) // anti-flood
+						$A.Privmsg( replyTo, 'Please don\'t spam, try again later.' ), AbortAsyncProc();
+					var [status, result] = yield function(callback) $A.TremulousServerStatus(pv.vipTremServer, callback);
 					
 					if ( status != OK ) {
 					
-						_mod.api.Privmsg( replyTo, 'Sorry, the server does not respond. ('+String(status)+')' );
+						$A.Privmsg( replyTo, 'Sorry, the server does not respond. ('+String(status)+')' );
 						AbortAsyncProc();
 						return;
 					}
 
-					var nicePlayerList = [ '\x030,1'+_mod.api.TremulousTextToIrc(player)+'\x0F' for each ( player in result.playerList ) ];
-					_mod.api.Privmsg( replyTo, _mod.api.TremulousTextToIrc(result.info.sv_hostname) + '\x0F is running ' + result.info.mapname + ' with ' + result.playerList.length + ' player(s)' );
+					var nicePlayerList = [ '\x030,1'+$A.TremulousTextToIrc(player)+'\x0F' for each ( player in result.playerList ) ];
+					$A.Privmsg( replyTo, $A.TremulousTextToIrc(result.info.sv_hostname) + '\x0F is running ' + result.info.mapname + ' with ' + result.playerList.length + ' player(s)' );
 					while ( nicePlayerList.length )
-						_mod.api.Privmsg( replyTo, nicePlayerList.splice(0, 8).join('  ') );
-					_mod.lastServerQueryInterval = IntervalNow();
+						$A.Privmsg( replyTo, nicePlayerList.splice(0, 8).join('  ') );
+					_lastServerQueryInterval = IntervalNow();
 				});
 			}, // server
 
@@ -116,11 +111,11 @@
 					function CancelForceinvite(message) {
 					
 						var replyTo = to[0] == '#' ? to : StrBefore(from, '!');
-						_mod.api.Privmsg( replyTo, message );
+						$A.Privmsg( replyTo, message );
 						AbortAsyncProc();
 					}
 
-					!_mod.api.IsBotOp(from) && CancelForceinvite('need bot auth.');
+					!$A.IsBotOp(from) && CancelForceinvite('need bot auth.');
 
 					var replyTo = to[0] == '#' ? to : StrBefore(from, '!');
 
@@ -130,11 +125,11 @@
 					
 					byWord != 'by' && CancelForceinvite( 'use: !forceinvite <guest> by <host>' );
 					
-					var [status, hostWhois] = yield function(callback) _mod.api.Whois(hostNick, callback);
+					var [status, hostWhois] = yield function(callback) $A.Whois(hostNick, callback);
 					status != OK && CancelForceinvite('Unable to get '+hostNick+' IRC status.');
 					!hostWhois.isIdentified && CancelForceinvite( hostWhois+' is not identified on IRC.');
 
-					var [status, guestWhois] = yield function(callback) _mod.api.Whois(guestNick, callback);
+					var [status, guestWhois] = yield function(callback) $A.Whois(guestNick, callback);
 					status != OK && CancelForceinvite('Unable to get '+guestNick+' IRC status.');
 					!guestWhois.isIdentified && CancelForceinvite( guestNick+' is not identified on IRC.');
 					
@@ -146,7 +141,7 @@
 					if ( guestIp ) {
 
 						var [status, response] = yield function(callback) QueryVIPDatabase({ action:'setIp', nick:guestNick, ip:guestIp }, callback);
-						_mod.playerListToSetlevel.push([guestIp, guestNick, Now()]);
+						_playerListToSetlevel.push([guestIp, guestNick, Now()]);
 					}
 				});
 			},
@@ -160,7 +155,7 @@
 					function CancelInvitation(message) {
 						
 						var replyTo = to[0] == '#' ? to : StrBefore(from, '!');
-						_mod.api.Privmsg( replyTo, message );
+						$A.Privmsg( replyTo, message );
 
 						DBG && log.Write(LOG_PROC, replyTo + ' ' + command + ' ' + message);
 						AbortAsyncProc();
@@ -168,15 +163,15 @@
 				
 					var hostNick = StrBefore(from, '!');
 
-					var [status, hostWhois] = yield function(callback) _mod.api.Whois(hostNick, callback);
+					var [status, hostWhois] = yield function(callback) $A.Whois(hostNick, callback);
 					status != OK && CancelInvitation('Unable to get your IRC status '+hostNick+'. ('+String(status)+')');
 					!hostWhois.isIdentified && CancelInvitation('You are not identified on IRC.');
 
-					var [status, accessList] = yield function(callback) _mod.api.AccessInfo(pv.vipChannel, callback);
+					var [status, accessList] = yield function(callback) $A.AccessInfo(pv.vipChannel, callback);
 					status != OK && CancelInvitation('Unable to get AccessInfo. (status: '+String(status)+')');
 
 					var hostLevel = [ user.level for each ( user in accessList ) if (user.hostmask.toLowerCase() == hostNick.toLowerCase()) ][0];
-					var hasBeenOpByChanServ = getData( _mod.data.channel[pv.vipChannel].names[hostNick].operator.by ) == pv.chanServ;
+					var hasBeenOpByChanServ = getData( $D.channel[pv.vipChannel].names[hostNick].operator.by ) == pv.chanServ;
 					!(hostLevel >= pv.vipChanLevel) && !hasBeenOpByChanServ && CancelInvitation('You must be a VIP to use invite command.');
 					hostLevel >= pv.vipChanLevel || hasBeenOpByChanServ && CancelInvitation('Please use your master nick before invite.');
 
@@ -194,7 +189,7 @@
 					
 						var guestNick = cmdData;
 
-						var [status, guestWhois] = yield function(callback) _mod.api.Whois(guestNick, callback);
+						var [status, guestWhois] = yield function(callback) $A.Whois(guestNick, callback);
 						status != OK && CancelInvitation('Unable to get '+guestNick+' IRC status.');
 						!guestWhois.isIdentified && CancelInvitation(guestNick +' is not identified on IRC.');
 
@@ -205,16 +200,16 @@
 						status != OK && CancelInvitation('Service unavailable. Please retry later.');
 						response.error && CancelInvitation(response.error);
 
-						_mod.api.SetChannelAccessLevel( pv.vipChannel, guestNick, pv.vipChanLevel );
+						$A.SetChannelAccessLevel( pv.vipChannel, guestNick, pv.vipChanLevel );
 						CancelInvitation(guestNick+' has been invited. You have '+(hostDbInfo.invitations_left-1)+' invitation(s) remaining.');
 
-						_mod.api.Invite( guestNick, pv.vipChannel );
+						$A.Invite( guestNick, pv.vipChannel );
 
 						var guestIp = GetHostByName(guestWhois.host);
 						if ( guestIp ) {
 
 							var [status, response] = yield function(callback) QueryVIPDatabase({ action:'setIp', nick:guestNick, ip:guestIp }, callback);
-							_mod.playerListToSetlevel.push([guestIp, guestNick, Now()]); // fc. VipTremServerUpdateIpList and VipTremServerScanPlayers procedures
+							_playerListToSetlevel.push([guestIp, guestNick, Now()]); // fc. VipTremServerUpdateIpList and VipTremServerScanPlayers procedures
 						}
 					}
 				});
@@ -228,7 +223,7 @@
 		var prevDisplayedStatusDate = 0;
 		for (;;) {
 
-			var [status, result] = yield function(callback) _mod.api.TremulousServerStatus( pv.vipTremServer, callback );
+			var [status, result] = yield function(callback) $A.TremulousServerStatus( pv.vipTremServer, callback );
 			if ( status != OK ) {
 			
 				yield AsyncSleep( 2*MINUTE );
@@ -243,10 +238,10 @@
 
 			if ( Now() - 10*MINUTE > prevDisplayedStatusDate ) {
 
-				var nicePlayerList = [ '\x030,1'+_mod.api.TremulousTextToIrc(player)+'\x0F' for each ( player in result.playerList ) ];
-				_mod.api.Privmsg( pv.vipChannel, _mod.api.TremulousTextToIrc(result.info.sv_hostname) + '\x0F is running ' + result.info.mapname + ' with ' + result.playerList.length + ' player(s)' );
+				var nicePlayerList = [ '\x030,1'+$A.TremulousTextToIrc(player)+'\x0F' for each ( player in result.playerList ) ];
+				$A.Privmsg( pv.vipChannel, $A.TremulousTextToIrc(result.info.sv_hostname) + '\x0F is running ' + result.info.mapname + ' with ' + result.playerList.length + ' player(s)' );
 				while ( nicePlayerList.length )
-					_mod.api.Privmsg( pv.vipChannel, nicePlayerList.splice(0, 8).join('  ') ); // avoid long lines
+					$A.Privmsg( pv.vipChannel, nicePlayerList.splice(0, 8).join('  ') ); // avoid long lines
 				prevDisplayedStatusDate = Now();
 			}
 
@@ -259,18 +254,18 @@
 		
 		for (;;) {
 
-			var [status, rconStatus] = yield function(callback) _mod.api.TremulousServerRconStatus( pv.vipTremServer, pv.vipTremServerRcon, callback );
+			var [status, rconStatus] = yield function(callback) $A.TremulousServerRconStatus( pv.vipTremServer, pv.vipTremServerRcon, callback );
 
 			if ( status == OK ) { // no response or timeout or failure
 				loop:
 				for each ( let playerStatusInfo in rconStatus )
-					for each ( let [i, [guestIp, guestNick, date]] in Iterator(_mod.playerListToSetlevel) )
+					for each ( let [i, [guestIp, guestNick, date]] in Iterator(_playerListToSetlevel) )
 						if ( playerStatusInfo.ip == guestIp ) {
 
-							_mod.api.TremulousServerCommand( pv.vipTremServer, 'rcon '+pv.vipTremServerRcon+' !setlevel '+playerStatusInfo.num+' '+pv.vipTremServerVipLevel, Noop );
-							_mod.api.TremulousServerCommand( pv.vipTremServer, 'rcon '+pv.vipTremServerRcon+' m '+ playerStatusInfo.num +' Now your level is '+pv.vipTremServerVipLevel+', try !help command.', Noop );
-							guestNick && _mod.api.TremulousServerCommand( pv.vipTremServer, 'rcon '+pv.vipTremServerRcon+' say Welcome to '+guestNick+'^7 the new VIP !', Noop );
-							_mod.playerListToSetlevel.splice(i, 1); // remove processed item
+							$A.TremulousServerCommand( pv.vipTremServer, 'rcon '+pv.vipTremServerRcon+' !setlevel '+playerStatusInfo.num+' '+pv.vipTremServerVipLevel, Noop );
+							$A.TremulousServerCommand( pv.vipTremServer, 'rcon '+pv.vipTremServerRcon+' m '+ playerStatusInfo.num +' Now your level is '+pv.vipTremServerVipLevel+', try !help command.', Noop );
+							guestNick && $A.TremulousServerCommand( pv.vipTremServer, 'rcon '+pv.vipTremServerRcon+' say Welcome to '+guestNick+'^7 the new VIP !', Noop );
+							_playerListToSetlevel.splice(i, 1); // remove processed item
 							QueryVIPDatabase({ action:'setlevelDone', nick:guestNick, tremName:playerStatusInfo.name }, callback);
 							break loop; // because the list has been splice(), we can only process one item
 						}
@@ -287,10 +282,10 @@
 
 			if ( status == OK ) {
 
-				_mod.playerListToSetlevel.splice(0); // empty the current list
+				_playerListToSetlevel.splice(0); // empty the current list
 				if ( !response.error ) // eg. { "error":"No ips in base" }
 					for each ( let ip in response )
-						_mod.playerListToSetlevel.push([ip, '', 0]); // cf. end of !invite procedure  
+						_playerListToSetlevel.push([ip, '', 0]); // cf. end of !invite procedure  
 				
 				// ok, we got the list, then reload it in 2 hours
 				yield AsyncSleep( 2*HOUR );
@@ -308,9 +303,9 @@
 			reset: False, // state never resets
 			trigger: function(polarity) {
 
-				_mod.api.Nick( pv.botNick );
-				_mod.api.Privmsg( pv.nickServ, 'IDENTIFY '+pv.password );
-				_mod.api.Privmsg( pv.chanServ, 'IDENTIFY '+pv.vipChannel+' '+pv.vipChannelPassword );
+				$A.Nick( pv.botNick );
+				$A.Privmsg( pv.nickServ, 'IDENTIFY '+pv.password );
+				$A.Privmsg( pv.chanServ, 'IDENTIFY '+pv.vipChannel+' '+pv.vipChannelPassword );
 			}
 		},
 		{
@@ -319,9 +314,9 @@
 			trigger: function(polarity) {
 
 				if ( polarity )
-					_mod.api.Join( pv.vipChannel );
+					$A.Join( pv.vipChannel );
 				else
-					_mod.api.Part( pv.vipChannel );
+					$A.Part( pv.vipChannel );
 			}
 		},
 		{
@@ -348,9 +343,9 @@
 
 		ERR_NICKNAMEINUSE: function( nick, nickInUsePhrase ) {
 
-			_mod.api.Privmsg( pv.nickServ, 'GHOST '+pv.botNick+' '+pv.password );
+			$A.Privmsg( pv.nickServ, 'GHOST '+pv.botNick+' '+pv.password );
 			// (TBD) wait a response before changingthe nick ?
-			_mod.api.Nick( pv.botNick );
+			$A.Nick( pv.botNick );
 		}
 	};
 
