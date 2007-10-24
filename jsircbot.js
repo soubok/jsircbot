@@ -337,8 +337,10 @@ function ClientCore( Configurator ) {
 					ReportError( f+' function already defined in module API. Module '+source+' cannot be loaded.' );
 					RemoveModule(module);
 					return;
-				else
+				} else {
+				
 					_api[f] = module.moduleApi[f];
+				}
 			
 		if ( module.stateListener )
 			for each ( let {set:set, reset:reset, trigger:trigger} in module.stateListener )
@@ -384,10 +386,11 @@ function ClientCore( Configurator ) {
 	}
 	
 	this.ReloadModule = function( module ) {
-
+		
+		var ReloadFct = module.Reload;
 		for each ( let m in _core.ModulesByName(module.name) )
 			_core.RemoveModule(m); // remove existing module with the same name
-		module.Reload();
+		ReloadFct();
 	}
 	
 	this.ModulesByName = function( name ) { // note: this.HasModuleName = function( name ) _modules.some(function(mod) mod.name == name);

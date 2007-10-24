@@ -12,7 +12,7 @@
  * License.
  * ***** END LICENSE BLOCK ***** */
 
-(function ChannelModule($D) {
+(function ChannelModule($D, $A) {
 	
 	this.name = this.constructor.name;
 	var $MD = $D[this.name];

@@ -16,7 +16,7 @@
 (function OperatorManagerModule($D, $A) {
 	
 	var _name = this.name = this.constructor.name;
-	var modData = $D[_mod.name];
+	var modData = $D[_name];
 	
 	this.moduleListener = {
 		

@@ -123,6 +123,7 @@
 
 // 	function StripIrcText(text) text.replace(/\x03(N|(B|V|U|S|I).|F.\d?|P(P|F)|C([0-9,A-F]|#[0-9,A-F]{6}){0,2})/ig,''); // see. http://www.invlogic.com/irc/ctcp2_2.html
 
+		IrcTextStrip: function(text) text.replace(/\x02|\x1F|\x16\x0F|\x03\d{1,2}(,\d{1,2})?/g,''),
 		
 		Color: function(fg, bg) {
 			
