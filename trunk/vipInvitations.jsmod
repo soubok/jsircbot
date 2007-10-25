@@ -218,7 +218,7 @@
 	}
 	
 
-	var VipTremServerScanPlayers = new function() {
+	function VipTremServerScanPlayers() {
 		
 		var prevDisplayedStatusDate = 0;
 		for (;;) {
@@ -250,7 +250,7 @@
 	}
 
 	
-	var VipTremServerAutoSetlevel = new function() {
+	function VipTremServerAutoSetlevel() {
 		
 		for (;;) {
 
@@ -274,7 +274,7 @@
 		}
 	}
 
-	var VipTremServerUpdateIpList = new function() {
+	function VipTremServerUpdateIpList() {
 	
 		for (;;) {
 
@@ -324,16 +324,30 @@
 			reset: function(s) !s.VipInvitationModule || !s.interactive || !s.DefaultModule,
 			trigger: function(polarity) {
 
-				ToggleAsyncProc( VipTremServerScanPlayers, polarity );
+				//ToggleAsyncProc( VipTremServerScanPlayers, polarity );
+				if ( polarity )
+					this.vipTremServerScanPlayers = StartAsyncProc( new VipTremServerScanPlayers );
+				else
+					StopAsyncProc(this.vipTremServerScanPlayers);
 			}
 		},
 		{
 			set: function(s) s.VipInvitationModule,
 			reset: function(s) !s.VipInvitationModule,
 			trigger: function(polarity) {
+				
+				//ToggleAsyncProc( VipTremServerUpdateIpList, polarity );
+				if ( polarity )
+					this.vipTremServerUpdateIpList = StartAsyncProc( new VipTremServerUpdateIpList );
+				else
+					StopAsyncProc(this.vipTremServerUpdateIpList);
 
-				ToggleAsyncProc( VipTremServerUpdateIpList, polarity );
-				ToggleAsyncProc( VipTremServerAutoSetlevel, polarity );
+
+				//ToggleAsyncProc( VipTremServerAutoSetlevel, polarity );
+				if ( polarity )
+					this.vipTremServerAutoSetlevel = StartAsyncProc( new VipTremServerAutoSetlevel );
+				else
+					StopAsyncProc(this.vipTremServerAutoSetlevel);
 			}
 		}
 	];

@@ -174,13 +174,18 @@ function StartAsyncProc( procedure ) {
 	
 	DBG && DebugTrace( 'START PROC', (procedure.name||'???')+'()' );
 	try {
+
+		procedure._running = true; 
 		void procedure.next()(function(result) {
 
 			try {
+			
 				void procedure.send(arguments)(arguments.callee);
-			} catch(ex if ex == StopIteration) {}
+			} catch(ex if ex == StopIteration) { procedure._running }
 		});
-	} catch(ex if ex == StopIteration) {}
+	} catch(ex if ex == StopIteration) { procedure._running }
+	
+	return procedure;
 }
 
 function AbortAsyncProc() { // used inside a procedure
@@ -190,18 +195,26 @@ function AbortAsyncProc() { // used inside a procedure
 
 function StopAsyncProc( procedure ) { // used outside a procedure
 	
-	DBG && DebugTrace( 'STOP PROC', procedure.name );
+	DBG && DebugTrace( 'STOP PROC', (procedure.name||'???')+'()' );
 	procedure.close();
+	procedure._running = false;
 }
 
-function ToggleAsyncProc( procedure, polarity ) {
+function AsyncProc( procedureConstructor ) {
 	
-	if ( polarity )
-		StartAsyncProc( procedure );
-	else
-		StopAsyncProc( procedure );
+	var _procedure;
+	var _arguments = Array.slice(1, arguments);
+	this.Start = function() {
+		
+		_procedure = StartAsyncProc( procedureConstructor.apply(null, _arguments) );
+	}
+	this.Stop = function() {
+		
+		StopAsyncProc(_procedure);
+		_procedure = undefined;
+	}
+	this.Toggle = function(polarity) polarity ? this.Start() : this.Stop();
 }
-
 
 
 /////////////////////////////////////////////////////// Call Scheduler system

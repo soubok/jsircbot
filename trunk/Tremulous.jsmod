@@ -202,7 +202,7 @@
 	var _tremulousServerList = NewDataObj();
 	var _tremPlayersCount;
 
-	var ServerListUpdater = new function() {
+	function ServerListUpdater() {
 	
 		for (;;) {
 
@@ -220,8 +220,9 @@
 			ReportNotice( 'QueryMasterServer: '+serverList.length+' servers found');
 			
 			for each ( var server in serverList) {
-
-				var data = _tremulousServerList[server] = NewDataObj();
+				
+				
+				var data = _tremulousServerList[server] || (_tremulousServerList[server] = NewDataObj()); // We do not want existing servers to be overwritten
 				data.masterDate = Now();
 			}
 
@@ -230,7 +231,7 @@
 	}
 	
 	
-	var PlayerScanner = new function() {
+	function PlayerScanner() {
 
 		yield AsyncSleep( 5*SECOND ); // let ServerListUpdater do its job
 
@@ -340,8 +341,17 @@
 			reset: function(s) !s.running || !s[_name],
 			trigger: function(polarity) {
 
-				ToggleAsyncProc( ServerListUpdater, polarity );
-				ToggleAsyncProc( PlayerScanner, polarity );
+				// ToggleAsyncProc( ServerListUpdater, polarity );
+				if ( polarity )
+					this.serverListUpdater = StartAsyncProc( new ServerListUpdater );
+				else
+					StopAsyncProc(this.serverListUpdater);
+
+				// ToggleAsyncProc( PlayerScanner, polarity );
+				if ( polarity )
+					this.playerScanner = StartAsyncProc( new PlayerScanner );
+				else
+					StopAsyncProc(this.playerScanner);
 			}
 		}
 	];
