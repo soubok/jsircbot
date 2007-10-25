@@ -217,6 +217,7 @@ function AsyncProc( procedureConstructor ) {
 }
 
 
+
 /////////////////////////////////////////////////////// Call Scheduler system
 
 function CallScheduler() {
@@ -550,6 +551,13 @@ function FileExtension(filename) {
 	return  pt == -1 ? undefined : filename.substr(++pt);
 }
 
+
+function ParseArguments(str) {
+
+	var args = [], reg = /"((?:\\?.)*?)"|[^ ]+/g;
+	for (let res; res = reg(str); args.push(res[1]||res[0]));
+	return args;
+}
 
 
 /////////////////////////////////////////////////////// base64
