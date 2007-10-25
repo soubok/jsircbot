@@ -76,6 +76,13 @@
 		},
 */
 		botcmd: {
+			
+			help: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+				
+				var nick = StrBefore(from, '!');
+				var replyTo = to[0] == '#' ? to : nick;
+				$A.Privmsg( 'use !gather <number players by team> [<map name>]' );
+			},
 		
 			gathernow: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 			

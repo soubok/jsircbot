@@ -195,12 +195,13 @@
 		TremulousTextToIrc:TremulousTextToIrc
 	}
 	
-	
 
 // procedures
 
 	var _tremulousServerList = NewDataObj();
 	var _tremPlayersCount;
+	var _tremServerCount;
+	var _scanTime;
 
 	function ServerListUpdater() {
 	
@@ -238,8 +239,8 @@
 		for (;;) {
 			
 			_tremPlayersCount = 0;
-			
-			var scanStartTime = Now();
+			_tremServerCount = 0;
+			_scanTime = Now();
 			
 			for ( var server in _tremulousServerList ) {
 
@@ -257,9 +258,10 @@
 				data.aliveDate = Now();
 				data.serverStatus = serverStatus;
 				_tremPlayersCount += serverStatus.playerList.length;
+				_tremServerCount++;
 			}
 
-			ReportNotice( 'PlayerScanner: '+_tremPlayersCount+' players found in '+((Now()-scanStartTime)/1000).toFixed(2)+' seconds.' );
+			ReportNotice( 'PlayerScanner: '+_tremPlayersCount+' players found in '+((Now()-_scanTime)/1000).toFixed(2)+' seconds.' );
 
 			yield AsyncSleep( 1*MINUTE );
 		}
@@ -275,8 +277,7 @@
 
 				var nick = StrBefore(from, '!');
 				var replyTo = to[0] == '#' ? to : nick;
-			
-				$A.Privmsg( replyTo, 'use !q [<part of a player name>]' );
+				$A.Privmsg( replyTo, 'use !qc [<part of a player name>]' );
 			},
 			
 			qc: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
@@ -286,7 +287,7 @@
 
 				if ( !cmdData ) {
 					
-					$A.Privmsg( replyTo, 'Currently, there are '+_tremPlayersCount+' tremulous players.' );
+					$A.Privmsg( replyTo, 'Currently, there are '+_tremPlayersCount+' tremulous players spread on '+_tremServerCount+' servers. Scan starts '+((Now()-_scanTime)/1000).toFixed(2)+' seconds ago.' );
 					return;
 				}
 				
@@ -313,7 +314,6 @@
 					if ( players.length )
 						list.push( players.slice(0,5).join(', ') + ' on \x030,1' + TremulousTextToIrc(_tremulousServerList[server].serverStatus.info.sv_hostname) + '\x0F' );
 				}
-
 
 				if ( _lastQc > Now() - 5*SECOND ) { // anti-flood
 					
