@@ -30,6 +30,20 @@
 	// $MD is just a simple shortcut link to the core data. This allows an easy access to the module's part of the configuration ( see configuration.js )
 	var $MD = $D[this.name];
 
+
+
+	
+	function SendTheDateEveryMinute( channel ) {
+		
+		for (;;) {
+
+			$A.Privmsg( channel, new Date() );
+			yield AsyncSleep( 1*MINUTE );
+		}
+	}
+	
+	
+
 	// messageListener is a tree where the leafs are functions, each tree level is an argument value of the final function.
 	// in the following case, PRIVMSG is the first level of the tree and is a filter to the first argument of the function. Only PRIVMSG commands will fire the function.
 	this.messageListener = {
@@ -56,7 +70,7 @@
 		// botcmd messages are sent by bodCmd.jsmod module and allow you to manage commands like: !echo test
 		botcmd: {
 			
-			// this function is called when someone type !help
+			// the following function is called when someone type !help
 			help: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 			
 				// if the !help command has only to be used in a channel context, not with a private message then use this:
@@ -68,8 +82,24 @@
 					return;
 				
 				$A.Privmsg( to, 'listening' );
+			},
+			
+			date: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+
+				if ( to[0] != '#' )
+					return;	
 				
+				
+				if ( this.sendTheDateEveryMinute ) {
+					
+					StopAsyncProc(this.sendTheDateEveryMinute);
+					delete this.sendTheDateEveryMinute;
+				} else {
+					
+					this.sendTheDateEveryMinute = StartAsyncProc( new SendTheDateEveryMinute(to) );
+				}
 			}
+
 		}
 	}
 	
@@ -100,7 +130,8 @@
 			
 			// the trigger function is only call on state transition and when the state listener is defined
 			trigger: function(polarity) {
-				
+	
+	
 				//
 			}
 		}

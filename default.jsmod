@@ -175,7 +175,7 @@
 	}
 
 
-	var LagProbe = new function() {
+	function LagProbe() {
 		
 		for (;;) {
 
@@ -194,7 +194,7 @@
 		}
 	}
 
-	var Clock = new function() {
+	function Clock() {
 		
 		var count = 0;
 		
@@ -227,12 +227,20 @@
 			trigger: function(polarity) {
 
 				$A.ToggleMessageListener( LagProbeResponse, polarity );
-				ToggleAsyncProc( LagProbe, polarity );
+				
+				// ToggleAsyncProc( LagProbe, polarity );
+				if ( polarity )
+					this.lagProbe = StartAsyncProc( new LagProbe );
+				else
+					StopAsyncProc(this.lagProbe);
 
 				if ( polarity )
 					$A.Send( 'USERHOST '+getData($D.nick) );
-				
-				ToggleAsyncProc( Clock, polarity );
+
+				if ( polarity )
+					this.clock = StartAsyncProc( new Clock );
+				else
+					StopAsyncProc(this.clock);
 			}
 		}
 	];
