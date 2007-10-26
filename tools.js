@@ -181,9 +181,9 @@ function StartAsyncProc( procedure ) {
 			try {
 			
 				void procedure.send(arguments)(arguments.callee);
-			} catch(ex if ex == StopIteration) { procedure._running }
+			} catch(ex if ex == StopIteration) { procedure._running = false }
 		});
-	} catch(ex if ex == StopIteration) { procedure._running }
+	} catch(ex if ex == StopIteration) { procedure._running = false }
 	
 	return procedure;
 }
@@ -198,23 +198,24 @@ function StopAsyncProc( procedure ) { // used outside a procedure
 	DBG && DebugTrace( 'STOP PROC', (procedure.name||'???')+'()' );
 	procedure.close();
 	procedure._running = false;
+	return undefined;
 }
 
-function AsyncProc( procedureConstructor ) {
-	
-	var _procedure;
-	var _arguments = Array.slice(1, arguments);
-	this.Start = function() {
+AsyncProcHelper.prototype = {
+
+	Start: function() this.procedure = StartAsyncProc(this.procedureConstructor.apply(null, arguments)),
+	Stop: function() this.procedure = StopAsyncProc(this.procedure),
+	get running() this.procedure && this.procedure._running,
+	Toggle: function(polarity) {
 		
-		_procedure = StartAsyncProc( procedureConstructor.apply(null, _arguments) );
+		if ( arguments.length )
+			polarity ? this.Start() : this.Stop();
+		else
+			this.procedure && this.procedure._running ? this.Stop() : this.Start();
 	}
-	this.Stop = function() {
-		
-		StopAsyncProc(_procedure);
-		_procedure = undefined;
-	}
-	this.Toggle = function(polarity) polarity ? this.Start() : this.Stop();
 }
+
+function AsyncProcHelper( procedureConstructor ) this.procedureConstructor = procedureConstructor;
 
 
 
