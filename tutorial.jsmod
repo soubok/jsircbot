@@ -16,44 +16,53 @@
 
 
 // This is a module constructor ( in JavaScript, a constructor is like a OOP class )
-// $D is initialized to core data structure. Data is not reachable directly, you need to use getData, setData, hasData API to handle data ( see dataObject.js )
+// $D is initialized to core data structure. Data is not reachable directly, you need to use getData, 
+      setData, hasData API to handle data ( see dataObject.js )
 // $A contains the bot API and the exported module API ( defined in moduleApi )
 // $S is the core state object. 
 (function TutorialModule($D, $A, $S) {
 	
-	// this avoid the module to be loaded.
+	// This avoid the module to be loaded.
+	// Usualy, this line does not appears or disable  is set to false ( result is the same ).
 	this.disabled = true;
 	
-	// first, the module has to define it's name, usualy, it is the constructor fonction's name ( "BlankModule" here )
+	// first, the module has to define it's name, usualy, it is the name of the constructor function ( "BlankModule" here )
+	// but you are free to use the name you want.
 	this.name = this.constructor.name;
 	
-	// $MD is just a simple shortcut link to the core data. This allows an easy access to the module's part of the configuration ( see configuration.js )
+	// $MD is just a simple shortcut link to the core data.
+	// This allows an easy access to the module's part of the configuration ( see configuration.js )
 	var $MD = $D[this.name];
 
 
-
-	// AsyncProcHelper helps us to manage (start/stop) the procedure easily, else, we have to deal with: new Procedure(...) / StartAsyncProc / StopAsyncProc.
+	// AsyncProcHelper helps us to manage (start/stop) the procedure easily, 
+	// else, we have to deal with: new Procedure(...) / StartAsyncProc / StopAsyncProc.
 	var sendTheDateEveryMinute = AsyncProcHelper( 
 		
-		// The following function is an aynchronous procedure. At the application level, it is quite similar to a working thread without any need of synchronization.
-		// BEWARE: the function must contain at least one yield instruction to work, else JavaScript engine will threat it as a simple function.
-		// each time a yield instruction is encounter, the procesure is stoped until the result is received.
-		
+		// The following function is an aynchronous procedure. At the application level, 
+		// it is quite similar to a working thread without any need of synchronization.
+		// BEWARE: the function must contain at least one yield instruction to work, 
+		//         else JavaScript engine will threat it as a simple function.
+		// each time a yield instruction is encounter, the procesure is stopped until the result is received.
+		// while the function is stopped, the bot continue to run.
 		function( channel ) {
-		
+			
+			// this is a procedure that never ends ( unless you use functions like StopAsyncProc )
 			for (;;) {
 				
 				// Use Privmsg function from the module API ($A) to send a message to the channel.
 				$A.Privmsg( channel, new Date() );
 				
 				// Sleep one minute.
-				// the following code is equivalent to: yield function(callback) io.AddTimeout( delay, callback );
+				// NOTICE: the following code is equivalent to:
+				//         yield function(callback) io.AddTimeout( delay, callback );
 				yield AsyncSleep( 1*MINUTE );
 			}
 		}
 	);
 	
 	
+	// This is another asynchronus procedure
 	function AskANumber(nick) {
 		
 		var number;
@@ -81,7 +90,8 @@
 	
 
 	// messageListener is a tree where the leafs are functions, each tree level is an argument value of the final function.
-	// in the following case, PRIVMSG is the first level of the tree and is a filter to the first argument of the function. Only PRIVMSG commands will fire the function.
+	// in the following case, PRIVMSG is the first level of the tree and is a filter to the first argument of the function.
+	// Only PRIVMSG commands will fire the function.
 	this.messageListener = {
 
 		PRIVMSG: function( command, from, to, msg ) {
@@ -122,12 +132,20 @@
 
 			num: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 
+
+				// again, replyTo contains either a nickname or a channel name
 				var replyTo = to[0] == '#' ? to : StrBefore(from, '!');
 				
-				if ( cmdData )
+				
+				
+				if ( cmdData ) {
+				
 					StartAsyncProc( AskANumber(cmdData) );
-				else
+				} else {
+					
+					// if !num is called without arguments, display some help
 					$A.Privmsg( replyTo, 'type !num <nick name>' );
+				}
 			}
 
 			
@@ -136,7 +154,8 @@
 				if ( to[0] != '#' )
 					return;
 				
-				// because the "sendTheDateEveryMinute" procedure accepts a channel name on start, it is impossible to use the Toggle function.
+				// because the "sendTheDateEveryMinute" procedure accepts a channel name on start, 
+				// it is impossible to use the Toggle function.
 				if ( sendTheDateEveryMinute.running ) {
 					
 					// Stop the running procedure.
@@ -153,15 +172,16 @@
 		}
 	}
 	
-	// the following object contains API functions that the module wants to export to other modules.
-	// When the module is unloaded, this object isused to remove this API from the global core api ( alias $A )
+	// The following object contains some API functions that the module wants to export to other modules.
+	// When the module is unloaded, this object is used to remove its API from the global core api ( alias $A )
 	this.moduleApi = {
 		
 		// This API function can be used in any module.
 		// BEWARE: because module loading is asynchronous, You have to ensure that the API is defined before using it.
-		//         Because messageListener and moduleListener calls are enclosed by a trt..catch, even if the API is not defined, the bot will not crash.
+		//         Because messageListener and moduleListener calls are enclosed by a trt..catch, even if the API is not defined, 
+		//         the bot will not crash.
 		//         In this case, if the default module is not yet loaded, SayHello says nothing.
-		SayHello:function(to) {
+		SayHello: function(to) {
 		
 			$A.Privmsg && $A.Privmsg( to, 'Hello' );
 		}
@@ -170,7 +190,8 @@
 
 	// the state listener is used to be aware of any state changes ( eg. connecting state to connected state, ... )
 	// stateListener is an array of objects.
-	// When module is loaded ( module loading may be assynchronous ), its name is used as a state, then you can know when a module is loaded or unloaded.
+	// When module is loaded ( module loading may be assynchronous ), its name is used as a state,
+	// then you can know when a module is loaded or unloaded.
 	this.stateListener = [
 		{
 			// set is a function that returns true or false. It contains the condition required to call the trigger function.
