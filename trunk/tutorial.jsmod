@@ -32,15 +32,51 @@
 
 
 
-	
-	function SendTheDateEveryMinute( channel ) {
+	// AsyncProcHelper helps us to manage (start/stop) the procedure easily, else, we have to deal with: new Procedure(...) / StartAsyncProc / StopAsyncProc.
+	var sendTheDateEveryMinute = AsyncProcHelper( 
 		
-		for (;;) {
-
-			$A.Privmsg( channel, new Date() );
-			yield AsyncSleep( 1*MINUTE );
+		// The following function is an aynchronous procedure. At the application level, it is quite similar to a working thread without any need of synchronization.
+		// BEWARE: the function must contain at least one yield instruction to work, else JavaScript engine will threat it as a simple function.
+		// each time a yield instruction is encounter, the procesure is stoped until the result is received.
+		
+		function( channel ) {
+		
+			for (;;) {
+				
+				// Use Privmsg function from the module API ($A) to send a message to the channel.
+				$A.Privmsg( channel, new Date() );
+				
+				// Sleep one minute.
+				// the following code is equivalent to: yield function(callback) io.AddTimeout( delay, callback );
+				yield AsyncSleep( 1*MINUTE );
+			}
 		}
+	);
+	
+	
+	function AskANumber(nick) {
+		
+		var number;
+		do {
+			
+			// Prompt function is defined by the module CommandEventModule and is used to ask something to someone.
+			var [status, message] = yield function(callback) $A.Prompt(nick, 'Please give me a number', callback );
+			
+			if ( status != OK )
+				return;
+			
+			number = parseInt(message)
+
+			if ( number == NaN )
+				$A.Privmsg( nick, 'This is not a number ! );
+
+		} while ( number == NaN );
+		
+		$A.Privmsg( nick, 'Good, this is a number. Bye!' );
+	
 	}
+	
+	
 	
 	
 
@@ -83,20 +119,34 @@
 				
 				$A.Privmsg( to, 'listening' );
 			},
+
+			num: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+
+				var replyTo = to[0] == '#' ? to : StrBefore(from, '!');
+				
+				if ( cmdData )
+					StartAsyncProc( AskANumber(cmdData) );
+				else
+					$A.Privmsg( replyTo, 'type !num <nick name>' );
+			}
+
 			
 			date: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 
 				if ( to[0] != '#' )
-					return;	
+					return;
 				
-				
-				if ( this.sendTheDateEveryMinute ) {
+				// because the "sendTheDateEveryMinute" procedure accepts a channel name on start, it is impossible to use the Toggle function.
+				if ( sendTheDateEveryMinute.running ) {
 					
-					StopAsyncProc(this.sendTheDateEveryMinute);
-					delete this.sendTheDateEveryMinute;
+					// Stop the running procedure.
+					// BEWARE: This call will failed if the procedure is not started.
+					sendTheDateEveryMinute.Stop();
 				} else {
-					
-					this.sendTheDateEveryMinute = StartAsyncProc( new SendTheDateEveryMinute(to) );
+				   
+				   // Start the 'sendTheDateEveryMinute' procedure with the channel name as argument.
+				   // BEWARE: It is up to you to check the that procedure is not already running.
+					sendTheDateEveryMinute.Start(to);
 				}
 			}
 
@@ -109,9 +159,11 @@
 		
 		// This API function can be used in any module.
 		// BEWARE: because module loading is asynchronous, You have to ensure that the API is defined before using it.
+		//         Because messageListener and moduleListener calls are enclosed by a trt..catch, even if the API is not defined, the bot will not crash.
+		//         In this case, if the default module is not yet loaded, SayHello says nothing.
 		SayHello:function(to) {
 		
-			$A.Privmsg( to, 'Hello' );
+			$A.Privmsg && $A.Privmsg( to, 'Hello' );
 		}
 	
 	}
