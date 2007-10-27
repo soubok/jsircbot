@@ -16,10 +16,13 @@
 
 
 // This is a module constructor ( in JavaScript, a constructor is like a OOP class )
-// $D is initialized to core data structure. Data is not reachable directly, you need to use getData, 
-      setData, hasData API to handle data ( see dataObject.js )
-// $A contains the bot API and the exported module API ( defined in moduleApi )
-// $S is the core state object. 
+// $D is initialized to core data structure.
+//    Data is not reachable directly, you need to use getData, 
+//    setData, hasData API to handle data ( see dataObject.js )
+// $A contains the common API and the exported module API ( defined in moduleApi )
+//    This API is a mix between core function exported to modules and modules function exported to modules.
+// $S is the core state object.
+//    The state object allows to be aware of what happen in the bot.
 (function TutorialModule($D, $A, $S) {
 	
 	// This avoid the module to be loaded.
@@ -35,6 +38,8 @@
 	var $MD = $D[this.name];
 
 
+
+
 	// AsyncProcHelper helps us to manage (start/stop) the procedure easily, 
 	// else, we have to deal with: new Procedure(...) / StartAsyncProc / StopAsyncProc.
 	var sendTheDateEveryMinute = AsyncProcHelper( 
@@ -43,14 +48,14 @@
 		// it is quite similar to a working thread without any need of synchronization.
 		// BEWARE: the function must contain at least one yield instruction to work, 
 		//         else JavaScript engine will threat it as a simple function.
-		// each time a yield instruction is encounter, the procesure is stopped until the result is received.
-		// while the function is stopped, the bot continue to run.
+		// Each time a yield instruction is encounter, the procesure is stopped until the result is received.
+		// While the function is stopped, the bot continue to run.
 		function( channel ) {
 			
 			// this is a procedure that never ends ( unless you use functions like StopAsyncProc )
 			for (;;) {
 				
-				// Use Privmsg function from the module API ($A) to send a message to the channel.
+				// Use Privmsg function from the common API ($A) to send a message to the channel.
 				$A.Privmsg( channel, new Date() );
 				
 				// Sleep one minute.
@@ -60,8 +65,10 @@
 			}
 		}
 	);
-	
-	
+
+
+
+
 	// This is another asynchronus procedure
 	function AskANumber(nick) {
 		
@@ -82,18 +89,21 @@
 		} while ( number == NaN );
 		
 		$A.Privmsg( nick, 'Good, this is a number. Bye!' );
-	
 	}
-	
-	
-	
-	
+
+
+
+
 
 	// messageListener is a tree where the leafs are functions, each tree level is an argument value of the final function.
 	// in the following case, PRIVMSG is the first level of the tree and is a filter to the first argument of the function.
 	// Only PRIVMSG commands will fire the function.
 	this.messageListener = {
 
+		// This function is called each time a  PRIVMSG  command is received from the server.
+		// command argument is the name of the command itself ( PRIVMSG here ).
+		// from argument is who sent the message.
+		// to argument contains the destination of the message ( channel or a nickname )
 		PRIVMSG: function( command, from, to, msg ) {
 
 			// IsBotOp is an AIP function defined in the operator module ( operator.jsmod )
@@ -109,6 +119,9 @@
 			$A.Privmsg( replyTo, 'listening' );
 		}
 	}
+
+
+
 
 	// like messageListener, moduleListener ise used to listen events  dispatched by other modules
 	this.moduleListener = {
@@ -132,12 +145,10 @@
 
 			num: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 
-
 				// again, replyTo contains either a nickname or a channel name
 				var replyTo = to[0] == '#' ? to : StrBefore(from, '!');
-				
-				
-				
+
+				// the argument cmdData is the string that cames just after the botcommand name ( !<botCmd> <cmdData> )
 				if ( cmdData ) {
 				
 					StartAsyncProc( AskANumber(cmdData) );
@@ -146,7 +157,7 @@
 					// if !num is called without arguments, display some help
 					$A.Privmsg( replyTo, 'type !num <nick name>' );
 				}
-			}
+			},
 
 			
 			date: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
@@ -171,9 +182,12 @@
 
 		}
 	}
-	
+
+
+
+
 	// The following object contains some API functions that the module wants to export to other modules.
-	// When the module is unloaded, this object is used to remove its API from the global core api ( alias $A )
+	// When the module is unloaded, this object is used to remove its API from the common API ( alias $A )
 	this.moduleApi = {
 		
 		// This API function can be used in any module.
@@ -185,8 +199,10 @@
 		
 			$A.Privmsg && $A.Privmsg( to, 'Hello' );
 		}
-	
 	}
+
+
+
 
 	// the state listener is used to be aware of any state changes ( eg. connecting state to connected state, ... )
 	// stateListener is an array of objects.
@@ -201,13 +217,18 @@
 			// reset give the condition to to call the trigger function with false as argument
 			reset: function(s) !s.interactive || !s.DefaultModule,
 			
-			// the trigger function is only call on state transition and when the state listener is defined
+			// the trigger function is only call on state transition
 			trigger: function(polarity) {
-	
-	
+
+
 				//
 			}
 		}
 	];
+	
+	
+	
+	
+	
 	
 })
