@@ -256,7 +256,7 @@ function HttpRequest( url, data, timeout, OnResponse ) {
 
 	TCPGet( ud.host, ud.port||80, statusLine + CRLF + MakeHeaders(headers) + CRLF + body, timeout, function( status, response ) {
 		
-		if ( DBG ) {
+		if ( DBG && status == OK ) {
 
 			let buf = response.Read(300);
 			log.Write( LOG_HTTP, url+' :\n'+buf+'  ...' );

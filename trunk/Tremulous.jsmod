@@ -201,9 +201,9 @@
 	var _tremulousServerList = NewDataObj();
 	var _tremPlayersCount;
 	var _tremServerCount;
-	var _scanTime;
+	var _scanStartTime, _scanEndTime;
 
-	var serverListUpdater = AsyncProcHelper( function() {
+	var serverListUpdater = new AsyncProcHelper( function() {
 	
 		for (;;) {
 
@@ -232,7 +232,7 @@
 	});
 	
 	
-	var playerScanner = AsyncProcHelper( function() {
+	var playerScanner = new AsyncProcHelper( function() {
 
 		yield AsyncSleep( 5*SECOND ); // let ServerListUpdater do its job
 
@@ -240,7 +240,7 @@
 			
 			_tremPlayersCount = 0;
 			_tremServerCount = 0;
-			_scanTime = Now();
+			_scanStartTime = Now();
 			
 			for ( var server in _tremulousServerList ) {
 
@@ -261,9 +261,11 @@
 				_tremServerCount++;
 			}
 
-			ReportNotice( 'PlayerScanner: '+_tremPlayersCount+' players found in '+((Now()-_scanTime)/1000).toFixed(2)+' seconds.' );
+			_scanEndTime = Now();
 
-			yield AsyncSleep( 1*MINUTE );
+			ReportNotice( 'PlayerScanner: '+_tremPlayersCount+' players found in '+((_scanEndTime-_scanStartTime)/1000).toFixed(2)+' seconds.' );
+
+			yield AsyncSleep( 3*MINUTE );
 		}
 	});
 
@@ -286,33 +288,55 @@
 				var replyTo = to[0] == '#' ? to : nick;
 
 				if ( !cmdData ) {
+
+					let info = 'Currently, there are '+_tremPlayersCount+' tremulous players spread on '+_tremServerCount+' servers.';
 					
-					$A.Privmsg( replyTo, 'Currently, there are '+_tremPlayersCount+' tremulous players spread on '+_tremServerCount+' servers. Scan starts '+((Now()-_scanTime)/1000).toFixed(2)+' seconds ago.' );
+					info += ' Scan ';
+					if ( _scanEndTime > _scanStartTime )
+						info += 'finished '+((Now()-_scanEndTime)/1000).toFixed(2);
+					else
+						info += 'started '+((Now()-_scanStartTime)/1000).toFixed(2);
+					info += ' seconds ago';
+					
+					$A.Privmsg( replyTo, info );
 					return;
 				}
 				
-				cmdData = $A.IrcTextStrip(cmdData);
+				cmdData = $A.IrcTextStrip(cmdData); // remove any colors and text modifiers
 					
 				if ( cmdData.length < 2 ) {
 					
-					$A.Privmsg( replyTo, 'too short' );
+					$A.Privmsg( replyTo, 'Too short' );
 					return;
 				}
-
+				
+				var playerNameMatchCount = 0;
 				var list = [];
 				
 				for ( var server in _tremulousServerList ) {
 					
-					if ( !_tremulousServerList[server].serverStatus )
+					if ( !_tremulousServerList[server].serverStatus ) // server has not been scaned yet
 						continue;
 
 					var players = [];
 					for each ( var player in _tremulousServerList[server].serverStatus.playerList )
-						if ( TremulousTextStrip(player).toLowerCase().indexOf(cmdData.toLowerCase()) != -1 )
+						if ( TremulousTextStrip(player).toLowerCase().indexOf(cmdData.toLowerCase()) != -1 ) {
+							
+							playerNameMatchCount++;
 							players.push('\x030,1' + TremulousTextToIrc(player) + '\x0F');
+						}
 					
-					if ( players.length )
-						list.push( players.slice(0,5).join(', ') + ' on \x030,1' + TremulousTextToIrc(_tremulousServerList[server].serverStatus.info.sv_hostname) + '\x0F' );
+					if ( players.length ) {
+					
+						if ( !_tremulousServerList[server].serverStatus.info || !_tremulousServerList[server].serverStatus.info.sv_hostname ) {
+							
+							DebugTrace( 'server', server, 'serverStatus', Dump(_tremulousServerList[server]) );
+						}
+					
+						list.push( players.slice(0,5).join(', ') + ' on \x030,1'
+						           + TremulousTextToIrc(_tremulousServerList[server].serverStatus.info.sv_hostname)
+						           + '\x0F' );
+					}
 				}
 
 				if ( _lastQc > Now() - 5*SECOND ) { // anti-flood
@@ -329,7 +353,7 @@
 					return;
 				}
 
-				$A.Privmsg( replyTo, list.slice(0,4).join(' and ') );
+				$A.Privmsg( replyTo, list.slice(0,4).join(' and ') + ' ('+playerNameMatchCount+' matches)' );
 			}
 		}
 	}

@@ -182,10 +182,10 @@ function ClientCore( Configurator ) {
 	var _numericCommand = Exec('NumericCommand.js');
 	var _connection;
 	var _modules = [];
-	var _messageListener = new Listener();
-	var _moduleListener = new Listener();
+	var _messageListener = new Listener( function(ex) DBG && ReportError( ExToText(ex) ) );
+	var _moduleListener = new Listener( function(ex) DBG && ReportError( ExToText(ex) ) );
+	var _state = new StateKeeper( function(ex) DBG && ReportError( ExToText(ex) ) );
 	var _api = NewDataObj(); // or new SetOnceObject();
-	var _state = new StateKeeper();
 	
 	_state.Enter('running');
 	
@@ -412,7 +412,7 @@ function ClientCore( Configurator ) {
 
 function DateString() let ( d = new Date ) d.getFullYear() + StringPad(d.getMonth()+1,2,'0') + StringPad(d.getDate(),2,'0');
 
-log.AddFilter( MakeLogFile(function() 'jsircbot_'+DateString()+'.log', false), LOG_ALL );
+log.AddFilter( MakeLogFile(function() 'jsircbot_'+DateString()+'.log', false), LOG_ALL - LOG_NET );
 log.AddFilter( MakeLogScreen(), LOG_FAILURE | LOG_ERROR | LOG_WARNING );
 
 ReportNotice('Start at '+(new Date()));

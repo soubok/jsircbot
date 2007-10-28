@@ -42,7 +42,7 @@
 
 	// AsyncProcHelper helps us to manage (start/stop) the procedure easily, 
 	// else, we have to deal with: new Procedure(...) / StartAsyncProc / StopAsyncProc.
-	var sendTheDateEveryMinute = AsyncProcHelper( 
+	var sendTheDateEveryMinute = new AsyncProcHelper( 
 		
 		// The following function is an aynchronous procedure. At the application level, 
 		// it is quite similar to a working thread without any need of synchronization.
@@ -84,7 +84,7 @@
 			number = parseInt(message)
 
 			if ( number == NaN )
-				$A.Privmsg( nick, 'This is not a number ! );
+				$A.Privmsg( nick, 'Hey, this is not a number !' );
 
 		} while ( number == NaN );
 		
@@ -95,9 +95,11 @@
 
 
 
-	// messageListener is a tree where the leafs are functions, each tree level is an argument value of the final function.
-	// in the following case, PRIVMSG is the first level of the tree and is a filter to the first argument of the function.
+	// MessageListener is a tree where the leafs are functions, each tree level is an argument value of the final function.
+	// In the following case, PRIVMSG is the first level of the tree and is a filter to the first argument of the function.
 	// Only PRIVMSG commands will fire the function.
+	// NOTE: the following syntax that is used to create this.messageListener is called "Object Initializer" 
+	//       see http://developer.mozilla.org/en/docs/Core_JavaScript_1.5_Guide:Creating_New_Objects:Using_Object_Initializers
 	this.messageListener = {
 
 		// This function is called each time a  PRIVMSG  command is received from the server.
@@ -220,7 +222,7 @@
 			// the trigger function is only call on state transition
 			trigger: function(polarity) {
 
-
+				
 				//
 			}
 		}
