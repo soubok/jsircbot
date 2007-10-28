@@ -215,6 +215,24 @@
 				});
 			},
 			
+			say: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+
+				if ( !$A.IsBotOp(from) )
+					return;
+			
+				var [destination, message] = ParseArguments(cmdData);
+				$A.Privmsg( destination, message );
+			},
+
+			ping: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+
+				if ( !$A.IsBotOp(from) )
+					return;
+			
+				var replyTo = to[0] == '#' ? to : StrBefore(from, '!');
+				$A.Privmsg( replyTo, 'PONG' );
+			},
+			
 			inspect: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 
 				if ( !$A.IsBotOp(from) )

@@ -20,6 +20,7 @@ function InitModule(mod) {
 }
 
 
+
 /////////////////////////////////////////////////////// Enum
 
 function ENUM(enumMap) {
@@ -98,7 +99,7 @@ function CHKNEQ(value, neq) value != neq ? value : ERR();
 
 /////////////////////////////////////////////////////// State Keeper
 
-function StateKeeper() {
+function StateKeeper( catchCallback ) {
 
 	var _stateList = NewDataObj();
 	var _predicateList = [];
@@ -109,20 +110,34 @@ function StateKeeper() {
 			return;
 		DBG && DebugTrace( 'STATE', stateName, state );
 		_stateList[stateName] = state;
-		for each ( let item in _predicateList ) {
-			var callback = item[2];
-			if ( !item[3] )
-				item[0](_stateList, stateName) && callback.call(callback, (item[3] = true), _predicateList); // 'this' will be the function itself
+		
+		try {
+		
+			for each ( let item in _predicateList ) {
+				var callback = item[2];
+				if ( !item[3] )
+					item[0](_stateList, stateName) && callback.call(callback, (item[3] = true), _predicateList); // 'this' will be the function itself
+				else
+					( item[1] ? item[1](_stateList, stateName) : !item[0](_stateList) ) && callback.call(callback, (item[3] = false), _predicateList); // 'this' will be the function itself
+			}
+		} catch(ex) {
+			
+			if( catchCallback )
+				catchCallback(ex);
 			else
-				( item[1] ? item[1](_stateList, stateName) : !item[0](_stateList) ) && callback.call(callback, (item[3] = false), _predicateList); // 'this' will be the function itself
+				throw ex;
 		}
+		
 	}
 	
-	this.Is = function(stateName) stateName in _stateList;
+	this.Is = function(stateName) !!_stateList[stateName];
 	this.Enter = function(stateName) StateChanging(stateName, true);
 	this.Leave = function(stateName)	StateChanging(stateName, false);
-	this.Toggle = function(stateName, polarity) StateChanging(stateName, polarity);
-
+	this.Toggle = function(stateName, polarity) {
+		
+		polarity = arguments.length >= 2 ? polarity : !_stateList[stateName]; // if polarity argument is not provided, act as a flip-flop
+		StateChanging(stateName, polarity);
+	}
 
 	this.AddStateListener = function( setPredicate, resetPredicate, callback, initialState ) 
 		_predicateList.push(arguments);
@@ -136,19 +151,12 @@ function StateKeeper() {
 
 /////////////////////////////////////////////////////// Event Listener
 
-function Listener() {
+function Listener( catchCallback ) {
 	
 	var _list = [];
-	this.Add = function( set ) void _list.push(set);
-	this.Remove = function( set ) void _list.splice(CHKNEQ(_list.indexOf(set),-1), 1);
-	this.Toggle = function( set, polarity ) {
-
-		if ( polarity )
-			void _list.push(set);
-		else
-			void _list.splice(CHKNEQ(_list.indexOf(set),-1), 1);
-	}
-	
+	this.Add = function( set ) _list.push(set);
+	this.Remove = function( set ) DeleteArrayElement(_list, set);
+	this.Toggle = function( set, polarity ) void polarity ? _list.push(set) : DeleteArrayElement(_list, set);
 	this.Fire = function Fire() { // beware, Fire is only used for the function name
 	
 		try {
@@ -160,8 +168,11 @@ function Listener() {
 				n instanceof Function && void n.apply(n, arguments); // 'this' will be the function itself
 			}
 		} catch(ex) {
-
-			DBG && ReportError( ExToText(ex) );
+			
+			if( catchCallback )
+				catchCallback(ex);
+			else
+				throw ex;
 		}
 	}
 }
@@ -215,7 +226,10 @@ AsyncProcHelper.prototype = {
 	}
 }
 
-function AsyncProcHelper( procedureConstructor ) this.procedureConstructor = procedureConstructor;
+function AsyncProcHelper( procedureConstructor ) { 
+
+	this.procedureConstructor = procedureConstructor;
+}
 
 
 
@@ -249,6 +263,7 @@ ENUM({
 	LOG_WARNING: bit*=2,
 	LOG_NOTICE: bit*=2,
 	LOG_DEBUG: bit*=2,
+	LOG_MISC: bit*=2,
 	LOG_IRCMSG: bit*=2,
 	LOG_NET: bit*=2,
 	LOG_HTTP: bit*=2,
@@ -395,7 +410,6 @@ function FormURLEncode( list ) {
 	return data.substr(1);
 }
 
-
 function MakeStatusLine( method, path, version ) {
 
 	return method + SPC + path + SPC + (version||'HTTP/1.0');
@@ -465,7 +479,7 @@ function MakeObj( tpl, arr ) { // { num:1, level:2, hostmask:3, time:4 } , [1, 1
 }
 
 
-function DeleteArrayElement( array, element ) let (pos = array.lastIndexOf(element)) pos != -1 ? array.splice(pos, 1) : undefined;
+function DeleteArrayElement( array, element ) !!let (pos=array.lastIndexOf(element)) pos != -1 && array.splice(pos, 1);
 
 
 function SetOnceObject() new ObjEx( undefined,undefined,undefined, function(name, value) this[name] ? Failed('Property Already defined') : value );
@@ -483,6 +497,9 @@ function StringPad( str, count, chr ) {
 		str = chr + str;
 	return str;
 }
+
+
+function StripHTML(html) html.replace( /<(.|\n)+?>/mg, ' ').replace( /[ \n]+/g, ' ');
 
 
 function LTrim(str) str.replace(/^\s+/, '');
@@ -556,9 +573,36 @@ function FileExtension(filename) {
 function ParseArguments(str) {
 
 	var args = [], reg = /"((?:\\?.)*?)"|[^ ]+/g;
-	for (let res; res = reg(str); args.push(res[1]||res[0]));
+	for (let res; res = reg(str); args.push(res[1] != null ? res[1] : res[0] ));
 	return args;
 }
+
+
+function Dump( data, tab ) {
+
+    tab = tab||'';
+    var out = '';
+    var type = typeof data;
+    if ( data === null )
+        return 'null';
+    if ( data === undefined )
+        return 'undefined';
+    if ( type == 'string' || data instanceof String )
+        return '"' + data + '"';
+    if ( type == 'number' || data instanceof Number )
+        return data;
+    if ( type == 'function' )
+       return data.toSource().substr(0,50)+'...';
+    if ( typeof(data) == 'object' ) {
+      
+        var newTab = tab+'  ', out = (data instanceof Array ? '[' : '{')+'\n';
+        for ( var p in data )
+            out += newTab+p+':'+arguments.callee( data[p], newTab )+'\n';
+        return out+tab+(data instanceof Array ? ']' : '}')+'\n';
+    }
+    return data;
+}
+
 
 
 /////////////////////////////////////////////////////// base64
@@ -705,38 +749,40 @@ function DebugTraceCall(name) {
 	
 	try {
 
-	var args = Array.slice(arguments.callee.caller.arguments);
-	var out = '';
-	for ( var i in args ) {
+		var args = Array.slice(arguments.callee.caller.arguments);
+		var out = '';
+		for ( var i in args ) {
 
-		if ( typeof args[i] == 'string' ) {
-		
-			args[i] = '"'+args[i]+'"';
-			continue;
+			if ( typeof args[i] == 'string' ) {
+
+				args[i] = '"'+args[i]+'"';
+				continue;
+			}
+
+			if ( args[i] instanceof Function ) {
+
+				args[i] = (args[i].name||'???')+'()';
+				continue;
+			}
+
+			if ( typeof(args[i]) == 'object' && !('toString' in (args[i])) ) {
+
+				var list = [];
+				for each ( var [k,v] in Iterator(args[i]) )
+					list.push( k+':'+v );
+				args[i] = '{ '+list.join(', ')+' }';
+				continue;
+			}
+
+			args[i] = args[i].toString();
 		}
-		
-		if ( args[i] instanceof Function ) {
 
-			args[i] = (args[i].name||'???')+'()';
-			continue;
-		}
+		DebugTrace( 'CALL SPY', name, arguments.callee.caller.name, args.join(', ') );
 
-		if ( typeof(args[i]) == 'object' && !('toString' in (args[i])) ) {
-			
-			var list = [];
-			for each ( var [k,v] in Iterator(args[i]) )
-				list.push( k+':'+v );
-			args[i] = '{ '+list.join(', ')+' }';
-			continue;
-		}
-		
-		args[i] = args[i].toString();
-	}
-
-	DebugTrace( 'CALL SPY', name, arguments.callee.caller.name, args.join(', ') );
-	
 	} catch(ex) { DebugTrace( 'DEBUG TRACE ERROR' ) }
 }
+
+
 
 
 var DBG = true;
