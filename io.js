@@ -271,7 +271,9 @@ function HttpRequest( url, data, timeout, OnResponse ) {
 			
 		try {
 
-			var [httpVersion, statusCode, reasonPhrase] = CHK(response.ReadUntil(CRLF)).split(SPC, 3);
+//			var [httpVersion, statusCode, reasonPhrase] = CHK(response.ReadUntil(CRLF)).split(SPC, 3);
+			var [, httpVersion, statusCode, reasonPhrase] = /(.+?) (\d+) (.*)/( CHK(response.ReadUntil(CRLF)) );
+			
 			var headers = NewDataObj();
 			for each ( let h in CHK(response.ReadUntil(CRLF+CRLF)).split(CRLF) ) {
 
