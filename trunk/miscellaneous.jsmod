@@ -1,0 +1,111 @@
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: GNU GPL 2.0
+ *
+ * The contents of this file are subject to the
+ * GNU General Public License Version 2.0; you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ * http://www.gnu.org/licenses/gpl.html
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ * ***** END LICENSE BLOCK ***** */
+
+
+(function MiscellaneousModule($D, $A) {
+	
+	this.name = this.constructor.name;
+	var _mod = this;
+	
+	function TranslateText( sourceLanguage, destinationLanguage, text, callback ) {
+		
+		text = EscapeEntities(text);
+
+		HttpRequest( 'http://translate.google.com/translate_t?langpair='+sourceLanguage+'|'+destinationLanguage, { text:text }, 1000, function(status, statusCode, reasonPhrase, headers, data ) {
+
+			if ( status != OK || statusCode != 200 ) {
+
+				callback( status );
+			} else {
+
+				var match = /result_box.*?>(.*?)<\//(data);
+
+				if ( match )
+					callback( OK, UnescapeEntities(match[1]) );
+				else
+					callback( BADRESPONSE );
+			}
+		});
+	}
+	
+	
+	function TranslateSMSText( text, callback ) { // french only
+
+// http://www.aidoforum.com/traducteur-sms.php
+// alt. http://www.moktoipas.com/traducteur.php?q=J%27m+po+l%E9+sms+%286%29
+// alt. http://www.alaide.com/dico_traducteur_sms.php
+//				var tmp = data.substring(data.lastIndexOf('<p>_start_')+10, data.lastIndexOf('_end_</p>'));
+//				var tr = StripHTML(tmp);
+
+		HttpRequest( 'http://www.alaide.com/dico_traducteur_sms.php', { q:'_s_ '+text+' _e_', action:'translate' }, 5000, function(status, statusCode, reasonPhrase, headers, data ) {
+
+			if ( status != OK || statusCode != 200 ) {
+
+				callback( status );
+			} else {
+				
+				var match = /translated(?:.|\n)+_s_((?:.|\n)*)_e_/g(data);
+				
+				if ( !match || !match[1]) {
+
+					callback( BADRESPONSE );
+					return;
+				}
+
+				callback( OK, StripHTML(match[1]) );
+			}
+		});	
+	}
+
+	this.moduleListener = {
+
+		botcmd: {
+			
+			'sms': function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+				
+				TranslateSMSText( cmdData, function(status, translatedText ) {
+
+					if ( status != OK )
+						return;
+					var replyTo = to[0] == '#' ? to : StrBefore(from, '!');
+					$A.Privmsg( replyTo, translatedText );
+				});
+			},
+			
+			'tre': function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+
+				TranslateText( 'fr', 'en', cmdData, function(status, translatedText ) {
+
+					if ( status != OK )
+						return;
+					var replyTo = to[0] == '#' ? to : StrBefore(from, '!');
+					$A.Privmsg( replyTo, translatedText );
+				});
+			},
+
+			'trf': function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+			
+				TranslateText( 'en', 'fr', cmdData, function(status, translatedText ) {
+
+					if ( status != OK )
+						return;
+					var replyTo = to[0] == '#' ? to : StrBefore(from, '!');
+					$A.Privmsg( replyTo, translatedText );
+				});
+			}
+
+		}
+	}
+	
+})
