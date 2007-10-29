@@ -47,9 +47,15 @@ function MakeModuleFromHttp( url, retry, retryPause, callback ) {
 			var [status, statusCode, reasonPhrase, headers, body] = yield function(cb) HttpRequest(url, '', 10*SECOND, cb);
 			if ( status == OK && statusCode == 200 )
 				break;
+
 			DBG && ReportError('Failed to load the module from '+url+' (status:'+String(status)+', reason:'+reasonPhrase+') ... '+(retry-1)+' tries left');
-			if ( --retry <= 0 || Match(status, BADREQUEST, BADRESPONSE, NOTFOUND, ERROR) || status == OK && statusCode > 500 )
+
+			if ( --retry <= 0 || Match(status, BADREQUEST, BADRESPONSE, NOTFOUND, ERROR) || status == OK && statusCode > 500 ) {
+
+				DBG && ReportError('Failed to load the module from '+url+' (status:'+String(status)+', reason:'+reasonPhrase+').');
 				return; // cannot retry in this case
+			}
+			DBG && ReportError('Failed to load the module from '+url+' (status:'+String(status)+', reason:'+reasonPhrase+') ... '+retry+' tries left');
 			yield function(cb) io.AddTimeout( retryPause, cb ); // async pause
 		}
 		
@@ -182,10 +188,21 @@ function ClientCore( Configurator ) {
 	var _numericCommand = Exec('NumericCommand.js');
 	var _connection;
 	var _modules = [];
-	var _messageListener = new Listener( function(ex) DBG && ReportError( ExToText(ex) ) );
-	var _moduleListener = new Listener( function(ex) DBG && ReportError( ExToText(ex) ) );
-	var _state = new StateKeeper( function(ex) DBG && ReportError( ExToText(ex) ) );
-	var _api = NewDataObj(); // or new SetOnceObject();
+	
+	function ListenerException(ex) ReportError( ExToText(ex) );
+	
+	var _messageListener = new Listener( ListenerException );
+	var _moduleListener = new Listener( ListenerException );
+	var _state = new StateKeeper( ListenerException );
+	
+//	var _api = NewDataObj(); // or new SetOnceObject();
+	var _api = {}; // or new SetOnceObject();
+	
+	_api.__noSuchMethod__ = function(methodName) {
+		
+		ReportError( 'API method '+methodName+' is not defined' );
+		return NOSUCHMETHOD;
+	}
 	
 	_state.Enter('running');
 	
@@ -327,8 +344,11 @@ function ClientCore( Configurator ) {
 	
 		var module = new moduleConstructor(_data, _api, _state);
 
-		if ( module.disabled )
+		if ( module.disabled ) {
+		
+			ReportWarning( 'Module '+source+' is disabled.' );
 			return;
+		}
 		
 		if ( module.moduleApi )
 			for ( let f in module.moduleApi )
@@ -382,7 +402,7 @@ function ClientCore( Configurator ) {
 			for each ( let {set:set, reset:reset, trigger:trigger} in module.stateListener )
 				_state.RemoveStateListener(set, reset, trigger);
 
-		Clear(module); 
+		Clear(module); // jsstd
 	}
 	
 	this.ReloadModule = function( module ) {
@@ -403,7 +423,7 @@ function ClientCore( Configurator ) {
 	for each ( let moduleURL in getData(_data.moduleList) )
 		LoadModuleFromURL( _core, moduleURL );
 
-	Seal(this);
+	Seal(this); // jsstd
 }
 
 

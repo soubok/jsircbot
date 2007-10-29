@@ -69,7 +69,8 @@
 
 
 
-	// This is another asynchronus procedure
+	// This is another asynchronus procedure.
+	// The difference with the previous one is that this procedure do not run forever and may be executed several times.
 	function AskANumber(nick) {
 		
 		var number;
@@ -81,14 +82,14 @@
 			if ( status != OK )
 				return;
 			
-			number = parseInt(message)
+			number = parseInt(message);
 
 			if ( number == NaN )
 				$A.Privmsg( nick, 'Hey, this is not a number !' );
 
 		} while ( number == NaN );
 		
-		$A.Privmsg( nick, 'Good, this is a number. Bye!' );
+		$A.Privmsg( nick, 'Good, '+number+' this is a number. Bye!' );
 	}
 
 
@@ -193,8 +194,8 @@
 	this.moduleApi = {
 		
 		// This API function can be used in any module.
-		// BEWARE: because module loading is asynchronous, You have to ensure that the API is defined before using it.
-		//         Because messageListener and moduleListener calls are enclosed by a trt..catch, even if the API is not defined, 
+		// BEWARE: Because module loading is asynchronous, You have to ensure that the API is defined before using it.
+		//         Because messageListener and moduleListener calls are enclosed by a try..catch, even if the API is not defined, 
 		//         the bot will not crash.
 		//         In this case, if the default module is not yet loaded, SayHello says nothing.
 		SayHello: function(to) {
