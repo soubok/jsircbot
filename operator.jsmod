@@ -18,6 +18,10 @@
 	var _name = this.name = this.constructor.name;
 	var modData = $D[_name];
 	
+	
+	var _floodPreiod = 5000;
+	var _floodDataSize = 10;
+	
 	this.moduleListener = {
 		
 		botcmd: {
@@ -73,6 +77,71 @@
 				$A.Quit('Restarting...');
 				SetExitValue(3);
 			},
+
+
+			flooddata: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+
+				if ( !$A.IsBotOp(from) )
+					return;
+
+				var replyTo = to[0] == '#' ? to : StrBefore(from, '!');
+				$A.Privmsg( replyTo, 'changing flood length from '+_floodDataSize+'bytes to '+cmdData+'bytes.' );
+				_floodDataSize = parseInt(cmdData);
+			},
+
+			floodperiod: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+
+				if ( !$A.IsBotOp(from) )
+					return;
+
+				var replyTo = to[0] == '#' ? to : StrBefore(from, '!');
+				$A.Privmsg( replyTo, 'changing flood period from '+_floodPreiod+'ms to '+cmdData+'ms.' );
+
+				_floodPreiod = parseInt(cmdData);
+			},
+
+			flood: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+
+				if ( !$A.IsBotOp(from) )
+					return;
+				
+				var replyTo = to[0] == '#' ? to : StrBefore(from, '!');
+//				$A.Privmsg( replyTo, 'Starting flood: '+_floodPreiod );
+				StartAsyncProc( new function() {
+					
+					for (;;) {
+
+						if ( !_floodPreiod )
+							return;
+						$A.Send( 'PRIVMSG #soubok :'+RandomString(_floodDataSize || 10), true );
+						yield AsyncSleep( parseInt(_floodPreiod) || 2000);
+					}
+				
+				});
+			},
+
+
+
+// flood stat result:
+
+// 64 char / 2 second = oo times / slowdown after oo messages
+
+// 64 char / 1.5 second = 73 times / slowdown after 20 messages
+
+
+// 1 char / 1 second = 84 times / slowdown after ?? messages
+// 2 char / 1 second = 80 times / slowdown after 10 messages
+// 8 char / 1 second = 64 times / slowdown after 10 messages
+// 64 char / 1 second =  27 times / slowdown after 10 messages
+// 256 char / 1 second =  5 times / slowdown after 4 messages
+
+// 8 char / 0.5 second = 25 times / slowdown after 7 messages
+// 64 char / 0.5 second = 13 times / slowdown after 7 messages
+
+
+// 8 char / 0.01 second = 5 times
+// 64 char / 0.01 second = 5 times
+// 256 char / 0.01 second =  3 times
 
 
 			reload: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
