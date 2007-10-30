@@ -235,13 +235,13 @@ function TCPGet( host, port, data, timeout, OnResponse ) {
 ///////////////////////////////////////////////////////
 
 
-function HttpRequest( url, data, timeout, OnResponse ) {
+function HttpRequest( url, data, timeout, OnResponse ) { // OnResponse(status, statusCode, reasonPhrase, headers, response);
 	
 //	log.Write( 'http', url+' <-['+data+']...' );
 
 	var ud = ParseUri(url);
 	var headers = { Host:ud.host, Connection:'Close' };
-	var statusLine = MakeStatusLine( data ? 'POST' : 'GET', ud.relative );
+	var statusLine = MakeStatusLine( data != undefined ? 'POST' : 'GET', ud.relative );
 
 	if ( ud.userInfo )
 		headers['Authorization'] = 'Basic ' + encode64(ud.userInfo);
