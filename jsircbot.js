@@ -287,7 +287,7 @@ function ClientCore( Configurator ) {
 
 				} catch (ex if ex == ERR) {
 				
-					DBG && ReportError('Invalid IRC server message', message);
+					ReportError('Invalid IRC server message', message);
 				}
 			}
 
@@ -297,8 +297,8 @@ function ClientCore( Configurator ) {
 
 		function OnDisconnected( remotelyDisconnected ) {
 			
-			DBG && remotelyDisconnected && ReportWarning( 'Remotely disconnected' );
-			DBG && !remotelyDisconnected && ReportNotice( 'Locally disconnected' );
+			remotelyDisconnected && ReportWarning( 'Remotely disconnected' );
+			!remotelyDisconnected && ReportNotice( 'Locally disconnected' );
 
 			_state.Leave(STATE_INTERACTIVE);
 			_state.Leave(STATE_CONNECTED);
@@ -346,11 +346,11 @@ function ClientCore( Configurator ) {
 				Failed('Unable to connect to any server.');
 			}
 			
-			DBG && ReportNotice( 'Trying to connect to ' + host + ':' + port );
+			ReportNotice( 'Trying to connect to ' + host + ':' + port );
 			_connection = new TCPConnection(host, port);
 			_connection.OnFailed = function() {
 
-				DBG && ReportError('Failed to connect to ' + host + ':' + port );
+				ReportError('Failed to connect to ' + host + ':' + port );
 				io.AddTimeout( getData(_data.serverRetryPause), TryNextServer );
 			}
 			_connection.OnConnected = OnConnected;
@@ -450,7 +450,7 @@ function ClientCore( Configurator ) {
 
 	this.ModuleList = function() _modules.slice(); // slice() to prevent dead-loop
 
-	LoadModuleList( _core, moduleList );
+	LoadModuleList( _core, getData(_data.moduleList) );
 
 	Seal(this); // jsstd
 }
@@ -461,7 +461,10 @@ function ClientCore( Configurator ) {
 
 function DateString() let ( d = new Date ) d.getFullYear() + StringPad(d.getMonth()+1,2,'0') + StringPad(d.getDate(),2,'0');
 
-log.AddFilter( MakeLogFile(function() 'jsircbot_'+DateString()+'.log', false), LOG_ALL - LOG_NET );
+//log.AddFilter( MakeLogFile(function() 'jsircbot_'+DateString()+'.log', false), LOG_ALL - LOG_NET );
+
+var thisSession = 'jsircbot_'+DateString()+'.log'; // used to create ONE log file by session
+log.AddFilter( MakeLogFile(function() thisSession, false), LOG_ALL );
 log.AddFilter( MakeLogScreen(), LOG_FAILURE | LOG_ERROR | LOG_WARNING );
 
 ReportNotice('Start at '+(new Date()));
@@ -481,7 +484,7 @@ try {
 	}
 } catch( ex if ex instanceof IoError ) {
 
-	DBG && ReportFailure( 'IoError: '+ ex.text + ' ('+ex.os+')' );
+	ReportFailure( 'IoError: '+ ex.text + ' ('+ex.os+')' );
 }
 
 DBG && ReportNotice('**************************** Gracefully end.');

@@ -2,7 +2,23 @@ function(data) {
 
 	setData( data.moduleList, [
 		'file:///./',
-		'http://jsircbot.googlecode.com/svn/trunk/serverQuery.jsmod'
+/*
+//		'http://jsircbot.googlecode.com/svn/trunk/serverQuery.jsmod'
+
+                'http://jsircbot.googlecode.com/svn/trunk/default.jsmod',
+                'http://jsircbot.googlecode.com/svn/trunk/channel.jsmod',
+                'http://jsircbot.googlecode.com/svn/trunk/ctcp.jsmod',
+                'http://jsircbot.googlecode.com/svn/trunk/botCmd.jsmod',
+                'http://jsircbot.googlecode.com/svn/trunk/dccChat.jsmod',
+                'http://jsircbot.googlecode.com/svn/trunk/operator.jsmod',
+                'http://jsircbot.googlecode.com/svn/trunk/commandEvent.jsmod',
+                'http://jsircbot.googlecode.com/svn/trunk/freenode.jsmod',
+//              'http://jsircbot.googlecode.com/svn/trunk/Tremulous.jsmod',
+                'http://jsircbot.googlecode.com/svn/trunk/gather.jsmod',
+                'http://jsircbot.googlecode.com/svn/trunk/miscellaneous.jsmod',
+                'http://jsircbot.googlecode.com/svn/trunk/vipInvitations.jsmod'
+
+*/
 	]);
 
 	setData( data.serverList, [
