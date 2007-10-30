@@ -463,7 +463,7 @@ function DateString() let ( d = new Date ) d.getFullYear() + StringPad(d.getMont
 
 //log.AddFilter( MakeLogFile(function() 'jsircbot_'+DateString()+'.log', false), LOG_ALL - LOG_NET );
 
-var thisSession = 'jsircbot_'+DateString()+'.log'; // used to create ONE log file by session
+var thisSession = 'jsircbot_'+(Now())+'.log'; // used to create ONE log file by session
 log.AddFilter( MakeLogFile(function() thisSession, false), LOG_ALL );
 log.AddFilter( MakeLogScreen(), LOG_FAILURE | LOG_ERROR | LOG_WARNING );
 

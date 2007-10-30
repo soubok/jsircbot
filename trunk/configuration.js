@@ -57,9 +57,9 @@ function(data) {
 	setData(data.ChannelModule.joinList, ['#soubok']);
 
 // Configure anti-flood system ( in 10 seconds, we can send 5 messages OR 1456 bytes )
-	setData(data.antiflood.maxMessage, 5 );
-	setData(data.antiflood.maxBytes, 1456 );
-	setData(data.antiflood.interval, 5*SECOND );
+	setData(data.antiflood.maxMessage, 5 ); // 5
+	setData(data.antiflood.maxBytes, 1456 ); // 1456
+	setData(data.antiflood.interval, 5*SECOND ); // 5*SECOND
 
 // configure DCC
 	setData(data.DCC.maxDCCConnections, 32 );
@@ -80,6 +80,5 @@ function(data) {
 	setData(data.freenodeModule.maxServiceBotReply, 15*SECOND );
 	setData(data.freenodeModule.nickServ, 'NickServ!NickServ@services.' );
 	setData(data.freenodeModule.chanServ, 'ChanServ!ChanServ@services.' );
-	
-	
+
 }
