@@ -62,7 +62,8 @@ ENUM({
 
 function Now() (new Date).getTime(); // returns the current date in ms
 
-const SECOND = 1000; // ms
+const MILLISECOND = 1;
+const SECOND = 1000*MILLISECOND;
 const MINUTE = 60*SECOND;
 const HOUR = 60*MINUTE;
 const DAY = 24*HOUR;
@@ -232,6 +233,32 @@ function AsyncProcHelper( procedureConstructor ) {
 	this.procedureConstructor = procedureConstructor;
 }
 
+
+//
+
+function Semaphore( res ) {
+	
+	var _lockList = [];
+
+	this.Release = function() {
+		
+		if ( _lockList.length )
+			_lockList.shift()();
+		else
+			res++;
+	}
+	
+	this.Acquire = function(callback) {
+		
+		if ( res > 0 ) {
+			res--;
+			callback();
+		} else
+			_lockList.push(callback);
+	}
+}
+
+function AsyncSemaphoreAcquire(semaphore) function(callback) semaphore.Acquire(callback); // helper function
 
 
 /////////////////////////////////////////////////////// Call Scheduler system

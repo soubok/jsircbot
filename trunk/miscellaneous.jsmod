@@ -72,7 +72,7 @@
 
 		botcmd: {
 			
-			'sms': function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+			sms: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 				
 				TranslateSMSText( cmdData, function(status, translatedText ) {
 
@@ -83,7 +83,7 @@
 				});
 			},
 			
-			'tre': function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+			tre: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 
 				TranslateText( 'fr', 'en', cmdData, function(status, translatedText ) {
 
@@ -94,7 +94,7 @@
 				});
 			},
 
-			'trf': function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+			trf: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 			
 				TranslateText( 'en', 'fr', cmdData, function(status, translatedText ) {
 
@@ -106,6 +106,9 @@
 			}
 
 		}
+	}
+	
+	this.moduleApi = {
 	}
 	
 })

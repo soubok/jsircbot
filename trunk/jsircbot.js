@@ -26,6 +26,7 @@ Exec('ident.js');
 
 // Default state names
 const STATE_SEND_OVERFLOW = 'sendOverflow';
+const STATE_PROCESSING = 'processing';
 const STATE_INTERACTIVE = 'interactive';
 const STATE_CONNECTED = 'connected';
 const STATE_CONNECTING = 'connecting';
@@ -40,22 +41,21 @@ function MakeModuleFromHttp( url, retry, retryPause, callback ) {
 
 	StartAsyncProc( new function() {
 
+		ReportNotice( 'Loading module from: '+url );
 		for (;;) {
 	
-			DBG && ReportNotice( 'Loading module from: '+url );
-	
-			var [status, statusCode, reasonPhrase, headers, body] = yield function(cb) HttpRequest(url, '', 10*SECOND, cb);
+			var [status, statusCode, reasonPhrase, headers, body] = yield function(cb) HttpRequest(url, undefined, 10*SECOND, cb);
 			if ( status == OK && statusCode == 200 )
 				break;
 
-			DBG && ReportError('Failed to load the module from '+url+' (status:'+String(status)+', reason:'+reasonPhrase+') ... '+(retry-1)+' tries left');
-
 			if ( --retry <= 0 || Match(status, BADREQUEST, BADRESPONSE, NOTFOUND, ERROR) || status == OK && statusCode > 500 ) {
 
-				DBG && ReportError('Failed to load the module from '+url+' (status:'+String(status)+', reason:'+reasonPhrase+').');
+				ReportError('Failed to load the module from '+url+' (status:'+String(status)+', reason:'+reasonPhrase+').');
+				callback(status);
 				return; // cannot retry in this case
 			}
-			DBG && ReportError('Failed to load the module from '+url+' (status:'+String(status)+', reason:'+reasonPhrase+') ... '+retry+' tries left');
+			
+			ReportError('Retrying to load the module from '+url+' ('+retry+' tries left)');
 			yield function(cb) io.AddTimeout( retryPause, cb ); // async pause
 		}
 		
@@ -68,12 +68,13 @@ function MakeModuleFromHttp( url, retry, retryPause, callback ) {
 		
 			ex.lineNumber -= relativeLineNumber;
 			ex.fileName = url;
-			DBG && ReportError('Failed to make the module: '+ExToText(ex));
+			ReportError('Failed to make the module: '+ExToText(ex));
+			callback(BADRESPONSE);
 			return;
 		}
 
-		callback(modConstructor, CreationFunction, url);
-		DBG && ReportNotice( 'Module '+url+ ' loaded.' );
+		ReportNotice( 'Module '+url+ ' loaded.' );
+		callback(OK, modConstructor, CreationFunction, url);
 	});
 }
 
@@ -82,22 +83,23 @@ function MakeModuleFromPath( path, callback ) {
 	
 	var CreationFunction = let ( args = arguments ) function() args.callee.apply(null, args);
 
-	DBG && ReportNotice( 'Loading module from: '+path );
+	ReportNotice( 'Loading module from: '+path );
 
 	try {
 		
 		var modConstructor = Exec(path, false); // do not save compiled version of the script
 	} catch(ex) {
 
-		DBG && ReportError('Failed to make the module from '+path+' ('+ExToText(ex)+')');
+		ReportError('Failed to make the module from '+path+' ('+ExToText(ex)+')');
+		callback(BADRESPONSE);
 		return;
 	}
-	callback(modConstructor, CreationFunction, path);
-	DBG && ReportNotice( 'Module '+path+ ' loaded.' );
+	callback(OK, modConstructor, CreationFunction, path);
+	ReportNotice( 'Module '+path+ ' loaded.' );
 }
 
 
-function LoadModuleFromURL( core, url ) {
+function LoadModuleFromURL( url, retryCount, retryPause, callback ) { // callback(moduleConstructor, creationFunction, source);
 
 	const defaultSufix = '.jsmod';
 	var ud = ParseUri(url);
@@ -110,18 +112,41 @@ function LoadModuleFromURL( core, url ) {
 				var entry, dir = new Directory(path, Directory.SKIP_BOTH);
 				for ( dir.Open(); (entry = dir.Read()); )
 					if ( StringEnd( entry, defaultSufix ) )
-						MakeModuleFromPath( path+entry, core.AddModule );
+						MakeModuleFromPath( path+entry, callback );
 			} else
-				MakeModuleFromPath( path, core.AddModule );
+				MakeModuleFromPath( path, callback );
 			break;
 		case 'http':
-			MakeModuleFromHttp( url, getData(core.data.moduleLoadRetry), getData(core.data.moduleLoadRetryPause), core.AddModule );
+			MakeModuleFromHttp( url, retryCount, retryPause, callback );
 			break;
 		default:
-			DBG && ReportError('Invalid module source: URL not supported ('+url+')');
+			ReportError('Invalid module source: URL not supported ('+url+')');
 	}	
 }
 
+
+function LoadModuleList( core, moduleList ) {
+	
+	var moduleLoadRetry = getData(core.data.moduleLoadRetry);
+	var moduleLoadRetryPause = getData(core.data.moduleLoadRetryPause);
+	
+	var sem = new Semaphore(2); // only 2 concurrent loads
+		
+	function ModuleLoaded(status, moduleConstructor, creationFunction, source) {
+	
+		core.AddModule(moduleConstructor, creationFunction, source);
+		sem.Release();
+	}
+
+	StartAsyncProc( new function() {
+
+		for each ( let moduleURL in moduleList ) {
+		
+			yield AsyncSemaphoreAcquire(sem);
+			LoadModuleFromURL( moduleURL, moduleLoadRetry, moduleLoadRetryPause, ModuleLoaded );
+		}		
+	});
+}
 
 
 function MakeFloodSafeMessageSender( maxMessage, maxData, time, RawDataSender, state ) {
@@ -224,6 +249,8 @@ function ClientCore( Configurator ) {
 
 		function OnData(buf) {
 
+//			_state.Enter(STATE_PROCESSING);
+
 			_receiveBuffer.Write(buf);
 			var message;
 			while ( (message = _receiveBuffer.ReadUntil(CRLF)) ) {
@@ -263,6 +290,9 @@ function ClientCore( Configurator ) {
 					DBG && ReportError('Invalid IRC server message', message);
 				}
 			}
+
+//			_moduleListener.Fire( 'endOfMessageProcessing' );
+//			_state.Leave(STATE_PROCESSING);
 		}
 
 		function OnDisconnected( remotelyDisconnected ) {
@@ -420,8 +450,7 @@ function ClientCore( Configurator ) {
 
 	this.ModuleList = function() _modules.slice(); // slice() to prevent dead-loop
 
-	for each ( let moduleURL in getData(_data.moduleList) )
-		LoadModuleFromURL( _core, moduleURL );
+	LoadModuleList( _core, moduleList );
 
 	Seal(this); // jsstd
 }

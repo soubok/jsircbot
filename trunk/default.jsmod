@@ -174,15 +174,27 @@
 		Quit: function(quitMessage) $A.Send( 'QUIT :'+quitMessage, true ) // true = force the message to be post ASAP
 	}
 
-
-	function LagProbe() {
+	var webAccessProbe = new AsyncProcHelper( function() {
+	
+		for (;;) {
 		
+			var [status,,,] = yield function(callback) HttpRequest( 'http://www.google.com/wwwcheck', undefined, 5000, callback ); // or http://www.microsoft.com/wwwcheck
+			$S.Tobble('hasWeb', status == OK );
+			if ( status == OK )
+				yield AsyncSleep( 30*MINUTE );
+			yield AsyncSleep( 1*MINUTE );
+		}
+	});
+
+
+	var lagProbe = new AsyncProcHelper( function() {
+
 		for (;;) {
 
 			$A.Send( 'PING LAG'+IntervalNow(), true );
-			yield function(callback) io.AddTimeout( getData($MD.lagProbeInterval), callback ); // async pause
+			yield AsyncSleep( getData($MD.lagProbeInterval) );
 		}
-	}
+	});
 	
 		
 	var LagProbeResponse = {
@@ -194,7 +206,7 @@
 		}
 	}
 
-	function Clock() {
+	var clock = new AsyncProcHelper( function() {
 		
 		var count = 0;
 		
@@ -202,13 +214,13 @@
 		
 			yield AsyncSleep( 1*MINUTE );
 			count++;
-			
 			count % 1 || $A.FireModuleListener( 'clock', '1minute' );
 			count % 5 || $A.FireModuleListener( 'clock', '5minutes' );
 			count % 10 || $A.FireModuleListener( 'clock', '10minutes' );
 			count % 60 || $A.FireModuleListener( 'clock', '1hour' );
 		}
-	}
+	});
+	
 
 
 	this.stateListener = [
@@ -228,19 +240,13 @@
 
 				$A.ToggleMessageListener( LagProbeResponse, polarity );
 				
-				// ToggleAsyncProc( LagProbe, polarity );
-				if ( polarity )
-					this.lagProbe = StartAsyncProc( new LagProbe );
-				else
-					StopAsyncProc(this.lagProbe);
-
 				if ( polarity )
 					$A.Send( 'USERHOST '+getData($D.nick) );
-
-				if ( polarity )
-					this.clock = StartAsyncProc( new Clock );
-				else
-					StopAsyncProc(this.clock);
+					
+				webAccessProbe.Toggle(clock); // (TBD) do not depends on interactive state
+				webAccessProbe.Toggle(lagProbe);
+				webAccessProbe.Toggle(polarity);
+					
 			}
 		}
 	];
