@@ -179,7 +179,7 @@
 		for (;;) {
 		
 			var [status,,,] = yield function(callback) HttpRequest( 'http://www.google.com/wwwcheck', undefined, 5000, callback ); // or http://www.microsoft.com/wwwcheck
-			$S.Tobble('hasWeb', status == OK );
+			$S.Toggle('hasWeb', status == OK );
 			if ( status == OK )
 				yield AsyncSleep( 30*MINUTE );
 			yield AsyncSleep( 1*MINUTE );

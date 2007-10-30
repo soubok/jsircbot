@@ -286,17 +286,17 @@ function CallScheduler() {
 
 var bit = 1;
 ENUM({
-	LOG_FAILURE: bit*=2,
-	LOG_ERROR: bit*=2,
-	LOG_WARNING: bit*=2,
-	LOG_NOTICE: bit*=2,
-	LOG_DEBUG: bit*=2,
-	LOG_MISC: bit*=2,
-	LOG_IRCMSG: bit*=2,
-	LOG_NET: bit*=2,
-	LOG_HTTP: bit*=2,
-	LOG_PROC: bit*=2,
-	LOG_ALL: (bit*=2)-1
+	LOG_FAILURE : bit*=2,
+	LOG_ERROR   : bit*=2,
+	LOG_WARNING : bit*=2,
+	LOG_NOTICE  : bit*=2,
+	LOG_DEBUG   : bit*=2,
+	LOG_MISC    : bit*=2,
+	LOG_IRCMSG  : bit*=2,
+	LOG_NET     : bit*=2,
+	LOG_HTTP    : bit*=2,
+	LOG_PROC    : bit*=2,
+	LOG_ALL     : (bit*=2)-1
 });
 
 const LOG_CLOSE_FILTER = { toString:function() '' };
