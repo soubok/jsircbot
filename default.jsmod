@@ -174,6 +174,7 @@
 		Quit: function(quitMessage) $A.Send( 'QUIT :'+quitMessage, true ) // true = force the message to be post ASAP
 	}
 
+
 	var webAccessProbe = new AsyncProcHelper( function() {
 	
 		for (;;) {
@@ -189,23 +190,33 @@
 
 	var lagProbe = new AsyncProcHelper( function() {
 
-		for (;;) {
+		var LagProbeResponse = {
 
-			$A.Send( 'PING LAG'+IntervalNow(), true );
-			yield AsyncSleep( getData($MD.lagProbeInterval) );
+			PONG: function( command, from, server, data ) {
+
+				if ( data.substr(0,3) == 'LAG' )
+					setData( $D.ping, IntervalNow() - parseInt(data.substr(3)) );
+			}
+		}
+
+		$A.SetMessageListener( LagProbeResponse );
+		
+		try {
+
+			for (;;) {
+
+				$A.Send('PING LAG'+IntervalNow(), true);
+				yield AsyncSleep( getData($MD.lagProbeInterval) );
+			}
+		} finally { // called when the procedure is closed
+		
+			$A.RemoveMessageListener( LagProbeResponse );
 		}
 	});
-	
-		
-	var LagProbeResponse = {
-	
-		PONG: function( command, from, server, data ) {
-	
-			if ( data.substr(0,3) == 'LAG' )
-				setData( $D.ping, IntervalNow() - parseInt(data.substr(3)) );
-		}
-	}
 
+	
+
+/*
 	var clock = new AsyncProcHelper( function() {
 		
 		var count = 0;
@@ -220,7 +231,7 @@
 			count % 60 || $A.FireModuleListener( 'clock', '1hour' );
 		}
 	});
-	
+*/	
 
 
 	this.stateListener = [
@@ -238,13 +249,11 @@
 			reset: function(s) !s.interactive,
 			trigger: function(polarity) {
 
-				$A.ToggleMessageListener( LagProbeResponse, polarity );
-				
 				if ( polarity )
 					$A.Send( 'USERHOST '+getData($D.nick) );
 					
-				webAccessProbe.Toggle(clock); // (TBD) do not depends on interactive state
-				webAccessProbe.Toggle(lagProbe);
+//				clock.Toggle(polarity); // (TBD) do not depends on interactive state
+				lagProbe.Toggle(polarity);
 				webAccessProbe.Toggle(polarity);
 					
 			}

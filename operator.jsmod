@@ -13,7 +13,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 
-(function OperatorManagerModule($D, $A) {
+(function OperatorManagerModule($D, $A, $S) {
 	
 	var _name = this.name = this.constructor.name;
 	var modData = $D[_name];

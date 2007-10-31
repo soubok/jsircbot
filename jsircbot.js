@@ -238,7 +238,71 @@ function ClientCore( Configurator ) {
 		setData( _data.lastMessageTime, IntervalNow() );
 	}
 
-	this.Send = MakeFloodSafeMessageSender( getData(_data.antiflood.maxMessage), getData(_data.antiflood.maxBytes), getData(_data.antiflood.interval), RawDataSender, _state );
+//	this.Send = MakeFloodSafeMessageSender( getData(_data.antiflood.maxMessage), getData(_data.antiflood.maxBytes), getData(_data.antiflood.interval), RawDataSender, _state );
+
+	this.Send = (function() {
+		
+		var _maxRate = 0.512;
+
+		var _messageQueue = [];
+		var _messageEvent = new Event();
+		
+		StartAsyncProc( new function() {
+			
+			var count = 0;
+			var time = Now();
+			
+			for (;;) {
+			
+				yield AsyncEventWait(_messageEvent);
+				
+				message = _messageQueue.shift().join(CRLF)+CRLF;
+				
+				// compute the current rate in bytes/milliseconds
+				count += message.length;
+				var now = Now();
+				var interval = now-time;
+				var rate = count / interval;
+				count -= rate * interval;
+				time = now;
+				
+				if ( rate > _maxRate ) { // if the rate is too high, test if we are flooding
+
+					var probTime = yield function(callback) {
+						
+						var events;
+						events = { PONG: function( command, from, server, data ) {
+							
+							if ( data.substr(0,3) == 'FLO' ) {
+								
+								$A.RemoveMessageListener(events);
+								callback(data.substr(3));
+							}
+						}}
+						$A.AddMessageListener(events);
+						RawDataSender( 'PING FLO'+now+CRLF );
+					}
+					
+					probTime = Now()-probTime;
+
+//					if ( probTime > 
+// 				adjust _maxRate				
+				
+				}
+			}
+		});
+
+
+		return function(message, bypassAntiFlood, OnSent) {
+		
+			_messageQueue.push([message instanceof Array ? message : [message], OnSent]);
+			_messageEvent.Set();
+		}
+
+	})();
+
+
+	
 
 	this.hasFinished = function() !_connection;
 	this.Disconnect = function() _connection.Disconnect(); // make a Gracefully disconnect ( disconnect != close )

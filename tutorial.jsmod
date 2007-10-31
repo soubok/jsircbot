@@ -52,16 +52,24 @@
 		// While the function is stopped, the bot continue to run.
 		function( channel ) {
 			
-			// this is a procedure that never ends ( unless you use functions like StopAsyncProc )
-			for (;;) {
+			// this is a procedure that never ends unless you use a function like StopAsyncProc, in witch case, the finally section will be called
+
+			try {
+			
+				for (;;) {
+
+					// Use Privmsg function from the common API ($A) to send a message to the channel.
+					$A.Privmsg( channel, new Date() );
+
+					// Sleep one minute.
+					// NOTICE: the following code is equivalent to:
+					//         yield function(callback) io.AddTimeout( delay, callback );
+					yield AsyncSleep( 1*MINUTE );
+				}
 				
-				// Use Privmsg function from the common API ($A) to send a message to the channel.
-				$A.Privmsg( channel, new Date() );
-				
-				// Sleep one minute.
-				// NOTICE: the following code is equivalent to:
-				//         yield function(callback) io.AddTimeout( delay, callback );
-				yield AsyncSleep( 1*MINUTE );
+			} finally {
+
+				$A.Privmsg( channel, 'Bye, now you have to get the time by yourself' );
 			}
 		}
 	);
