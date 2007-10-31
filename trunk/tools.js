@@ -115,7 +115,7 @@ function StateKeeper( catchCallback ) {
 		
 		try {
 		
-			for each ( let item in _predicateList ) {
+			for each ( let item in _predicateList ) { // item = [0:setPredicate, 1:resetPredicate, 2:callback, 3:<the state of stateName>]
 				var callback = item[2];
 				if ( !item[3] )
 					item[0](_stateList, stateName) && callback.call(callback, (item[3] = true), _predicateList); // 'this' will be the function itself
@@ -129,7 +129,6 @@ function StateKeeper( catchCallback ) {
 			else
 				throw ex;
 		}
-		
 	}
 	
 	this.Is = function(stateName) !!_stateList[stateName];
@@ -149,6 +148,16 @@ function StateKeeper( catchCallback ) {
 	INSPECT.push(function() 'STATE '+[stateName+':'+state for ([stateName, state] in Iterator(_stateList))].join(' '));
 }
 
+//
+
+function AsyncStateWait(state, predicate) function(callback) { // eg: yield AsyncStateWait($S, function(s) s.interactive); 
+
+	state.AddStateListener(predicate, undefined, function() {
+
+		state.RemoveStateListener(predicate, undefined, arguments.callee);
+		callback();
+	});
+}
 
 
 /////////////////////////////////////////////////////// Event Listener
@@ -212,6 +221,10 @@ function StopAsyncProc( procedure ) { // used outside a procedure
 	procedure.close();
 	procedure._running = false;
 	return undefined;
+	// doc: Generators have a close() method that forces the generator to close itself. The effects of closing a generator are:
+	//        1. Any finally clauses active in the generator function are run.
+	//        2. If a finally clause throws any exception other than StopIteration, the exception is propagated to the caller of the close() method.
+	//        3. The generator terminates. 			
 }
 
 AsyncProcHelper.prototype = {
@@ -233,6 +246,35 @@ function AsyncProcHelper( procedureConstructor ) {
 	this.procedureConstructor = procedureConstructor;
 }
 
+//
+
+function Event() {
+
+	var _lockList = [];
+	var _state = false;
+	
+	this.Wait = function(callback) {
+		
+		if ( _state )
+			callback();
+		else
+			_lockList.push(callback);
+	}
+	
+	this.Set = function() {
+		
+		_state = true;
+		while ( _lockList.length )
+			_lockList.shift()();
+	}
+
+	this.Clear = function() {
+
+		_state = false;
+	}
+}
+
+function AsyncEventWait(event) function(callback) event.Wait(callback); // helper function
 
 //
 
