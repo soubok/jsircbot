@@ -26,8 +26,8 @@ function(data) {
 		'chat.eu.freenode.net:6666-6667',
 		'204.11.244.21:6666-6667',
 	]);
-	setData( data.serverRetry, 3 );
-	setData( data.serverRetryPause, 1*SECOND );
+	setData( data.serverRetry, 2 );
+	setData( data.serverRetryPause, 0.5*SECOND );
 
 
 //	setData( data.server, 'irc.freenode.net' );

@@ -14,6 +14,8 @@
 
 
 (function Gather($D, $A) {
+	
+	this.disabled = true;
 
 	this.name = this.constructor.name;
 	var $MD = $D[this.name];

@@ -113,7 +113,7 @@
 
 						if ( !_floodPreiod )
 							return;
-						$A.Send( 'PRIVMSG #soubok :'+RandomString(_floodDataSize || 10), true );
+						$A.Send( 'PRIVMSG #soubok :'+RandomString(_floodDataSize || 10), false );
 						yield AsyncSleep( parseInt(_floodPreiod) || 2000);
 					}
 				

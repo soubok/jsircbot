@@ -225,7 +225,7 @@ function ClientCore( Configurator ) {
 	
 	_api.__noSuchMethod__ = function(methodName) {
 		
-		ReportError( 'API method '+methodName+' is not defined' );
+		ReportError( 'UNDEFINED API: '+methodName );
 		return NOSUCHMETHOD;
 	}
 	
@@ -240,66 +240,101 @@ function ClientCore( Configurator ) {
 
 //	this.Send = MakeFloodSafeMessageSender( getData(_data.antiflood.maxMessage), getData(_data.antiflood.maxBytes), getData(_data.antiflood.interval), RawDataSender, _state );
 
-	this.Send = (function() {
+	this.Send = new function() {
 		
-		var _maxRate = 0.512;
+		var _maxRate = 30 / SECOND;
+		var _monitorPeriod = 2000;
+
+		var _requestWeight = 53;
 
 		var _messageQueue = [];
 		var _messageEvent = new Event();
 		
 		StartAsyncProc( new function() {
 			
+			var t0 = Now();
+			
 			var count = 0;
+			var interval = 0;
+			
 			var time = Now();
 			
 			for (;;) {
-			
+
 				yield AsyncEventWait(_messageEvent);
+
+				count += _requestWeight;
 				
-				message = _messageQueue.shift().join(CRLF)+CRLF;
+				var [message, bypassAntiFlood, OnSent] = _messageQueue.shift();
+				
+				message = message.join(CRLF)+CRLF;
 				
 				// compute the current rate in bytes/milliseconds
 				count += message.length;
-				var now = Now();
-				var interval = now-time;
-				var rate = count / interval;
-				count -= rate * interval;
-				time = now;
-				
-				if ( rate > _maxRate ) { // if the rate is too high, test if we are flooding
+				interval += Now() - time;
+				time = Now();
+				if ( interval > _monitorPeriod ) {
+					
+					count *= _monitorPeriod / interval;
+					interval = _monitorPeriod;
+				}
 
-					var probTime = yield function(callback) {
-						
+				var rate = count / interval;
+				
+				DPrint( 'rate', rate.toFixed(5), 'max', _maxRate.toFixed(5), 'bypassAntiFlood', bypassAntiFlood );
+
+				
+				if ( rate > _maxRate && !bypassAntiFlood ) { // if the rate is too high, test if we are flooding
+
+					DPrint( 'probing' );
+
+					var [probTime] = yield function(callback) {
+
 						var events;
 						events = { PONG: function( command, from, server, data ) {
 							
 							if ( data.substr(0,3) == 'FLO' ) {
-								
-								$A.RemoveMessageListener(events);
+
+								_api.RemoveMessageListener(events);
 								callback(data.substr(3));
 							}
 						}}
-						$A.AddMessageListener(events);
-						RawDataSender( 'PING FLO'+now+CRLF );
+						_api.AddMessageListener(events);
+						
+						var probeMessage = 'PING FLO'+Now()+CRLF;
+						RawDataSender( probeMessage );
+						
+						count += _requestWeight + probeMessage.length;
+//						count = 0;
+//						interval = 0;
 					}
 					
 					probTime = Now()-probTime;
+					DPrint( 'probTime', probTime );
 
-//					if ( probTime > 
-// 				adjust _maxRate				
-				
+					
+					yield AsyncSleep(probTime);
+					
+					
+					if ( probTime < 1000 )
+						_maxRate *= 1.05;
+					if ( probTime > 2000 )
+						_maxRate *= 0.9;
+					DPrint( 'max', _maxRate );
 				}
+
+				RawDataSender(message);
+				OnSent && OnSent();
 			}
 		});
 
 
 		return function(message, bypassAntiFlood, OnSent) {
 		
-			_messageQueue.push([message instanceof Array ? message : [message], OnSent]);
-			_messageEvent.Set();
+			_messageQueue.push([message instanceof Array ? message : [message], bypassAntiFlood, OnSent]);
+			_messageEvent.Fire();
 		}
-
-	})();
+	}
 
 
 	
