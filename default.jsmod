@@ -199,7 +199,7 @@
 			}
 		}
 
-		$A.SetMessageListener( LagProbeResponse );
+		$A.AddMessageListener( LagProbeResponse );
 		
 		try {
 
@@ -240,8 +240,8 @@
 			reset: False, // never resets
 			trigger: function(polarity) {
 
-				$A.Send( 'NICK '+getData($D.wishNick) );
-				$A.Send( 'USER '+getData($D.ident.username)+' '+getData($D.hostname)+' '+getData($D.server)+' :'+getData($D.ident.realname) );
+				$A.Send( 'NICK '+getData($D.wishNick), true );
+				$A.Send( 'USER '+getData($D.ident.username)+' '+getData($D.hostname)+' '+getData($D.server)+' :'+getData($D.ident.realname), true );
 			}
 		},
 		{

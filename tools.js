@@ -251,27 +251,37 @@ function AsyncProcHelper( procedureConstructor ) {
 function Event() {
 
 	var _lockList = [];
-	var _state = false;
-	
-	this.Wait = function(callback) {
-		
-		if ( _state )
-			callback();
-		else
-			_lockList.push(callback);
+	this.Wait = function(callback) _lockList.push(callback);
+	this.Fire = function() {
+
+		var tmp = _lockList;
+		_lockList = [];
+		while ( tmp.length )
+			tmp.shift()();
 	}
-	
+
+/*	
 	this.Set = function() {
 		
+		DPrint( 'enter Event::Set', _state );
 		_state = true;
-		while ( _lockList.length )
-			_lockList.shift()();
+		
+		var tmp = _lockList.slice();
+		while ( tmp.length ) {
+	
+			DPrint( 'Event::Set:loop', _state );
+
+			tmp.shift()();
+		}
+		DPrint( 'exit Event::Set', _state );
 	}
 
 	this.Clear = function() {
 
+		DPrint( 'Event::Clear', _state );
 		_state = false;
 	}
+*/
 }
 
 function AsyncEventWait(event) function(callback) event.Wait(callback); // helper function
