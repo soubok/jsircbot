@@ -76,7 +76,7 @@ const YEAR = 365*DAY + 5*HOUR + 48*MINUTE + 45*SECOND;
 
 function ExToText(ex, showStack) ex instanceof Error ? ex.name+': '+ex.message+' ('+(showStack ? ex.stack : (ex.fileName+':'+ex.lineNumber))+')' : ex.toString();
 
-function Failed(text) { ReportFailure(text); throw new Error(text) } // fatal error
+function Failed(text) { ReportFailure(text, DStack()); throw new Error(text) } // fatal error
 
 function ERR() { throw ERR }
 
@@ -259,29 +259,6 @@ function Event() {
 		while ( tmp.length )
 			tmp.shift()();
 	}
-
-/*	
-	this.Set = function() {
-		
-		DPrint( 'enter Event::Set', _state );
-		_state = true;
-		
-		var tmp = _lockList.slice();
-		while ( tmp.length ) {
-	
-			DPrint( 'Event::Set:loop', _state );
-
-			tmp.shift()();
-		}
-		DPrint( 'exit Event::Set', _state );
-	}
-
-	this.Clear = function() {
-
-		DPrint( 'Event::Clear', _state );
-		_state = false;
-	}
-*/
 }
 
 function AsyncEventWait(event) function(callback) event.Wait(callback); // helper function
@@ -434,6 +411,7 @@ var log = new function(data) {
 
 	this.Write = function(type /*, data, ...*/) {
 
+// (TBD) fix LOG_ERROR <TypeError: can't convert Array.slice(arguments, 1).join to string (tools.js:414)>
 		var data = FormatedTime()+' '+String(type)+' <'+Array.slice(arguments,1).join('> <')+'>';
 		for each ( let [output, typeList] in _outputList )
 			typeList & type && void output(data);
@@ -865,7 +843,7 @@ function DPrint() {
 
 var Trace = DPrint;
 
-function DStack() { try { throw Error() } catch(ex) { Print( 'Stack: ', ex.stack, LF ) } }
+function DStack(skip) { try { throw Error() } catch(ex) { Print( 'Stack: ', String(ex.stack).split(LF).slice(skip||0).join(LF), LF ) } }
 
 function DArgs() { Print( 'Arguments: ', Array.slice(DArgs.caller.arguments).toSource(), LF ) }
 
