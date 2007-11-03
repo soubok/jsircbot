@@ -15,7 +15,7 @@
 
 (function TremulousModule($D, $A) {
 	
-	this.disabled = true;
+	this.disabled = false;
 	
 	var _name = this.name = this.constructor.name;
 

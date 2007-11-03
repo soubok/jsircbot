@@ -149,6 +149,7 @@ function LoadModuleList( core, moduleList ) {
 }
 
 
+/*
 function MakeFloodSafeMessageSender( maxMessage, maxData, time, RawDataSender, state ) {
 
 	var _count = maxMessage;
@@ -199,7 +200,7 @@ function MakeFloodSafeMessageSender( maxMessage, maxData, time, RawDataSender, s
 		Process();
 	}
 }
-
+*/
 
 
 ///////////////////////////////////////////////// CORE /////////////////////////////////////////////
@@ -241,103 +242,84 @@ function ClientCore( Configurator ) {
 //	this.Send = MakeFloodSafeMessageSender( getData(_data.antiflood.maxMessage), getData(_data.antiflood.maxBytes), getData(_data.antiflood.interval), RawDataSender, _state );
 
 	this.Send = new function() {
-		
-		var _maxRate = 30 / SECOND;
-		var _monitorPeriod = 2000;
 
-		var _requestWeight = 53;
+		function SyncWait() function(callback) {
+
+			var events, sync = RandomNumber(5), time = Now()
+			events = { PONG: function( command, from, server, data ) {
+
+				if ( data != sync )
+					return;
+				_api.RemoveMessageListener(events);
+				callback(Now()-time);
+			}};
+			_api.AddMessageListener(events);
+			RawDataSender( 'PING '+sync+CRLF );
+		}
 
 		var _messageQueue = [];
 		var _messageEvent = new Event();
-		
+
 		StartAsyncProc( new function() {
-			
-			var t0 = Now();
-			
-			var count = 0;
-			var interval = 0;
-			
-			var time = Now();
-			
+
+			var data, interval, length = 0, time = 0, sentNodifyList = [];
 			for (;;) {
+			
+				if ( _messageQueue.length == 0 ) // no need to wait if messages are pending
+					yield AsyncEventWait(_messageEvent);
 
-				yield AsyncEventWait(_messageEvent);
-
-				count += _requestWeight;
-				
-				var [message, bypassAntiFlood, OnSent] = _messageQueue.shift();
-				
-				message = message.join(CRLF)+CRLF;
-				
-				// compute the current rate in bytes/milliseconds
-				count += message.length;
-				interval += Now() - time;
+				interval = Now() - time;
 				time = Now();
-				if ( interval > _monitorPeriod ) {
-					
-					count *= _monitorPeriod / interval;
-					interval = _monitorPeriod;
+				data = '';
+				while ( _messageQueue.length ) {
+
+					var [message, highPriorityMessage, OnSent] = _messageQueue[0]; // peek
+					if ( message.length >= 512 )
+						Failed('Message too long');
+					if ( data.length + message.length >= 512 )
+						break;
+					data += message;
+					sentNodifyList.push(OnSent);
+					_messageQueue.shift();
 				}
+				var _monitorPeriod = getData(_data.antiflood.monitorPeriod);
+				var _messageOverload = getData(_data.antiflood.messageOverload);
+				length = Math.floor(length * (interval < _monitorPeriod ? 1 - interval / _monitorPeriod : 0)) + _messageOverload + data.length;
 
-				var rate = count / interval;
-				
-				DPrint( 'rate', rate.toFixed(5), 'max', _maxRate.toFixed(5), 'bypassAntiFlood', bypassAntiFlood );
+				DPrint( 'length', length+'Bytes' );
+				if ( length > getData(_data.antiflood.maxLength) && !highPriorityMessage ) { // if the rate is too high, test if we are flooding
 
-				
-				if ( rate > _maxRate && !bypassAntiFlood ) { // if the rate is too high, test if we are flooding
-
-					DPrint( 'probing' );
-
-					var [probTime] = yield function(callback) {
-
-						var events;
-						events = { PONG: function( command, from, server, data ) {
-							
-							if ( data.substr(0,3) == 'FLO' ) {
-
-								_api.RemoveMessageListener(events);
-								callback(data.substr(3));
-							}
-						}}
-						_api.AddMessageListener(events);
-						
-						var probeMessage = 'PING FLO'+Now()+CRLF;
-						RawDataSender( probeMessage );
-						
-						count += _requestWeight + probeMessage.length;
-//						count = 0;
-//						interval = 0;
-					}
+					DPrint( 'sync...' );
+					length += _messageOverload + 12; // PING message length
+					let [syncTime] = yield SyncWait();
+					DPrint( 'syncTime', syncTime );
 					
-					probTime = Now()-probTime;
-					DPrint( 'probTime', probTime );
-
+					if ( syncTime > 5000 && length > 0 )
+						yield AsyncSleep(5000);
 					
-					yield AsyncSleep(probTime);
-					
-					
-					if ( probTime < 1000 )
-						_maxRate *= 1.05;
-					if ( probTime > 2000 )
-						_maxRate *= 0.9;
-					DPrint( 'max', _maxRate );
 				}
-
-				RawDataSender(message);
-				OnSent && OnSent();
+				
+				RawDataSender(data);
+				while ( sentNodifyList.length )
+					sentNodifyList.shift()();
 			}
 		});
 
+		return function(message, highPriorityMessage, OnSent) {
+			
+			if ( message instanceof Array )
+				message = message.join(CRLF);
+			message += CRLF;
+			
+			OnSent = OnSent||Noop;
 
-		return function(message, bypassAntiFlood, OnSent) {
-		
-			_messageQueue.push([message instanceof Array ? message : [message], bypassAntiFlood, OnSent]);
+			if ( highPriorityMessage )
+				_messageQueue.unshift([message, highPriorityMessage, OnSent]);
+			else
+				_messageQueue.push([message, highPriorityMessage, OnSent]);
 			_messageEvent.Fire();
 		}
 	}
-
-
-	
 
 	this.hasFinished = function() !_connection;
 	this.Disconnect = function() _connection.Disconnect(); // make a Gracefully disconnect ( disconnect != close )
@@ -412,6 +394,7 @@ function ClientCore( Configurator ) {
 		
 		function OnConnected() {
 			
+			ReportNotice( 'Connection established' );
 			setData( _data.sockName, _connection.sockName );
 			setData( _data.sockPort, _connection.sockPort );
 			setData( _data.peerPort, _connection.peerPort );
@@ -453,7 +436,7 @@ function ClientCore( Configurator ) {
 				io.AddTimeout( getData(_data.serverRetryPause), TryNextServer );
 			}
 			_connection.OnConnected = OnConnected;
-			_connection.Connect();
+			_connection.Connect( getData(_data.connectTimeout) );
 			setData( _data.connectTime, IntervalNow() );
 		}
 		TryNextServer();

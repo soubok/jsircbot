@@ -26,6 +26,7 @@ function(data) {
 		'chat.eu.freenode.net:6666-6667',
 		'204.11.244.21:6666-6667',
 	]);
+	setData( data.connectTimeout, 1*SECOND );
 	setData( data.serverRetry, 2 );
 	setData( data.serverRetryPause, 0.5*SECOND );
 
@@ -57,9 +58,12 @@ function(data) {
 	setData(data.ChannelModule.joinList, ['#soubok']);
 
 // Configure anti-flood system ( in 10 seconds, we can send 5 messages OR 1456 bytes )
-	setData(data.antiflood.maxMessage, 5 ); // 5
-	setData(data.antiflood.maxBytes, 1456 ); // 1456
-	setData(data.antiflood.interval, 5*SECOND ); // 5*SECOND
+//	setData(data.antiflood.maxMessage, 5 ); // 5
+//	setData(data.antiflood.maxBytes, 1456 ); // 1456
+//	setData(data.antiflood.interval, 5*SECOND ); // 5*SECOND
+	setData(data.antiflood.maxLength, 2500 );
+	setData(data.antiflood.monitorPeriod, 40*SECOND );
+	setData(data.antiflood.messageOverload, 54 );  // TCP/IP packet overload
 
 // configure DCC
 	setData(data.DCC.maxDCCConnections, 32 );
