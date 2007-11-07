@@ -134,7 +134,8 @@ function LoadModuleList( core, moduleList ) {
 		
 	function ModuleLoaded(status, moduleConstructor, creationFunction, source) {
 	
-		core.AddModule(moduleConstructor, creationFunction, source);
+		if ( status == OK )
+			core.AddModule(moduleConstructor, creationFunction, source);
 		sem.Release();
 	}
 
