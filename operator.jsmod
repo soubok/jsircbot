@@ -133,6 +133,7 @@
 				}
 			},
 
+
 			echo: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 
 				if ( !$A.IsBotOp(from) )
@@ -143,6 +144,7 @@
 				
 				$A.Privmsg( replyTo, cmdData );
 			},
+
 
 			ip: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 
@@ -192,6 +194,7 @@
 				var nick = StrBefore(from, '!');
 				$A.OpenDCCChat( nick, function(connection) {
 					
+					var context = {};
 					var code = '';
 					connection.OnData = function(buf) {
 
@@ -201,7 +204,7 @@
 							var res;
 							try {
 
-								res = eval( code );
+								res = eval( code, context );
 							} catch(ex) {
 
 								res = ex;
