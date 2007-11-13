@@ -287,7 +287,7 @@ function ClientCore( Configurator ) {
 				var _messageOverload = getData(_data.antiflood.messageOverload);
 				length = Math.floor(length * (interval < _monitorPeriod ? 1 - interval / _monitorPeriod : 0)) + _messageOverload + data.length;
 
-				DPrint( 'length', length+'Bytes' );
+//				DPrint( 'length', length+'Bytes' );
 				if ( length > getData(_data.antiflood.maxLength) && !highPriorityMessage ) { // if the rate is too high, test if we are flooding
 
 					DPrint( 'sync...' );
