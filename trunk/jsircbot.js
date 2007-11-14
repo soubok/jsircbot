@@ -452,6 +452,8 @@ function ClientCore( Configurator ) {
 	_api.RemoveModuleListener = _moduleListener.Remove;
 	_api.ToggleModuleListener = _moduleListener.Toggle;
 	_api.FireModuleListener = _moduleListener.Fire;
+	
+	
 
 	this.AddModule = function( moduleConstructor, creationFunction, source ) {
 	
@@ -493,6 +495,21 @@ function ClientCore( Configurator ) {
 		_state.Enter(module.name); // don't move this line
 	}
 	
+/*	
+	this.LoadModuleFromURL = function( moduleURL ) {
+
+		function ModuleLoaded(status, moduleConstructor, creationFunction, source) {
+
+			if ( status == OK )
+				core.AddModule(moduleConstructor, creationFunction, source);
+		}
+	
+		var moduleLoadRetry = getData(core.data.moduleLoadRetry);
+		var moduleLoadRetryPause = getData(core.data.moduleLoadRetryPause);
+	
+		LoadModuleFromURL( moduleURL, moduleLoadRetry, moduleLoadRetryPause, ModuleLoaded );
+	}
+*/
 	
 	this.RemoveModule = function( module ) {
 		

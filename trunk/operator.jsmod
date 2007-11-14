@@ -107,6 +107,42 @@
 			},
 
 
+			load: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+				
+				if ( cmdData ) {
+				
+				
+				}
+				
+
+			},
+
+
+			unload: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+			
+				if ( !$A.IsBotOp(from) )
+					return;
+				var replyTo = to[0] == '#' ? to : StrBefore(from, '!');
+				var moduleNameList = [ m.name for each ( m in core.ModuleList() ) ];
+
+				if ( cmdData ) {
+				
+					var matchName = new RegExp(cmdData, 'i');
+					for each ( var moduleName in moduleNameList )
+						if ( matchName(moduleName) ) {
+						
+							$A && $A.Privmsg && $A.Privmsg( replyTo, 'Unloading '+moduleName );
+							for each ( mod in core.ModulesByName(moduleName) )
+								core.RemoveModule(mod);
+						}
+				} else {
+
+					$A.Privmsg && $A.Privmsg( replyTo, 'list: '+moduleNameList.join('  ') );
+				}
+			
+			},
+
+
 			reload: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 
 				if ( !$A.IsBotOp(from) )
@@ -123,7 +159,6 @@
 						if ( matchName(moduleName) ) {
 						
 							$A && $A.Privmsg && $A.Privmsg( replyTo, 'Reloading '+moduleName );
-							
 							for each ( mod in core.ModulesByName(moduleName) )
 								core.ReloadModule(mod);
 						}
