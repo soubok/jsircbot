@@ -72,7 +72,7 @@
 					return;
 				var nick = StrBefore(from, '!');
 				var replyTo = to[0] == '#' ? to : nick;
-				$A.Privmsg( replyTo, 'Help: !invite [<nick>] || !server' );
+				$A.Privmsg( replyTo, 'Help: !invite [<nick>]' );
 			},
 			
 			
