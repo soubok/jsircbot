@@ -51,6 +51,7 @@ ENUM({
 	NOTFOUND:undefined,
 	BADREQUEST:undefined,
 	BADRESPONSE:undefined,
+	EMPTYRESPONSE:undefined,
 	UNAVAILABLE:undefined,
 	UNREACHABLE:undefined,
 	NOSUCHMETHOD:undefined
