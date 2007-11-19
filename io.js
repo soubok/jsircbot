@@ -78,7 +78,7 @@ var io = new function() {
 	this.Process = function( endPredicate ) {
 		
 		while ( !endPredicate() )
-			Poll(_descriptorList, Math.min(_timeout.Process(), 500));
+			Poll(_descriptorList, Math.min(_timeout.Process(), 100));
 	}
 	
 	this.Close = function() {
@@ -125,7 +125,7 @@ function TryBindSocket( Socket, portRange, ip ) {
 ///////////////////////////////////////////////////////
 
 
-function UDPGet( host, port, data, timeout, OnResponse ) {
+function UDPGet( host, port, data, timeout, OnResponse ) { // OnResponse( status, data, time )
 
 	var timeoutId;
 	var time = IntervalNow();
@@ -202,22 +202,21 @@ function TCPGet( host, port, data, timeout, OnResponse ) {
 
 	var buffer = new Buffer();
 
-	socket.writable = function() {
+	socket.writable = function(s) {
 	
-		data = socket.Write(data);
-		data || delete socket.writable;
+		data = s.Write(data);
+		data || delete s.writable;
 	}
 
-	socket.readable = function() {
+	socket.readable = function(s) {
 
-		var tmp = socket.Read(8192);
-		if ( tmp.length )
-			buffer.Write(tmp);
+		if ( s.available )
+			buffer.Write(s.Read());
 		else {
 		
-			socket.Close();
+			s.Close();
 			io.RemoveTimeout(timeoutId);
-			io.RemoveDescriptor(socket);
+			io.RemoveDescriptor(s);
 			OnResponse && OnResponse.call(OnResponse, OK, buffer, IntervalNow() - time);
 		}
 	}
@@ -268,7 +267,13 @@ function HttpRequest( url, data, timeout, OnResponse ) { // OnResponse(status, s
 			OnResponse && OnResponse.call(OnResponse, status);
 			return;
 		}
-			
+		
+		if ( !response.length ) {
+		
+			OnResponse && OnResponse.call(OnResponse, EMPTYRESPONSE);
+			return;
+		}
+
 		try {
 
 //			var [httpVersion, statusCode, reasonPhrase] = CHK(response.ReadUntil(CRLF)).split(SPC, 3);
@@ -328,9 +333,11 @@ function TCPConnection( host, port ) {
 	
 		_socket.readable = function(s) {
 
-			var buf = s.Read();
-			if ( buf.length == 0 ) {
-
+			if ( s.available ) {
+			
+				_this.OnData(s.Read());
+			} else {
+			
 				delete s.readable;
 
 				delete _this.sockPort;
@@ -339,8 +346,7 @@ function TCPConnection( host, port ) {
 				delete _this.peerName;
 				
 				_this.OnDisconnected(true);
-			}	else
-				_this.OnData(buf);
+			}
 		}
 
 		io.AddDescriptor(_socket);
