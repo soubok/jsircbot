@@ -46,13 +46,16 @@ var io = new function() {
 			var now = IntervalNow();
 			if ( _min <= now ) {
 				
+				var tmpList = {}, i = 0;
 				for ( let [date, fct] in Iterator(_tlist) )
-				
 					if ( date <= now ) {
 						
 						delete _tlist[date];
-						void fct.call(fct); // 'this' will be the function itself
+						tmpList[i++] = fct;
 					}
+				
+				for each ( var fct in tmpList )
+					void fct.call(fct); // 'this' will be the function itself
 					
 				_min = Infinity;
 				for ( let date in Iterator(_tlist, true) )
@@ -78,7 +81,7 @@ var io = new function() {
 	this.Process = function( endPredicate ) {
 		
 		while ( !endPredicate() )
-			Poll(_descriptorList, Math.min(_timeout.Process(), 100));
+			Poll(_descriptorList, Math.min(_timeout.Process(), 500));
 	}
 	
 	this.Close = function() {
@@ -203,9 +206,19 @@ function TCPGet( host, port, data, timeout, OnResponse ) {
 	var buffer = new Buffer();
 
 	socket.writable = function(s) {
-	
-		data = s.Write(data);
-		data || delete s.writable;
+
+		delete s.writable;
+		try {
+		
+			s.Write(data);
+		} catch(ex if ex instanceof IoError) {
+
+			s.Close();
+			io.RemoveTimeout(timeoutId);
+			io.RemoveDescriptor(s);
+			
+			OnResponse && OnResponse.call(OnResponse, UNREACHABLE);
+		}	
 	}
 
 	socket.readable = function(s) {
