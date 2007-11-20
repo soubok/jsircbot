@@ -22,40 +22,28 @@ Exec('io.js');
 DBG = false;
 
 
-function DateString() let ( d = new Date ) d.getFullYear() + StringPad(d.getMonth()+1,2,'0') + StringPad(d.getDate(),2,'0');
-var thisSession = 'log_'+(Now())+'.log'; // used to create ONE log file by session
-log.AddFilter( MakeLogFile(function() thisSession, false), LOG_ALL );
+var obj = {};
+var c = 0, i;
+while ( !endSignal ) {
 
-var count = 0;
-
-try {
-
-	(function() {
-		
-		Print( count, '\n' );
-		io.AddTimeout( 1000, arguments.callee );
-	})();
-
-	(function() {
-		
-		count++;
-		HttpRequest( 'http://127.0.0.1:8080/', undefined, 200, function(status, statusCode, reasonPhrase, headers, response) {
-
-			ReportNotice( 'HttpRequest: '+ status );
-		});
-		
-		UDPGet( '127.0.0.1', 5678, 'abcdefghi', 10, function(status, data, time) {
-
-			ReportNotice( 'UDPGet: '+ status );
-		});
-		
-		io.AddTimeout( 1, arguments.callee );
-	})();
-
-
-	io.Process( function() { CollectGarbage(); return endSignal } );
-
-} catch( ex if ex instanceof IoError ) {
-
-	ReportFailure( 'IoError: '+ ex.text + ' ('+ex.os+')' );
+	for ( i = 0; i < 1000000; i++ ) {
+		obj[1] = 2;
+		delete obj[1];
+	}
+	
+	Print('*\n');
+	Sleep(1000);
+	CollectGarbage();
 }
+
+Halt();
+
+
+
+(function() {
+
+	io.AddTimeout( 0, arguments.callee );
+})();
+
+io.Process( function() { CollectGarbage(); return endSignal } );
+
