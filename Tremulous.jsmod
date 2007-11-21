@@ -252,7 +252,10 @@
 				if ( status != OK ) {
 					
 					ReportError( 'PlayerScanner failed: '+status );
-					delete data.serverStatus;
+					
+					//delete data.serverStatus; // avoid delete a property to avoid memory leaks ( bz404755 )
+					data.serverStatus = undefined;
+					
 					if ( data.aliveDate + 1*HOUR < Now() ) // remove inactive servers
 						delete _tremulousServerList[server];
 					continue;
