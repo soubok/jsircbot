@@ -17,7 +17,7 @@ var io = new function() {
 /* need to be fix*/
 	var _timeout = new function() {
 
-		var _tlist = NewDataObj();
+		var _tlist = {};
 		var _min = Infinity;
 		
 		this.Add = function(time, func) {
@@ -46,15 +46,16 @@ var io = new function() {
 			var now = IntervalNow();
 			if ( _min <= now ) {
 				
-				var tmpList = {}, i = 0;
+				var nextList = {}, expiredList = {}, i = 0;
 				for ( let [date, fct] in Iterator(_tlist) )
-					if ( date <= now ) {
-						
-						delete _tlist[date];
-						tmpList[i++] = fct;
-					}
+					if ( date <= now )
+						expiredList[i++] = fct;
+					else
+						nextList[date] = fct; // copy to avoid memory leaks ( bz404755 )
 				
-				for each ( var fct in tmpList )
+				_tlist = nextList;
+
+				for each ( var fct in expiredList )
 					void fct.call(fct); // 'this' will be the function itself
 					
 				_min = Infinity;
@@ -80,8 +81,11 @@ var io = new function() {
 
 	this.Process = function( endPredicate ) {
 		
-		while ( !endPredicate() )
+		while ( !endPredicate() ) {
+		
 			Poll(_descriptorList, Math.min(_timeout.Process(), 500));
+			_descriptorList = _descriptorList.slice();  // copy to avoid memory leaks ( bz404755 )
+		}
 	}
 	
 	this.Close = function() {
