@@ -498,15 +498,15 @@ function ClientCore( Configurator ) {
 /*	
 	this.LoadModuleFromURL = function( moduleURL ) {
 
+	
+		var moduleLoadRetry = getData(core.data.moduleLoadRetry);
+		var moduleLoadRetryPause = getData(core.data.moduleLoadRetryPause);
+
 		function ModuleLoaded(status, moduleConstructor, creationFunction, source) {
 
 			if ( status == OK )
 				core.AddModule(moduleConstructor, creationFunction, source);
 		}
-	
-		var moduleLoadRetry = getData(core.data.moduleLoadRetry);
-		var moduleLoadRetryPause = getData(core.data.moduleLoadRetryPause);
-	
 		LoadModuleFromURL( moduleURL, moduleLoadRetry, moduleLoadRetryPause, ModuleLoaded );
 	}
 */
@@ -534,6 +534,7 @@ function ClientCore( Configurator ) {
 
 		Clear(module); // jsstd
 	}
+	
 	
 	this.ReloadModule = function( module ) {
 		
