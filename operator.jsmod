@@ -110,11 +110,7 @@
 			load: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 				
 				if ( cmdData ) {
-				
-				
 				}
-				
-
 			},
 
 
@@ -227,28 +223,46 @@
 					return;
 
 				var nick = StrBefore(from, '!');
-				$A.OpenDCCChat( nick, function(connection) {
-					
+				var replyTo = to[0] == '#' ? to : nick;
+				
+				if ( cmdData ) {
+
 					var context = {};
-					var code = '';
-					connection.OnData = function(buf) {
+					try {
 
-						code += buf.replace(/\r?\n?$/,''); // remove trailing CR LF
-						if ( IsStatementValid(code) ) {
-							
-							var res;
-							try {
+						res = eval( cmdData, context );
+					} catch(ex) {
 
-								res = eval( code, context );
-							} catch(ex) {
-
-								res = ex;
-							}
-							connection.Write(res + LF);
-							code = '';
-						}
+						res = ex;
 					}
-				});
+					$A.Privmsg( replyTo, res );				
+
+				
+				} else {
+				
+					$A.OpenDCCChat( nick, function(connection) {
+
+						var context = {};
+						var code = '';
+						connection.OnData = function(buf) {
+
+							code += buf.replace(/\r?\n?$/,''); // remove trailing CR LF
+							if ( IsStatementValid(code) ) {
+
+								var res;
+								try {
+
+									res = eval( code, context );
+								} catch(ex) {
+
+									res = ex;
+								}
+								connection.Write(res + LF);
+								code = '';
+							}
+						}
+					});
+				}
 			},
 
 

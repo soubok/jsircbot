@@ -94,6 +94,9 @@ var io = new function() {
 			d.Close();
 		return _descriptorList.splice(0).length; // empty the descriptor list and returns the count of remaining open descriptor
 	}
+	
+	INSPECT.push(function() 'DESCRIPTORS '+_descriptorList.length+':'+[desc.peerPort+':'+desc.peerName for each ( desc in _descriptorList )].join(' ')+' ');
+	
 }
 
 /////////////////////////////////////////////////////// Assync function helpers
