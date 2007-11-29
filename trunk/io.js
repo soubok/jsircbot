@@ -45,7 +45,8 @@ var io = new function() {
 			
 			var now = IntervalNow();
 			if ( _min <= now ) {
-				
+
+/* memory leak has been fixed: https://bugzilla.mozilla.org/show_bug.cgi?id=404755
 				var nextList = {}, expiredList = {}, i = 0;
 				for ( let [date, fct] in Iterator(_tlist) )
 					if ( date <= now )
@@ -54,6 +55,15 @@ var io = new function() {
 						nextList[date] = fct; // copy to avoid memory leaks ( bz404755 )
 				
 				_tlist = nextList;
+*/
+
+				var expiredList = {}, i = 0;
+				for ( let [date, fct] in Iterator(_tlist) )
+					if ( date <= now ) {
+						
+						delete _tlist[date];
+						expiredList[i++] = fct;
+					}
 
 				for each ( var fct in expiredList )
 					void fct.call(fct); // 'this' will be the function itself
@@ -84,7 +94,7 @@ var io = new function() {
 		while ( !endPredicate() ) {
 		
 			Poll(_descriptorList, Math.min(_timeout.Process(), 500));
-			_descriptorList = _descriptorList.slice();  // copy to avoid memory leaks ( bz404755 )
+//			_descriptorList = _descriptorList.slice();  // copy to avoid memory leaks ( bz404755 )
 		}
 	}
 	
