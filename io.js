@@ -283,12 +283,14 @@ function HttpRequest( url, data, timeout, OnResponse ) { // OnResponse(status, s
 		headers['Content-Length'] = body.length;
 	}
 
+	log.Write( LOG_HTTP, url +' ====' + statusLine + CRLF + MakeHeaders(headers) + CRLF + body+'====' );
+	
 	TCPGet( ud.host, ud.port||80, statusLine + CRLF + MakeHeaders(headers) + CRLF + body, timeout, function( status, response ) {
 		
 		if ( DBG && status == OK ) {
 
 			let buf = response.Read(300);
-			log.Write( LOG_HTTP, url+' :\n'+buf+'  ...' );
+			log.Write( LOG_HTTP, buf+'  ...' );
 			response.Unread(buf);
 		}
 

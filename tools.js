@@ -413,7 +413,7 @@ var log = new function(data) {
 	this.Write = function(type /*, data, ...*/) {
 
 // (TBD) fix LOG_ERROR <TypeError: can't convert Array.slice(arguments, 1).join to string (tools.js:414)>
-		var data = FormatedTime()+' '+String(type)+' ('+gcByte+') <'+Array.slice(arguments,1).join('> <')+'>';
+		var data = FormatedTime()+' '+String(type)+' <'+Array.slice(arguments,1).join('> <')+'>'; // ('+gcByte+') 
 		for each ( let [output, typeList] in _outputList )
 			typeList & type && void output(data);
 	}
