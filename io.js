@@ -45,7 +45,6 @@ var io = new function() {
 			
 			var now = IntervalNow();
 			if ( _min <= now ) {
-
 /* memory leak has been fixed: https://bugzilla.mozilla.org/show_bug.cgi?id=404755
 				var nextList = {}, expiredList = {}, i = 0;
 				for ( let [date, fct] in Iterator(_tlist) )
@@ -328,19 +327,7 @@ function HttpRequest( url, data, timeout, OnResponse ) { // OnResponse(status, s
 
 ///////////////////////////////////////////////////////
 
-
-function ProxyHttpConnection( proxyHost, proxyPort ) {
-	this.Connect = function( host, port, OnConnected, OnData, OnClose, OnFailed ) {
-	}
-	this.Disconnect = function() {
-	}
-	this.Write = function(data) {
-	}
-}
-
-///////////////////////////////////////////////////////
-
-function TCPConnection( host, port ) {
+function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous socket )
 	
 	var _this = this;
 	this.OnConnected = Noop;
