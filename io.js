@@ -183,12 +183,13 @@ function UDPGet( host, port, data, timeout, OnResponse ) { // OnResponse( status
 		OnResponse && OnResponse.call(OnResponse, status, data, IntervalNow() - time);
 	}
 	
-	
+/* (TBD) manage UDP errors and UDP exceptions
 	socket.error =
 	socket.exception = function() {
 	
 		DPrint( 'UDP socket error or exception' );
 	}
+*/
 
 	io.AddDescriptor(socket);
 	timeoutId = io.AddTimeout( timeout, function() {
