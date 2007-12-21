@@ -230,7 +230,7 @@
 					var res, context = {};
 					try {
 
-						res = eval( cmdData, context ).split('\n');
+						res = String(eval( cmdData, context )).split('\n');
 					} catch(ex) {
 
 						res = ex;
