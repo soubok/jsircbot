@@ -227,15 +227,15 @@
 				
 				if ( cmdData ) {
 
-					var context = {};
+					var res, context = {};
 					try {
 
-						res = eval( cmdData, context );
+						res = eval( cmdData, context ).split('\n');
 					} catch(ex) {
 
 						res = ex;
 					}
-					$A.Privmsg( replyTo, res.split('\n') );
+					$A.Privmsg( replyTo, res );
 
 				
 				} else {
