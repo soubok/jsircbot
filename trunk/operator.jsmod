@@ -235,7 +235,7 @@
 
 						res = ex;
 					}
-					$A.Privmsg( replyTo, res );				
+					$A.Privmsg( replyTo, res.split('\n') );
 
 				
 				} else {
