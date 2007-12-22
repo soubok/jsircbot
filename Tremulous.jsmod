@@ -300,7 +300,8 @@
 					if ( _scanEndTime > _scanStartTime )
 						info += 'finished '+((Now()-_scanEndTime)/1000).toFixed(2);
 					else
-						info += 'started '+((Now()-_scanStartTime)/1000).toFixed(2);
+						info += ' Scan in progress...';
+//						info += 'started '+((Now()-_scanStartTime)/1000).toFixed(2);
 					info += ' seconds ago';
 					
 					$A.Privmsg( replyTo, info );
