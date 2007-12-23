@@ -295,14 +295,12 @@
 				if ( !cmdData ) {
 
 					let info = 'Currently, there are '+_tremPlayersCount+' tremulous players spread on '+_tremServerCount+' servers.';
-					
-					info += ' Scan ';
+
 					if ( _scanEndTime > _scanStartTime )
-						info += 'finished '+((Now()-_scanEndTime)/1000).toFixed(2);
+						info += ' scan finished '+((Now()-_scanEndTime)/1000).toFixed(2)+' seconds ago';
 					else
 						info += ' Scan in progress...';
 //						info += 'started '+((Now()-_scanStartTime)/1000).toFixed(2);
-					info += ' seconds ago';
 					
 					$A.Privmsg( replyTo, info );
 					return;
