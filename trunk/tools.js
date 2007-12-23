@@ -579,7 +579,7 @@ function StringReplacer(conversionObject) function(s) s.replace(new RegExp([k.re
 function Switch(i) arguments[++i];
 
 
-function Match(v) Array.indexOf(arguments,v,1)-1;
+function Match(v) Array.indexOf(arguments,v,1) > 0;
 
 
 function ExpandStringRanges(rangesStr) {
