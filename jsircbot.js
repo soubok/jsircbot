@@ -48,7 +48,7 @@ function MakeModuleFromHttp( url, retry, retryPause, callback ) {
 			if ( status == OK && statusCode == 200 )
 				break;
 
-			if ( --retry <= 0 || Match(status, BADREQUEST, NOTFOUND, ERROR) || status == OK && statusCode > 500 ) {
+			if ( --retry <= 0 || Match(status, BADREQUEST, NOTFOUND, ERROR) > 0 || status == OK && statusCode > 500 ) {
 
 				ReportError('Failed to load the module from '+url+' (status:'+String(status)+', reason:'+reasonPhrase+').');
 				callback(status);
