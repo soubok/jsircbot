@@ -222,9 +222,8 @@
 
 			ReportNotice( 'QueryMasterServer: '+serverList.length+' servers found');
 			
-			for each ( var server in serverList) {
-				
-				
+			for each (var server in serverList) {
+
 				var data = _tremulousServerList[server] || (_tremulousServerList[server] = NewDataObj()); // We do not want existing servers to be overwritten
 				data.masterDate = Now();
 			}
@@ -255,7 +254,7 @@
 					
 					delete data.serverStatus; // clear player data from the server
 					
-					if ( data.aliveDate < Now() - 1*HOUR ) // remove inactive servers
+					if ( !(data.aliveDate < Now()-1*HOUR) ) // remove inactive servers (note that undefined>123 and undefined<123 are false)
 						delete _tremulousServerList[server];
 					continue;
 				}
