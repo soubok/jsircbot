@@ -254,8 +254,11 @@
 					
 					delete data.serverStatus; // clear player data from the server
 					
-					if ( !(data.aliveDate < Now()-1*HOUR) ) // remove inactive servers (note that undefined>123 and undefined<123 are false)
+					if ( !(data.aliveDate < Now() - 1*HOUR) ) { // remove inactive servers (note that undefined>123 and undefined<123 are false)
+						
+						ReportError( 'PlayerScanner: removing inactive server '+server' );
 						delete _tremulousServerList[server];
+					}
 					continue;
 				}
 				

@@ -61,7 +61,7 @@ ENUM({
 
 /////////////////////////////////////////////////////// Date and Time
 
-function Now() Date.now(); // returns the current date in ms
+function Now = Date.now; // returns the current date in ms
 
 const MILLISECOND = 1;
 const SECOND = 1000*MILLISECOND;
