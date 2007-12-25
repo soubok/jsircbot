@@ -256,7 +256,7 @@
 					
 					if ( !(data.aliveDate < Now() - 1*HOUR) ) { // remove inactive servers (note that undefined>123 and undefined<123 are false)
 						
-						ReportError( 'PlayerScanner: removing inactive server '+server' );
+						ReportError( 'PlayerScanner: removing inactive server '+server );
 						delete _tremulousServerList[server];
 					}
 					continue;
