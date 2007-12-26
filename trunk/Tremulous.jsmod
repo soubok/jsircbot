@@ -270,13 +270,13 @@
 
 			_scanEndTime = Now();
 
-			ReportNotice( 'PlayerScanner: '+_tremPlayersCount+' players found in '+((_scanEndTime-_scanStartTime)/1000).toFixed(2)+' seconds.' );
+			ReportNotice( 'PlayerScanner: '+_tremPlayersCount+' players on '+_tremServerCount+' servers were found in '+((_scanEndTime-_scanStartTime)/1000).toFixed(2)+' seconds.' );
 
 			yield AsyncSleep( 3*MINUTE );
 		}
 	});
 
-	var _lastQc;	
+	var _lastQc; // anti-flood
 
 	this.moduleListener = {
 
