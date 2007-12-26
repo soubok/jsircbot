@@ -109,7 +109,13 @@
 
 			load: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 				
+				if ( !$A.IsBotOp(from) )
+					return;
+				var replyTo = to[0] == '#' ? to : StrBefore(from, '!');
+
 				if ( cmdData ) {
+					
+					core.LoadModule(cmdData);
 				}
 			},
 
