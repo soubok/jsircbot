@@ -495,9 +495,8 @@ function ClientCore( Configurator ) {
 		_state.Enter(module.name); // don't move this line
 	}
 	
-/*	
-	this.LoadModuleFromURL = function( moduleURL ) {
 
+	this.LoadModule = function( moduleURL ) {
 	
 		var moduleLoadRetry = getData(core.data.moduleLoadRetry);
 		var moduleLoadRetryPause = getData(core.data.moduleLoadRetryPause);
@@ -509,7 +508,7 @@ function ClientCore( Configurator ) {
 		}
 		LoadModuleFromURL( moduleURL, moduleLoadRetry, moduleLoadRetryPause, ModuleLoaded );
 	}
-*/
+
 	
 	this.RemoveModule = function( module ) {
 		
