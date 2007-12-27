@@ -185,16 +185,52 @@
 
 
 
+	function TremulousServerStatusAnnunceProcedure( channel, tremulousServer, displayInterval ) {
+		
+		var prevDisplayedStatusDate = 0;
+		for (;;) {
+
+			var [status, result] = yield function(callback) TremulousServerStatus( tremulousServer, callback );
+			if ( status != OK ) {
+			
+				yield AsyncSleep( 2*MINUTE );
+				continue;
+			}
+
+			if ( result.playerList.length < 3 || result.playerList.length > 10 ) {
+				
+				yield AsyncSleep( 1*MINUTE );
+				continue;
+			}
+
+			if ( Now() - displayInterval > prevDisplayedStatusDate ) {
+
+				var nicePlayerList = [ '\x030,1'+TremulousTextToIrc(player)+'\x0F' for each ( player in result.playerList ) ];
+				$A.Privmsg( channel, TremulousTextToIrc(result.info.sv_hostname) + '\x0F is running ' + result.info.mapname + ' with ' + result.playerList.length + ' player(s)' );
+				while ( nicePlayerList.length )
+					$A.Privmsg( Channel, nicePlayerList.splice(0, 8).join('  ') ); // avoid long lines
+				prevDisplayedStatusDate = Now();
+			}
+
+			yield AsyncSleep( 1*MINUTE );
+		}
+	}
+
+
+
 // exported api
 	
 	this.moduleApi = {
 	
-		TremulousServerCommand:TremulousServerCommand,
-		TremulousServerStatus:TremulousServerStatus,
-		TremulousServerRconStatus:TremulousServerRconStatus,
-		TremulousMasterGetServerList:TremulousMasterGetServerList,
-		TremulousTextStrip:TremulousTextStrip,
-		TremulousTextToIrc:TremulousTextToIrc
+		TremulousServerCommand: TremulousServerCommand,
+		TremulousServerStatus: TremulousServerStatus,
+		TremulousServerRconStatus: TremulousServerRconStatus,
+		TremulousMasterGetServerList: TremulousMasterGetServerList,
+		TremulousTextStrip: TremulousTextStrip,
+		TremulousTextToIrc: TremulousTextToIrc,
+		
+		TremulousServerStatusAnnunceProcedure: TremulousServerStatusAnnunceProcedure
+		
 	}
 	
 
