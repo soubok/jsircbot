@@ -208,7 +208,7 @@
 				var nicePlayerList = [ '\x030,1'+TremulousTextToIrc(player)+'\x0F' for each ( player in result.playerList ) ];
 				$A.Privmsg( channel, TremulousTextToIrc(result.info.sv_hostname) + '\x0F is running ' + result.info.mapname + ' with ' + result.playerList.length + ' player(s)' );
 				while ( nicePlayerList.length )
-					$A.Privmsg( Channel, nicePlayerList.splice(0, 8).join('  ') ); // avoid long lines
+					$A.Privmsg( channel, nicePlayerList.splice(0, 8).join('  ') ); // avoid long lines
 				prevDisplayedStatusDate = Now();
 			}
 
