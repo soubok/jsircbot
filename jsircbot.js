@@ -290,10 +290,10 @@ function ClientCore( Configurator ) {
 //				DPrint( 'length', length+'Bytes' );
 				if ( length > getData(_data.antiflood.maxLength) && !highPriorityMessage ) { // if the rate is too high, test if we are flooding
 
-					DPrint( 'sync...' );
+//					DPrint( 'sync...' );
 					length += _messageOverload + 12; // PING message length
 					let [syncTime] = yield SyncWait();
-					DPrint( 'syncTime', syncTime );
+//					DPrint( 'syncTime', syncTime );
 					
 					if ( syncTime > 5000 && length > 0 )
 						yield AsyncSleep(5000);
