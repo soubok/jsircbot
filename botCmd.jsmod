@@ -61,7 +61,6 @@ function RateMeter(amountLimit, monitorPeriod) {
 	var _commandMonitor = new RateMeter(10,10);
 	var _userMonitor = new RateMeter(5,5);
 
-
 	this.messageListener = {
 	
 		PRIVMSG: function( command, from, to, msg ) {
