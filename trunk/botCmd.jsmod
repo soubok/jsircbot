@@ -39,6 +39,8 @@ function RateMeter() {
 	var _commandMonitor = new RateMeter();
 	var _userMonitor = new RateMeter();
 
+	var _overallMonitor = new RateMeter();
+
 	this.messageListener = {
 	
 		PRIVMSG: function( command, from, to, msg ) {
@@ -58,17 +60,23 @@ function RateMeter() {
 				cmdName = msg.substr(1, sp-1);
 				cmdData = msg.substr(sp+1);
 			}
-			
+
 			if ( !$A.IsBotOp || !$A.IsBotOp(from) ) { // bot operators can flood
 
-				if ( _userMonitor.Add(from, 1, 3000 ) > 3 ) // user flood protection
-					return $A.Notice(StrBefore(from, '!'), 'Antiflood: You are ignored for a while, try again later.');
+				var nick = StrBefore(from, '!');
+//				var replyTo = to[0] == '#' ? to : nick;
+			
+				if ( _userMonitor.Add(from, 1, 10000 ) > 3 ) // user flood protection
+					return $A.Notice(nick, 'Antiflood: You are ignored for a while, try again later.');
 
-				if ( _channelMonitor.Add(to, 1, 10000) > 10 ) // channel flood protection
-					return $A.Notice(StrBefore(from, '!'), 'Antiflood: Channel is ignored for a while, try again later.');
+				if ( _channelMonitor.Add(to, 1, 10000) > 10) // channel flood protection
+					return $A.Notice(nick, 'Antiflood: Channel is ignored for a while, try again later.');
 
-				if ( _commandMonitor.Add(cmdName, 1, 15000) > 15 ) // command flood protection
-					return $A.Notice(StrBefore(from, '!'), 'Antiflood: Command unavailable for a while.');
+				if ( _commandMonitor.Add(cmdName, 1, 10000) > 10 ) // command flood protection
+					return $A.Notice(nick, 'Antiflood: Command unavailable for a while.');
+
+//				if ( _overallMonitor.Add('', 1, 30000 ) > 15 )
+//					return $A.Notice(StrBefore(from, '!'), 'Antiflood: Please, try again later.');
 			}
 			
 			$A.FireModuleListener( 'botcmd', cmdName.toLowerCase(), cmdData, command, from, to, msg );
