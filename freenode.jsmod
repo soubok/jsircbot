@@ -246,7 +246,7 @@
 				$A.Privmsg( $MD.nickServ, 'LINK '+$MD.mainNick+' '+$MD.password );
 			}
 		}
-	}
+	]
 	
 	
 })
