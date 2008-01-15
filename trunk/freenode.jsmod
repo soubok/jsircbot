@@ -243,9 +243,9 @@
 				if ( !password )
 					return;
 
-				$A.Privmsg( getData($MD.nickServ), 'IDENTIFY '+password;
+				$A.Privmsg( getData($MD.nickServ), 'IDENTIFY '+password );
 				$A.Privmsg( getData($MD.nickServ), 'REGISTER '+password );
-				$A.Privmsg( getData($MD.nickServ), 'LINK '+$MD.mainNick+' '+password );
+				$A.Privmsg( getData($MD.nickServ), 'LINK '+getData($MD.mainNick)+' '+password );
 			}
 		}
 	] // stateListener
