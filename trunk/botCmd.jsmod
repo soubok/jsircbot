@@ -13,10 +13,10 @@
  * ***** END LICENSE BLOCK ***** */
 
 
-function RateMeter(amountLimit, monitorPeriod) {
+function RateMeter() {
 
     var _keyList = {};
-    this.Add = function(key, amount) {
+    this.Add = function(key, amount, monitorPeriod) {
 
     	var now = Now();
     	for ( var k in Iterator(_keyList, true) ) // clean the list
@@ -26,7 +26,7 @@ function RateMeter(amountLimit, monitorPeriod) {
    		var interval = now - data.time;
    		data.amount = data.amount * (interval < monitorPeriod ? 1 - interval / monitorPeriod : 0) + amount;
    		data.time = now;
-		return data.amount <= amountLimit;
+		return data.amount;
     }
 }
 
@@ -35,9 +35,9 @@ function RateMeter(amountLimit, monitorPeriod) {
 	
 	this.name = this.constructor.name;
 	
-	var _channelMonitor = new RateMeter(15,15000); // '15:15'.split(':')
-	var _commandMonitor = new RateMeter(10,10000);
-	var _userMonitor = new RateMeter(3,3000);
+	var _channelMonitor = new RateMeter();
+	var _commandMonitor = new RateMeter();
+	var _userMonitor = new RateMeter();
 
 	this.messageListener = {
 	
@@ -61,13 +61,13 @@ function RateMeter(amountLimit, monitorPeriod) {
 			
 			if ( !$A.IsBotOp || !$A.IsBotOp(from) ) { // bot operators can flood
 
-				if ( !_userMonitor.Add(from, 1) ) // user flood protection
+				if ( _userMonitor.Add(from, 1, 3000 ) > 3 ) // user flood protection
 					return $A.Notice(StrBefore(from, '!'), 'Antiflood: You are ignored for a while, try again later.');
 
-				if ( !_channelMonitor.Add(to, 1) ) // channel flood protection
+				if ( _channelMonitor.Add(to, 1, 10000) > 10 ) // channel flood protection
 					return $A.Notice(StrBefore(from, '!'), 'Antiflood: Channel is ignored for a while, try again later.');
 
-				if ( !_commandMonitor.Add(cmdName, 1) ) // command flood protection
+				if ( _commandMonitor.Add(cmdName, 1, 15000) > 15 ) // command flood protection
 					return $A.Notice(StrBefore(from, '!'), 'Antiflood: Command unavailable for a while.');
 			}
 			
