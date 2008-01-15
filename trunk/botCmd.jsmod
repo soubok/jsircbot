@@ -14,42 +14,20 @@
 
 
 function RateMeter(amountLimit, monitorPeriod) {
-	
-	var _keyList = {};
-	
-	// [TBD] cleanup the list !!
-		
-	this.Add = function(key, amount) {
-	
-		var data = _keyList[key];
-		if ( data ) {
-			
-			var interval = Now() - data.time;
-			data.amount = Math.floor(data.amount * (interval < monitorPeriod ? 1 - interval / monitorPeriod : 0)) + amount;
-			
-			if ( data.amount == 0 ) {
 
-				delete _keyList[key];
-				return true;
-			}
+    var _keyList = {};
+    this.Add = function(key, amount) {
 
-			data.time = Now();
-			
-			if ( data.amount > amountLimit )
-				return false;
-			else
-				return true;
-
-		} else {
-
-			_keyList[key] = { time:Now(), amount:amount };
-			
-			if ( amount > amountLimit )
-				return false;
-			else
-				return true;
-		}
-	}
+    	var now = Now();
+    	for ( var k in Iterator(_keyList, true) ) // clean the list
+			if ( now - _keyList[k].time > monitorPeriod )
+				delete _keyList[k];
+        var data = _keyList[key] || (_keyList[key] = { time:0, amount:0 });
+   		var interval = now - data.time;
+   		data.amount = data.amount * (interval < monitorPeriod ? 1 - interval / monitorPeriod : 0) + amount;
+   		data.time = now;
+		return data.amount <= amountLimit;
+    }
 }
 
 
@@ -57,7 +35,7 @@ function RateMeter(amountLimit, monitorPeriod) {
 	
 	this.name = this.constructor.name;
 	
-	var _channelMonitor = new RateMeter(15,15);
+	var _channelMonitor = new RateMeter(15,15); // '15:15'.split(':')
 	var _commandMonitor = new RateMeter(10,10);
 	var _userMonitor = new RateMeter(5,5);
 
@@ -82,7 +60,7 @@ function RateMeter(amountLimit, monitorPeriod) {
 				cmdData = msg.substr(sp+1);
 			}
 			
-			if ( $A.IsBotOp && !$A.IsBotOp(from) ) {
+			if ( $A.IsBotOp && !$A.IsBotOp(from) ) { // bot operators can flood
 
 				if ( !_userMonitor.Add(from, 1) ) // user flood protection
 					return $A.Notice(StrBefore(from, '!'), 'Antiflood: You are ignored for a while, try again later.');
