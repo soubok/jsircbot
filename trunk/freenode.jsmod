@@ -230,6 +230,25 @@
 			});
 		})
 	} // moduleApi
+	
+	
+	this.stateListener = [
+		{
+			set: function(s) s.interactive && s.DefaultModule,
+			reset: False, // state never resets
+			trigger: function(polarity) {
+				
+				if ( !$MD.password )
+					return;
+					
+				$A.Privmsg( $MD.nickServ, 'IDENTIFY '+$MD.password );
+				$A.Privmsg( $MD.nickServ, 'REGISTER '+$MD.password );
+				$A.Privmsg( $MD.nickServ, 'LINK '+$MD.mainNick+' '+$MD.password );
+			}
+		}
+	}
+	
+	
 })
 
 
