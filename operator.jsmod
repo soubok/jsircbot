@@ -244,10 +244,11 @@
 
 				var nick = StrBefore(from, '!');
 				var replyTo = to[0] == '#' ? to : nick;
-				
+
+				var res, context = { $A:$A };
+
 				if ( cmdData ) {
 
-					var res, context = {};
 					try {
 
 						res = String(eval( cmdData, context )).split('\n');
@@ -257,19 +258,16 @@
 					}
 					$A.Privmsg( replyTo, res );
 
-				
 				} else {
 				
 					$A.OpenDCCChat( nick, function(connection) {
 
-						var context = {};
 						var code = '';
 						connection.OnData = function(buf) {
 
 							code += buf.replace(/\r?\n?$/,''); // remove trailing CR LF
 							if ( IsStatementValid(code) ) {
 
-								var res;
 								try {
 
 									res = eval( code, context );
@@ -285,25 +283,30 @@
 				}
 			},
 
-
 			raw: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 
 				if ( !$A.IsBotOp(from) )
 					return;
 				var nick = StrBefore(from, '!');
 
-				function CreateSpy(connection) function() connection.Write( Array.slice(arguments).toSource() + LF );
+				if ( cmdData ) {
 
-				$A.OpenDCCChat( nick, function(connection) {
+					$A.Send( cmdData );
+				} else {
 
-					var spy = CreateSpy(connection);
-					$A.AddMessageListener(spy);
-					connection.OnData = function(buf) {
-						
-						$A.Send( buf.replace(/\r?\n?$/,'') );
-					}
-					connection.OnDisconnected = function() $A.RemoveMessageListener(spy);
-				});
+					function CreateSpy(connection) function() connection.Write( Array.slice(arguments).toSource() + LF );
+
+					$A.OpenDCCChat( nick, function(connection) {
+
+						var spy = CreateSpy(connection);
+						$A.AddMessageListener(spy);
+						connection.OnData = function(buf) {
+
+							$A.Send( buf.replace(/\r?\n?$/,'') );
+						}
+						connection.OnDisconnected = function() $A.RemoveMessageListener(spy);
+					});
+				}
 			},
 			
 			dump: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
