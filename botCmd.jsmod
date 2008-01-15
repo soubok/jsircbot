@@ -37,7 +37,7 @@ function RateMeter(amountLimit, monitorPeriod) {
 	
 	var _channelMonitor = new RateMeter(15,15000); // '15:15'.split(':')
 	var _commandMonitor = new RateMeter(10,10000);
-	var _userMonitor = new RateMeter(5,5000);
+	var _userMonitor = new RateMeter(3,3000);
 
 	this.messageListener = {
 	
@@ -46,7 +46,6 @@ function RateMeter(amountLimit, monitorPeriod) {
 			if ( msg[0] != '!' ) // not a bot command
 				return;
 				
-			//DebugTraceCall('BOT COMMAND');
 			ReportNotice( 'BOT COMMAND', from, to, msg );
 			
 			var cmdName, cmdData;
@@ -60,7 +59,7 @@ function RateMeter(amountLimit, monitorPeriod) {
 				cmdData = msg.substr(sp+1);
 			}
 			
-			if ( $A.IsBotOp && !$A.IsBotOp(from) ) { // bot operators can flood
+			if ( !$A.IsBotOp || !$A.IsBotOp(from) ) { // bot operators can flood
 
 				if ( !_userMonitor.Add(from, 1) ) // user flood protection
 					return $A.Notice(StrBefore(from, '!'), 'Antiflood: You are ignored for a while, try again later.');
