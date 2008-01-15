@@ -234,18 +234,19 @@
 	
 	this.stateListener = [
 		{
-			set: function(s) s.interactive && s.DefaultModule,
+			set: function(s) s.interactive && s.DefaultModule && s[STATE_HAS_GOOD_NICK],
 			reset: False, // state never resets
 			trigger: function(polarity) {
 				
-				var password = getData($MD.password);
+				if ( hasData($MD.password) ) {
 				
-				if ( !password )
-					return;
+					var password = getData($MD.password);
+					$A.Privmsg( getData($MD.nickServ), 'IDENTIFY '+password );
+					$A.Privmsg( getData($MD.nickServ), 'REGISTER '+password );
 
-				$A.Privmsg( getData($MD.nickServ), 'IDENTIFY '+password );
-				$A.Privmsg( getData($MD.nickServ), 'REGISTER '+password );
-				$A.Privmsg( getData($MD.nickServ), 'LINK '+getData($MD.mainNick)+' '+password );
+					if ( hasData($MD.mainNick) )
+						$A.Privmsg( getData($MD.nickServ), 'LINK '+getData($MD.mainNick)+' '+password );
+				}
 			}
 		}
 	] // stateListener
