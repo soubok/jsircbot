@@ -35,9 +35,9 @@ function RateMeter(amountLimit, monitorPeriod) {
 	
 	this.name = this.constructor.name;
 	
-	var _channelMonitor = new RateMeter(15,15); // '15:15'.split(':')
-	var _commandMonitor = new RateMeter(10,10);
-	var _userMonitor = new RateMeter(5,5);
+	var _channelMonitor = new RateMeter(15,15000); // '15:15'.split(':')
+	var _commandMonitor = new RateMeter(10,10000);
+	var _userMonitor = new RateMeter(5,5000);
 
 	this.messageListener = {
 	

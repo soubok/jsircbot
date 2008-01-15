@@ -71,6 +71,20 @@
 			},
 
 
+			deop: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+				
+				var replyTo = to[0] == '#' ? to : StrBefore(from, '!');
+				if ( !$A.IsBotOp(from) ) {
+
+					$A.Privmsg( replyTo, 'Already done.' );
+					return;
+				}
+
+				DeleteArrayElement( getData( modData.list ), from );
+				$A.Privmsg( replyTo, 'Done.' );
+			},
+
+
 			quit: function( modCmd, cmdName, cmdData, command, from ) {
 
 				if ( !$A.IsBotOp(from) )
