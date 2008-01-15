@@ -238,15 +238,17 @@
 			reset: False, // state never resets
 			trigger: function(polarity) {
 				
-				if ( !$MD.password )
+				var password = getData($MD.password);
+				
+				if ( !password )
 					return;
-					
-				$A.Privmsg( $MD.nickServ, 'IDENTIFY '+$MD.password );
-				$A.Privmsg( $MD.nickServ, 'REGISTER '+$MD.password );
-				$A.Privmsg( $MD.nickServ, 'LINK '+$MD.mainNick+' '+$MD.password );
+
+				$A.Privmsg( getData($MD.nickServ), 'IDENTIFY '+password;
+				$A.Privmsg( getData($MD.nickServ), 'REGISTER '+password );
+				$A.Privmsg( getData($MD.nickServ), 'LINK '+$MD.mainNick+' '+password );
 			}
 		}
-	]
+	] // stateListener
 	
 	
 })
