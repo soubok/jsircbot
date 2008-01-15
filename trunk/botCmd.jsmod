@@ -59,7 +59,9 @@ function RateMeter() {
 				cmdData = msg.substr(sp+1);
 			}
 			
-			if ( !$A.IsBotOp || !$A.IsBotOp(from) ) { // bot operators can flood
+//			if ( !$A.IsBotOp || !$A.IsBotOp(from) ) { // bot operators can flood
+
+Print( '_userMonitor = '+_userMonitor.Add(from, 0, 3000 ) );
 
 				if ( _userMonitor.Add(from, 1, 3000 ) > 3 ) // user flood protection
 					return $A.Notice(StrBefore(from, '!'), 'Antiflood: You are ignored for a while, try again later.');
@@ -69,7 +71,7 @@ function RateMeter() {
 
 				if ( _commandMonitor.Add(cmdName, 1, 15000) > 15 ) // command flood protection
 					return $A.Notice(StrBefore(from, '!'), 'Antiflood: Command unavailable for a while.');
-			}
+//			}
 			
 			$A.FireModuleListener( 'botcmd', cmdName.toLowerCase(), cmdData, command, from, to, msg );
 		}
