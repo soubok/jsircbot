@@ -1,7 +1,15 @@
 function(data) {
 
 	setData( data.moduleList, [
-		'file:///./',
+		'file:///./default.jsmod',
+		'file:///./channel.jsmod',
+		'file:///./dccChat.jsmod',
+		'file:///./botCmd.jsmod',
+		'file:///./Tremulous.jsmod',
+		'file:///./operator.jsmod',
+
+
+//		'file:///./',
 /*
 //		'http://jsircbot.googlecode.com/svn/trunk/serverQuery.jsmod'
 
@@ -85,4 +93,7 @@ function(data) {
 	setData(data.freenodeModule.nickServ, 'NickServ!NickServ@services.' );
 	setData(data.freenodeModule.chanServ, 'ChanServ!ChanServ@services.' );
 
+	setData(data.freenodeModule.mainNick, 'jsircbot' );
+	setData(data.freenodeModule.password, 'ezer6t4ze5rt' );
+	
 }

@@ -312,7 +312,6 @@
 		}
 	});
 
-	var _lastQc; // anti-flood
 
 	this.moduleListener = {
 
@@ -381,14 +380,6 @@
 					}
 				}
 
-				if ( _lastQc > Now() - 5*SECOND ) { // anti-flood
-					
-					$A.Privmsg( replyTo, 'Please don\'t spam, try again later.' );
-					return;
-				}
-
-				_lastQc = Now();
-				
 				if ( list.length == 0 ) {
 					
 					$A.Privmsg( replyTo, 'No match' );
