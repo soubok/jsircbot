@@ -60,7 +60,6 @@
 
 
 	var _playerListToSetlevel = [];
-	var _lastServerQueryInterval;
 
 	this.moduleListener = {
 
@@ -86,8 +85,6 @@
 					var nick = StrBefore(from, '!');
 					var replyTo = to[0] == '#' ? to : nick;
 
-					if ( _lastServerQueryInterval && IntervalNow() - _lastServerQueryInterval < 10*SECOND ) // anti-flood
-						$A.Privmsg( replyTo, 'Please don\'t spam, try again later.' ), AbortAsyncProc();
 					var [status, result] = yield function(callback) $A.TremulousServerStatus(pv.vipTremServer, callback);
 					
 					if ( status != OK ) {
@@ -101,7 +98,6 @@
 					$A.Privmsg( replyTo, $A.TremulousTextToIrc(result.info.sv_hostname) + '\x0F is running ' + result.info.mapname + ' with ' + result.playerList.length + ' player(s)' );
 					while ( nicePlayerList.length )
 						$A.Privmsg( replyTo, nicePlayerList.splice(0, 8).join('  ') );
-					_lastServerQueryInterval = IntervalNow();
 				});
 			}, // server
 
