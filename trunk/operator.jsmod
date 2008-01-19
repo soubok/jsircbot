@@ -245,7 +245,7 @@
 				var nick = StrBefore(from, '!');
 				var replyTo = to[0] == '#' ? to : nick;
 
-				var res, context = { $A:$A };
+				var res, context = { $D:$D, $A:$A };
 
 				if ( cmdData ) {
 
