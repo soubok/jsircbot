@@ -96,10 +96,12 @@ function(data) {
 	setData(data.freenodeModule.password, '********' );
 
 // bot commands configuration
+	setData(data.BotCmdModule.userFlood, [3, 10*SECOND]);
+	setData(data.BotCmdModule.channelFlood, [10, 10*SECOND]);
 	setData(data.BotCmdModule.config, {
-		qc:[ /#cy|#trem-fr/, /.*/, 0, [10, 10000] ], // 0:everyone, 1:voice, 2:operator
-		hl:[ /#cy/, /.*/, 1, [10, 10000] ],
-		gather:[ /#cy/, /.*/, 2 ]
+		qc:[ /#cy|#trem-fr/, /.*/, 0, [3, 5*SECOND] ], // [allowed_channel_regexp, alowed_nick_regexp, 0:everyone 1:voice 2:operator, [how_many_messages, how_many_time]]
+		hl:[ /#cy/, /.*/, 1, [10, 10*SECOND] ],
+		gather:[ /#cy/, , 2 ]
 	});
 
 }
