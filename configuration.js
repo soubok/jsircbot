@@ -51,8 +51,8 @@ function(data) {
 	setData(data.ident, true);
 	setData(data.ident.opsys, 'UNIX');
 	setData(data.ident.userid, 'USERID');
-	setData(data.ident.username, 'user_TremVipBot');
-	setData(data.ident.realname, 'real_TremVipBot');
+	setData(data.ident.username, 'user_jsircbot');
+	setData(data.ident.realname, 'real_jsircbot');
 
 // default module
 	setData(data.moduleLoadRetry, 3);
@@ -82,7 +82,7 @@ function(data) {
 	setData(data.DCCReceiverModule.destinationPath, '.' );
 
 // bot operator password
-	setData(data.OperatorManagerModule.password, '87y8ert8y7r8t7r8ty888888888' );
+	setData(data.OperatorManagerModule.password, '******' );
 	
 // CommandEvent Module
 	setData(data.CommandEventModule.maxServerReplyInterval, 10*SECOND );
@@ -92,8 +92,14 @@ function(data) {
 	setData(data.freenodeModule.maxServiceBotReply, 15*SECOND );
 	setData(data.freenodeModule.nickServ, 'NickServ!NickServ@services.' );
 	setData(data.freenodeModule.chanServ, 'ChanServ!ChanServ@services.' );
-
 	setData(data.freenodeModule.mainNick, 'jsircbot' );
-	setData(data.freenodeModule.password, 'ezer6t4ze5rt' );
-	
+	setData(data.freenodeModule.password, '********' );
+
+// bot commands configuration
+	setData(data.BotCmdModule.config, {
+		qc:[ /#cy|#trem-fr/, /.*/, 0, [10, 10000] ], // 0:everyone, 1:voice, 2:operator
+		hl:[ /#cy/, /.*/, 1, [10, 10000] ],
+		gather:[ /#cy/, /.*/, 2 ]
+	});
+
 }
