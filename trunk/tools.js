@@ -389,7 +389,7 @@ var log = new function(data) {
 	var _outputList = [];
 	var _time0 = Now();
 //	function FormatedTime() StringPad(((Now()-_time0)/SECOND).toFixed(2), 7, ' ');
-	function FormatedTime() return let (d = new Date()) d.toLocaleFormat('%m%d%H%M%S.')+String(1000+d.getMilliseconds()).substr(1);
+	function FormatedTime() let (d = new Date()) d.toLocaleFormat('%m%d%H%M%S.')+String(1000+d.getMilliseconds()).substr(1);
 	
 	this.AddFilter = function( output, typeList ) _outputList.push([output, typeList]);
 
