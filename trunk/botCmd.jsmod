@@ -41,8 +41,6 @@ function RateMeter() {
 	var _commandMonitor = new RateMeter();
 	var _userMonitor = new RateMeter();
 
-	var _overallMonitor = new RateMeter();
-
 	this.messageListener = {
 	
 		PRIVMSG: function( command, from, to, msg ) {
@@ -71,7 +69,6 @@ function RateMeter() {
 			if ( !$A.IsBotOp || !$A.IsBotOp(from) ) { // bot operators can do everything
 
 				var config = getData($MD.config)[cmdName];
-
 				if ( config ) {
 
 					if ( config[0] && !config[0](to) ) // is this destination (channel or the bot itself) allowed ?
@@ -83,10 +80,10 @@ function RateMeter() {
 
 				var nick = StrBefore(from, '!');
 				
-				if ( config && config[3] && to[0] == '#' ) {
+				if ( config && config[2] && to[0] == '#' ) {
 
 					let path = $D.channel[to].names[nick];
-					if ( (getData(path.voice)?1:0) + (getData(path.voice)?2:0) < config[3] )
+					if ( (getData(path.voice)?1:0) + (getData(path.voice)?2:0) < config[2] )
 						return;
 				}
 				
@@ -104,15 +101,12 @@ function RateMeter() {
 					return;
 				}
 
-				if ( config && config[4] )
-					if ( _commandMonitor.Inc(cmdName, 1, config[4][1]) > config[4][0] ) { // command flood protection
+				if ( config && config[3] )
+					if ( _commandMonitor.Inc(cmdName, 1, config[3][1]) > config[3][0] ) { // command flood protection
 					
 						$A.Notice(nick, 'Antiflood: Command unavailable for a while.');
 						return;
 					}
-				
-//				if ( _overallMonitor.Inc('', 1, 30000 ) > 15 )
-//					return $A.Notice(StrBefore(from, '!'), 'Antiflood: Please, try again later.');
 			}
 			
 			$A.FireModuleListener( 'botcmd', cmdName.toLowerCase(), cmdData, command, from, to, msg );
