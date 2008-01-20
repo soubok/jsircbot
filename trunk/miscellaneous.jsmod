@@ -103,6 +103,34 @@
 					var replyTo = to[0] == '#' ? to : StrBefore(from, '!');
 					$A.Privmsg( replyTo, translatedText );
 				});
+			},
+
+			hl: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+				
+				var nameList = [''];
+				for ( name in $D.channel[to].names ) {
+					
+					if ( !hasData($D.channel[to].names[name]) ) // has been renamed
+						continue;
+					switch ( cmdData ) {
+						case '': 
+							return;
+						case '@':
+							if ( !getData( $D.channel[to].names[name].operator ) )
+								continue;
+							break;
+						case '*':
+							break;
+						default:
+							if ( name.toLowerCase().indexOf(cmdData.toLowerCase()) == -1 )
+								continue;
+							break;
+					}
+					if ( (nameList[0] + name).length > 480 ) //gatData( $D.maxMessageTextLength )
+						nameList.unshift(['']);
+					nameList[0] += name + ' ';
+				}
+				$A.Privmsg( to, nameList );
 			}
 
 		}
