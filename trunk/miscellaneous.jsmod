@@ -130,7 +130,7 @@
 				}
 				$A.Privmsg( to, nameList );
 			},
-			
+/*			
 			// brain fuck based on "Kit's JavaScript Brainfuck Interpreter v0.01"
 			bf: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 			
@@ -167,11 +167,10 @@
 								argi++;
 								break
 						  case "[":
-								if (a[p] == 0) {
+								if (a[p] == 0)
 									 for (i++; l>0 || prog.charAt(i) != ']'; i++) {
 										  if (prog.charAt(i) == '[') l++; if (prog.charAt(i) == ']') l--;
 									 }
-								}
 								break
 						  case "]":
 								for (i--; l>0 || prog.charAt(i) != '['; i--) {
@@ -184,7 +183,7 @@
 
 				$A.Privmsg( to, result );
 			}
-
+*/
 		}
 	}
 })
