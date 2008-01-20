@@ -202,6 +202,7 @@
 		Invite: function(nick, channel) $A.Send( 'INVITE ' + nick + ' ' + channel ),
 		
 		IsOp: function(channel, nick) !!getData($D.channel[NormalizeChannelName(channel)].names[NormalizeNickName(nick)].operator),
+		IsVoice: function(channel, nick) !!getData($D.channel[NormalizeChannelName(channel)].names[NormalizeNickName(nick)].voice),
 		ChannelData: function(channel) getData($D.channel[NormalizeChannelName(channel)])
 	}
 
