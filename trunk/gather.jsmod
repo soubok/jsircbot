@@ -21,7 +21,7 @@
 	var $MD = $D[this.name];
 
 
-	const _channelList = ['#CY', '#trem-vips'];
+	const _channelList = ['#CY', '#trem-vips', '#trem-fr'];
 
 	this.moduleApi = {
 	
