@@ -20,31 +20,6 @@
 	this.name = this.constructor.name;
 	var $MD = $D[this.name];
 
-
-	const _channelList = ['#CY', '#trem-vips', '#trem-fr'];
-
-	this.moduleApi = {
-	
-		GatherRegisterChannel: function(channelName) {
-
-			_channelList.push(channelName);
-			$A.Join(channel);
-		}
-	}
-	
-	this.stateListener = [
-		{
-			set: function(s) s.interactive && s.DefaultModule && s.ChannelModule,
-			reset: False, // state never resets
-			trigger: function(polarity) {
-
-				for each ( var channel in _channelList )
-					$A.Join( channel );
-			}
-		}
-	];
-
-
 	function GatherPath(channelName) $MD[$A.NormalizeChannelName(channelName)];
 	
 	function SendGatherStatus(channel) {
@@ -70,51 +45,19 @@
 	}
 	
 	this.moduleListener = {
-/*
-		clock: {
-			5minutes: function() {
-			
-			}
-		},
-*/
+
 		botcmd: {
-			
-			help: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
-				
-				var nick = StrBefore(from, '!');
-				var replyTo = to[0] == '#' ? to : nick;
-				$A.Privmsg( 'use !gather <number players by team> [<map name>]' );
-			},
-		
+
 			gathernow: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 			
-				if ( _channelList.indexOf(to) == -1 )
-					return;
-					
-				var nick = StrBefore(from, '!');
-				if ( !$A.IsOp(to, nick) ) {
-				
-					$A.Privmsg(to, 'Sorry, you are not a channel operator.' );
-					return;
-				}
-
 				if ( hasData(GatherPath(to)) )
 					StopGather(to);
-			
+				else
+					$A.Privmsg( to, 'No gather in progress.' );
 			},
 		
 			gather: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 				
-				if ( _channelList.indexOf(to) == -1 )
-					return;
-
-				var nick = StrBefore(from, '!');
-				if ( !$A.IsOp(to, nick) ) {
-				
-					$A.Privmsg(to, 'Sorry, you are not a channel operator.' );
-					return;
-				}
-
 				if ( !cmdData ) {
 					
 					SendGatherStatus(to);
@@ -141,7 +84,7 @@
 
 					if ( hasData(GatherPath(to)) ) {
 
-						$A.Privmsg(to, 'Gather in progress. type !gather 0 to cancel the gather, or !gather to list current players.' );
+						$A.Privmsg( to, 'Gather in progress. type !gather 0 to cancel the gather, or !gather to list current players.' );
 						return;
 					}
 
@@ -156,12 +99,8 @@
 				}
 			},
 
-
 			del: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 			
-				if ( _channelList.indexOf(to) == -1 )
-					return;
-
 				if ( !hasData(GatherPath(to)) ) {
 					
 					SendGatherStatus(to);
@@ -176,9 +115,6 @@
 			
 			add: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 			
-				if ( _channelList.indexOf(to) == -1 )
-					return;
-
 				if ( !hasData(GatherPath(to)) ) {
 					
 					SendGatherStatus(to);
@@ -197,16 +133,12 @@
 				gatherData.nickList[nick] = Now();
 				var currentCount = ObjPropertyCount(gatherData.nickList);
 
-				if ( currentCount >= gatherData.count * 2 ) {
-					
+				if ( currentCount >= gatherData.count * 2 )
 					StopGather(to);
-				} else {
-				
+				else
 					SendGatherStatus(to);
-				}
 			}
 
 		}
 	}
-
 })
