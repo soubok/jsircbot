@@ -30,7 +30,6 @@
 			} else {
 
 				var match = /result_box.*?>(.*?)<\//(data);
-
 				if ( match )
 					callback( OK, UnescapeEntities(match[1]) );
 				else
@@ -41,7 +40,6 @@
 	
 	
 	function TranslateSMSText( text, callback ) { // french only
-
 // http://www.aidoforum.com/traducteur-sms.php
 // alt. http://www.moktoipas.com/traducteur.php?q=J%27m+po+l%E9+sms+%286%29
 // alt. http://www.alaide.com/dico_traducteur_sms.php
@@ -113,10 +111,10 @@
 					if ( !hasData($D.channel[to].names[name]) ) // has been renamed
 						continue;
 					switch ( cmdData ) {
-						case '': 
+						case '':
 							return;
 						case '@':
-							if ( !getData( $D.channel[to].names[name].operator ) )
+							if ( $A.IsOp(to,name) )
 								continue;
 							break;
 						case '*':
@@ -131,12 +129,62 @@
 					nameList[0] += name + ' ';
 				}
 				$A.Privmsg( to, nameList );
+			},
+			
+			// brain fuck based on "Kit's JavaScript Brainfuck Interpreter v0.01"
+			bf: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+			
+				var args = ParseArguments(cmdData);
+				var prog = args[0];
+				var params = args[1]||'';
+				var result = '';
+
+				var mem_size=3000;
+				var max_val=255;
+				var a=new Array(mem_size);
+
+				var p=0, l=0, argi=0;
+				for(var i=0; i<prog.length; i++) {
+				
+					 switch(prog.charAt(i)) {
+						  case ">":
+								p++; p%=mem_size;
+								break
+						  case "<":
+								p--; p%=mem_size;
+								break
+						  case "+":
+								a[p]++; a[p]%=max_val;
+								break
+						  case "-":
+								a[p]--; a[p]%=max_val;
+								break
+						  case ".":
+								result += String.fromCharCode(a[p]);
+								break
+						  case ",":
+								a[p] = params.charCodeAt(argi);
+								argi++;
+								break
+						  case "[":
+								if (a[p] == 0) {
+									 for (i++; l>0 || prog.charAt(i) != ']'; i++) {
+										  if (prog.charAt(i) == '[') l++; if (prog.charAt(i) == ']') l--;
+									 }
+								}
+								break
+						  case "]":
+								for (i--; l>0 || prog.charAt(i) != '['; i--) {
+									 if (prog.charAt(i) == ']') l++; if (prog.charAt(i) == '[') l--;
+								}
+								i--;
+								break 
+					 }
+				}
+
+				$A.Privmsg( to, result );
 			}
 
 		}
 	}
-	
-	this.moduleApi = {
-	}
-	
 })
