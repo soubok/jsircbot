@@ -31,14 +31,13 @@ function RateMeter() {
 }
 
 
-
 (function BotCmdModule($D, $A) {
 	
 	this.name = this.constructor.name;
 	var $MD = $D[this.name];
 
-	var _channelMonitor = new RateMeter();
 	var _commandMonitor = new RateMeter();
+	var _channelMonitor = new RateMeter();
 	var _userMonitor = new RateMeter();
 
 	this.messageListener = {
@@ -66,8 +65,9 @@ function RateMeter() {
 			}
 			
 
-			if ( !$A.IsBotOp || !$A.IsBotOp(from) ) { // bot operators can do everything
+			if ( !$A.IsBotOp || !$A.IsBotOp(from) ) { // bot operators can do everything everywhere
 
+				var nick = StrBefore(from, '!');
 				var config = getData($MD.config)[cmdName];
 				if ( config ) {
 
@@ -76,23 +76,20 @@ function RateMeter() {
 
 					if ( config[1] && !config[1](from) ) // is this source (name) allowed ?
 						return;
-				}			
 
-				var nick = StrBefore(from, '!');
-				
-				if ( config && config[2] && to[0] == '#' ) {
+					if ( config[2] && to[0] == '#' ) {
 
-					let path = $D.channel[to].names[nick];
-					if ( (getData(path.voice)?1:0) + (getData(path.voice)?2:0) < config[2] )
+						let path = $D.channel[to].names[nick];
+						if ( (getData(path.voice)?1:0) + (getData(path.voice)?2:0) < config[2] )
+							return;
+					}
+
+					if ( config[3] && _commandMonitor.Inc(cmdName, 1, config[3][1]) > config[3][0] ) { // command flood protection
+
+						$A.Notice(nick, 'Antiflood: Command unavailable for a while.');
 						return;
-				}
-				
-				var userFlood = getData($MD.userFlood);
-				if ( _userMonitor.Inc(from, 1, userFlood[1]) > userFlood[0] ) { // user flood protection
-					
-					$A.Notice(nick, 'Antiflood: You are ignored for a while, try again later.');
-					return;
-				}
+					}
+				}			
 
 				var channelFlood = getData($MD.channelFlood);
 				if ( _channelMonitor.Inc(to, 1, channelFlood[1]) > channelFlood[0] ) { // channel flood protection
@@ -101,12 +98,12 @@ function RateMeter() {
 					return;
 				}
 
-				if ( config && config[3] )
-					if ( _commandMonitor.Inc(cmdName, 1, config[3][1]) > config[3][0] ) { // command flood protection
+				var userFlood = getData($MD.userFlood);
+				if ( _userMonitor.Inc(from, 1, userFlood[1]) > userFlood[0] ) { // user flood protection
 					
-						$A.Notice(nick, 'Antiflood: Command unavailable for a while.');
-						return;
-					}
+					$A.Notice(nick, 'Antiflood: You are ignored for a while, try again later.');
+					return;
+				}
 			}
 			
 			$A.FireModuleListener( 'botcmd', cmdName.toLowerCase(), cmdData, command, from, to, msg );
