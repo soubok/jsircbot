@@ -12,6 +12,7 @@
  * License.
  * ***** END LICENSE BLOCK ***** */
 
+function Ascii(data) data.replace(/[\x00-\x1F,\x7F-\xFF]/g, '?');
 
 (function MiscellaneousModule($D, $A) {
 	
@@ -166,9 +167,8 @@
 						  case ']': cp = loopIn[cp]-1; break;
 					 }
 				}
-				
-				out = escape(out).substr(0,300);
-				$A.Privmsg( to, out );
+
+				$A.Privmsg( to, Ascii(out.substr(0,300)) );
 			}
 
 		}
