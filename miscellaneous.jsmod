@@ -152,7 +152,7 @@
 						  if ( code[cp] == ']' )
 								loopOut[loopIn[cp] = tmp.pop()] = cp;
 
-				for (var cp = 0; cp < codeSize && i < 100000; cp++, i++) {
+				for (var cp = 0; cp < codeSize && i < 10000; cp++, i++) {
 
 					 switch(code[cp]) {
 
@@ -166,7 +166,8 @@
 						  case ']': cp = loopIn[cp]-1; break;
 					 }
 				}
-
+				
+				out = escape(out).substr(0,300);
 				$A.Privmsg( to, out );
 			}
 
