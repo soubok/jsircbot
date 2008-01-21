@@ -139,19 +139,16 @@ function Ascii(data) data.replace(/[\x00-\x1F,\x7F-\xFF]/g, '?');
 
 				var code = args[0];
 				var inp = args[1];
-				var out = '';
 
 				var codeSize = code.length;
-				var i = 0, ip = 0, cp = 0, dp = 0, m = {};
+				var out = '', i = 0, ip = 0, cp = 0, dp = 0, m = {};
 
-				var loopIn = {}, loopOut = {};
-				var tmp = [];
+				var loopIn = {}, loopOut = {}, tmp = [];
 				for ( var cp = 0; cp < codeSize ; cp++ )
 					 if ( code[cp] == '[' )
-						  tmp.push(cp);
-					 else
-						  if ( code[cp] == ']' )
-								loopOut[loopIn[cp] = tmp.pop()] = cp;
+						tmp.push(cp);
+					 else if ( code[cp] == ']' )
+						loopOut[loopIn[cp] = tmp.pop()] = cp;
 
 				for (var cp = 0; cp < codeSize && i < 10000; cp++, i++) {
 
