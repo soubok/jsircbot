@@ -53,7 +53,7 @@
 					$A.FireModuleListener.apply( null, args );
 
 					if ( args[1] == 'RPL_WELCOME' )
-						$S.Enter(STATE_INTERACTIVE);
+						$S.Enter('STATE_IRC_INTERACTIVE');
 
 				} catch (ex if ex == ERR) {
 				
@@ -67,19 +67,17 @@
 			remotelyDisconnected && ReportWarning( 'Remotely disconnected' );
 			!remotelyDisconnected && ReportNotice( 'Locally disconnected' );
 
-			$S.Leave(STATE_INTERACTIVE);
-
-			for each ( mod in _core.ModuleList() )
-				_core.RemoveModule( mod );
-
+			$S.Leave('STATE_IRC_INTERACTIVE');
+			$S.Leave('STATE_IRC_CONNECTED');
 			_connection.Close();
-			_connection = undefined; // this is the end
+//			_connection = undefined; // this is the end
 			// (TBD) retry if remotelyDisconnected ?
 		}
 		
 		function OnConnected() {
-			
+		
 			ReportNotice( 'Connection established' );
+			$S.Enter('STATE_IRC_CONNECTED');
 			setData( $D.sockName, _connection.sockName );
 			setData( $D.sockPort, _connection.sockPort );
 			setData( $D.peerPort, _connection.peerPort );

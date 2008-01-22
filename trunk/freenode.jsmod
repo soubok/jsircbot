@@ -234,7 +234,7 @@
 	
 	this.stateListener = [
 		{
-			set: function(s) s.interactive && s.DefaultModule && s[STATE_HAS_GOOD_NICK],
+			set: function(s) s.STATE_IRC_INTERACTIVE && s.DefaultModule && .STATE_IRC_HAS_GOOD_NICK,
 			reset: False, // state never resets
 			trigger: function(polarity) {
 				

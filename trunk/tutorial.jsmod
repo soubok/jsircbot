@@ -216,11 +216,11 @@
 	this.stateListener = [
 		{
 			// set is a function that returns true or false. It contains the condition required to call the trigger function.
-			// in this case, trigger is call (with polarity=true) if the bot is in interactive state and the default module is loaded
-			set: function(s) s.interactive && s.DefaultModule,
+			// in this case, trigger is call (with polarity=true) if the bot is in STATE_IRC_INTERACTIVE state and the default module is loaded
+			set: function(s) s.STATE_IRC_INTERACTIVE && s.DefaultModule,
 			
 			// reset give the condition to to call the trigger function with false as argument
-			reset: function(s) !s.interactive || !s.DefaultModule,
+			reset: function(s) !s.STATE_IRC_INTERACTIVE || !s.DefaultModule,
 			
 			// the trigger function is only call on state transition
 			trigger: function(polarity) {

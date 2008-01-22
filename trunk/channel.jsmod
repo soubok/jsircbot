@@ -20,7 +20,7 @@
 
 	function NormalizeChannelName(channelName) channelName.toLowerCase(); // (TBD) check if we muse use _api.ToIRCLowerString instead !
 
-	function NormalizeNickName(nickName) nickName;
+	function NormalizeNickName(nickName) nickName.toLowerCase(); // (TBD) check if we muse use _api.ToIRCLowerString instead !
 
 	function ParseModes( modes, args, chanData, setBy ) {
 
@@ -190,7 +190,7 @@
 				setData( chanData.names[nick].operator, !!op );
 			}
 		}
-	};
+	} };
 	
 	this.moduleApi = {
 		
@@ -208,13 +208,13 @@
 
 	this.stateListener = [
 		{
-			set: function(s) s.interactive,
+			set: function(s) s.STATE_IRC_INTERACTIVE,
 			reset: False,
 			trigger: function(polarity) {
 
 				var chanList = getData($MD.joinList);
 				for each ( var channel in chanList )
-				$A.Send( 'JOIN ' + channel );
+					$A.Send( 'JOIN ' + channel );
 			}
 		}
 	];

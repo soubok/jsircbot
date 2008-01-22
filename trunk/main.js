@@ -25,12 +25,7 @@ Exec('ident.js');
 ///////////////////////////////////////////////// CONST /////////////////////////////////////////////
 
 // Default state names
-const STATE_RUNNING = 'running';
-
-
-// IRC state names
-const STATE_INTERACTIVE = 'interactive';
-const STATE_HAS_GOOD_NICK = 'hasGoodNick';
+const STATE_RUNNING = 'STATE_RUNNING';
 
 
 ///////////////////////////////////////////////// TOOLS /////////////////////////////////////////////
@@ -162,17 +157,17 @@ function Core( Configurator ) {
 	var _moduleListener = new Listener( ListenerException );
 	var _state = new StateKeeper( ListenerException );
 
-	_api.AddModuleListener = _moduleListener.Add;
-	_api.RemoveModuleListener = _moduleListener.Remove;
-	_api.ToggleModuleListener = _moduleListener.Toggle;
-	_api.FireModuleListener = _moduleListener.Fire;
-
 	var _api = {}; // or new SetOnceObject(); or NewDataObj(); see. AddModule !
 	_api.__noSuchMethod__ = function(methodName) {
 		
 		ReportError( 'UNDEFINED API: '+methodName );
 		return NOSUCHMETHOD;
 	}
+
+	_api.AddModuleListener = _moduleListener.Add;
+	_api.RemoveModuleListener = _moduleListener.Remove;
+	_api.ToggleModuleListener = _moduleListener.Toggle;
+	_api.FireModuleListener = _moduleListener.Fire;
 
 	var _modules = [];
 	
@@ -271,8 +266,11 @@ function Core( Configurator ) {
 	LoadModuleList( _core, getData(_data.moduleList) );
 
 	_state.Enter(STATE_RUNNING);
-	io.Process( endSignal );
+	io.Process( function() endSignal );
 	_state.Leave(STATE_RUNNING);
+	
+	for each ( mod in _core.ModuleList() )
+		_core.RemoveModule( mod );
 }
 
 

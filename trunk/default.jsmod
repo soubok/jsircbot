@@ -28,7 +28,7 @@
 		RPL_WELCOME: function( tmp, command, from, to ) {
 
 			setData($D.nick, to);
-			$S.Toggle( STATE_HAS_GOOD_NICK, getData($D.nick) == getData($D.wishNick) );
+			$S.Toggle( 'STATE_IRC_HAS_GOOD_NICK', getData($D.nick) == getData($D.wishNick) );
 		},
 		
 //(TBD)		// RPL_YOURHOST
@@ -47,7 +47,7 @@
 			if ( nick != getData($D.nick) ) // only listen for self nickname changing.
 				return;
 			setData($D.nick, newNick);
-			$S.Toggle( STATE_HAS_GOOD_NICK, getData($D.nick) == getData($D.wishNick) );
+			$S.Toggle( 'STATE_IRC_HAS_GOOD_NICK', getData($D.nick) == getData($D.wishNick) );
 		},
 
 //		ERR_RESTRICTED: function() { // Your connection is restricted!
@@ -82,7 +82,7 @@
 
 		RPL_USERHOST: function( tmp, command, from, to, hostList ) {
 			
-			if ( to == getData($D.nick) ) {
+			if ( to == getData($D.nick) ) { // (TBD) fix it, $D.userhost seems to be buggy
 				
 				var host = StrBefore(hostList, ' ');
 				setData( $D.userhost, host.substr(host.lastIndexOf('=')+1) ); // hostinfo[0] = '+' or '-' : AWAY message set ???
@@ -114,7 +114,7 @@
 			}
 */
 		}
-	};
+	} };
 	
 	// export module API
 	this.moduleApi = {
@@ -185,7 +185,7 @@
 		for (;;) {
 		
 			var [status,,,] = yield function(callback) HttpRequest( 'http://www.google.com/wwwcheck', undefined, 5000, callback ); // or http://www.microsoft.com/wwwcheck
-			$S.Toggle('hasWeb', status == OK );
+			$S.Toggle('STATE_HAS_WEB_ACCESS', status == OK );
 			if ( status == OK )
 				yield AsyncSleep( 30*MINUTE );
 			yield AsyncSleep( 1*MINUTE );
@@ -241,7 +241,7 @@
 
 	this.stateListener = [
 		{
-			set: function(s) s.connected,
+			set: function(s) s.STATE_IRC_CONNECTED,
 			reset: False, // never resets
 			trigger: function(polarity) {
 
@@ -250,8 +250,8 @@
 			}
 		},
 		{
-			set: function(s) s.interactive,
-			reset: function(s) !s.interactive,
+			set: function(s) s.STATE_IRC_INTERACTIVE,
+			reset: function(s) !s.STATE_IRC_INTERACTIVE,
 			trigger: function(polarity) {
 
 				if ( polarity )

@@ -115,7 +115,7 @@ function Ascii(data) data.replace(/[\x00-\x1F,\x7F-\xFF]/g, '?');
 						case '':
 							return;
 						case '@':
-							if ( $A.IsOp(to,name) )
+							if ( !$A.IsOp(to,name) )
 								continue;
 							break;
 						case '*':
