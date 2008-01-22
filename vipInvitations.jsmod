@@ -297,7 +297,7 @@
 
 	this.stateListener = [
 		{
-			set: function(s) s.interactive && s.DefaultModule,
+			set: function(s) s.STATE_IRC_INTERACTIVE && s.DefaultModule,
 			reset: False, // state never resets
 			trigger: function(polarity) {
 
@@ -307,8 +307,8 @@
 			}
 		},
 		{
-			set: function(s) s.VipInvitationModule && s.interactive && s.ChannelModule,
-			reset: function(s) !s.VipInvitationModule && s.interactive && s.ChannelModule,
+			set: function(s) s.VipInvitationModule && s.STATE_IRC_INTERACTIVE && s.ChannelModule,
+			reset: function(s) !s.VipInvitationModule && s.STATE_IRC_INTERACTIVE && s.ChannelModule,
 			trigger: function(polarity) {
 
 				if ( polarity )
@@ -318,8 +318,8 @@
 			}
 		},
 		{
-			set: function(s) s.VipInvitationModule && s.interactive && s.DefaultModule,
-			reset: function(s) !s.VipInvitationModule || !s.interactive || !s.DefaultModule,
+			set: function(s) s.VipInvitationModule && s.STATE_IRC_INTERACTIVE && s.DefaultModule,
+			reset: function(s) !s.VipInvitationModule || !s.STATE_IRC_INTERACTIVE || !s.DefaultModule,
 			trigger: function(polarity) {
 
 				//ToggleAsyncProc( VipTremServerScanPlayers, polarity );

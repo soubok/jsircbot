@@ -42,7 +42,7 @@ function RateMeter() {
 
 	this.moduleListener = { ircMsg: {
 	
-		PRIVMSG: function( _, command, from, to, msg ) {
+		PRIVMSG: function( tmp, command, from, to, msg ) {
 						
 			if ( msg[0] != '!' ) // not a bot command
 				return;
@@ -71,7 +71,7 @@ function RateMeter() {
 				var config = getData($MD.config)[cmdName];
 				if ( config ) {
 				
-					if ( config[0] != undefined && !config[0] && to[0] != '#' ) // this command cannot be sent using private message to the bot
+					if ( !config[0] && to[0] != '#' ) // this command cannot be sent using private message to the bot
 						return;
 
 					if ( config[1] && !config[1](to) ) // is this destination (channel or the bot itself) allowed ?
@@ -111,5 +111,5 @@ function RateMeter() {
 			
 			$A.FireModuleListener( 'botcmd', cmdName.toLowerCase(), cmdData, command, from, to, msg );
 		}
-	}
+	} };
 })
