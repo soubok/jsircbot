@@ -186,10 +186,8 @@ function Core( Configurator ) {
 						ReportError( f+' function already defined in module API. Module '+source+' cannot be loaded.' );
 						RemoveModule(module);
 						return;
-					} else {
-
+					} else
 						$A[f] = module.moduleApi[f];
-					}
 
 			if ( module.stateListener )
 				for each ( let {set:set, reset:reset, trigger:trigger} in module.stateListener )
@@ -261,8 +259,6 @@ function Core( Configurator ) {
 	
 	Seal($A.core); // jsstd
 	
-	Seal(this); // jsstd
-
 	LoadModuleList( $A.core, getData($D.moduleList), getData($D.moduleLoadRetry), getData($D.moduleLoadRetryPause) );
 
 	$S.Enter(STATE_RUNNING);
@@ -288,10 +284,10 @@ ReportNotice('Start at '+(new Date()));
 
 try {
 
-	new Core(Exec('configuration.js'));
+	Core(Exec('configuration.js'));
 } catch( ex if ex instanceof IoError ) {
 
-	ReportFailure( 'IoError: '+ ex.text + ' ('+ex.os+')' );
+	ReportFailure( 'IoError: '+ ex.text + ' (' + ex.os + ')' );
 }
 
 ReportNotice('**************************** Gracefully end.');

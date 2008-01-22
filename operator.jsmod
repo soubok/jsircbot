@@ -30,7 +30,6 @@
 	});
 
 
-	
 	this.moduleListener = {
 		
 		botcmd: {
@@ -42,32 +41,7 @@
 				delData( modData.password );
 				setData( modData.list, [] );
 				var replyTo = to[0] == '#' ? to : StrBefore(from, '!');
-				$A.Privmsg( replyTo, 'Operator functions are locked.' );
-			},
-
-
-			isop: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
-
-				var replyTo = to[0] == '#' ? to : StrBefore(from, '!');
-				$A.Privmsg( replyTo, $A.IsBotOp(from) ? 'yes' : 'no' );
-			},
-
-
-			op: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
-				
-				var replyTo = to[0] == '#' ? to : StrBefore(from, '!');
-				if ( !$A.IsBotOp(from) ) {
-	
-					var password = getData( modData.password );
-					if ( password && cmdData == password ) {
-
-						getData( modData.list ).push(from);
-						$A.Privmsg( replyTo, 'Done.' );
-					}
-				} else {
-
-					$A.Privmsg( replyTo, 'Already done.' );
-				}
+				$A.Privmsg( replyTo, 'Operator functions locked.' );
 			},
 
 
@@ -85,11 +59,29 @@
 			},
 
 
+			op: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+				
+				var replyTo = to[0] == '#' ? to : StrBefore(from, '!');
+				if ( !$A.IsBotOp(from) ) {
+	
+					var password = getData( modData.password );
+					if ( password && cmdData == password ) {
+
+						getData( modData.list ).push(from);
+						$A.Privmsg( replyTo, 'Done.' );
+					}
+				} else {
+
+					$A.Privmsg( replyTo, 'Already op.' );
+				}
+			},
+
+
 			quit: function( modCmd, cmdName, cmdData, command, from ) {
 
 				if ( !$A.IsBotOp(from) )
 					return;
-				$A.Quit('bye.');
+				$A.Quit( cmdData||'bye.' );
 			},
 
 
@@ -129,7 +121,7 @@
 
 				if ( cmdData ) {
 					
-					core.LoadModule(cmdData);
+					$A.core.LoadModule(cmdData);
 				}
 			},
 
@@ -139,7 +131,7 @@
 				if ( !$A.IsBotOp(from) )
 					return;
 				var replyTo = to[0] == '#' ? to : StrBefore(from, '!');
-				var moduleNameList = [ m.name for each ( m in core.ModuleList() ) ];
+				var moduleNameList = [ m.name for each ( m in $A.core.ModuleList() ) ];
 
 				if ( cmdData ) {
 				
@@ -148,14 +140,13 @@
 						if ( matchName(moduleName) ) {
 						
 							$A && $A.Privmsg && $A.Privmsg( replyTo, 'Unloading '+moduleName );
-							for each ( mod in core.ModulesByName(moduleName) )
-								core.RemoveModule(mod);
+							for each ( mod in $A.core.ModulesByName(moduleName) )
+								$A.core.RemoveModule(mod);
 						}
 				} else {
 
 					$A.Privmsg && $A.Privmsg( replyTo, 'list: '+moduleNameList.join('  ') );
 				}
-			
 			},
 
 
@@ -166,7 +157,7 @@
 				var nick = StrBefore(from, '!');
 				var replyTo = to[0] == '#' ? to : nick;
 				
-				var moduleNameList = [ m.name for each ( m in core.ModuleList() ) ];
+				var moduleNameList = [ m.name for each ( m in $A.core.ModuleList() ) ];
 				
 				if ( cmdData ) {
 				
@@ -175,13 +166,23 @@
 						if ( matchName(moduleName) ) {
 						
 							$A && $A.Privmsg && $A.Privmsg( replyTo, 'Reloading '+moduleName );
-							for each ( mod in core.ModulesByName(moduleName) )
-								core.ReloadModule(mod);
+							for each ( mod in $A.core.ModulesByName(moduleName) )
+								$A.core.ReloadModule(mod);
 						}
 				} else {
 
 					$A.Privmsg && $A.Privmsg( replyTo, 'list: '+moduleNameList.join('  ') );
 				}
+			},
+
+
+			say: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+
+				if ( !$A.IsBotOp(from) )
+					return;
+			
+				var [destination, message] = ParseArguments(cmdData);
+				$A.Privmsg( destination, message );
 			},
 
 
@@ -194,6 +195,16 @@
 				var replyTo = to[0] == '#' ? to : nick;
 				
 				$A.Privmsg( replyTo, cmdData );
+			},
+
+
+			ping: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
+
+				if ( !$A.IsBotOp(from) )
+					return;
+			
+				var replyTo = to[0] == '#' ? to : StrBefore(from, '!');
+				$A.Privmsg( replyTo, 'PONG' );
 			},
 
 
@@ -283,6 +294,7 @@
 				}
 			},
 
+
 			raw: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 
 				if ( !$A.IsBotOp(from) )
@@ -308,7 +320,8 @@
 					});
 				}
 			},
-			
+
+
 			dump: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 
 				if ( !$A.IsBotOp(from) )
@@ -321,25 +334,8 @@
 					connection.Close();
 				});
 			},
-			
-			say: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 
-				if ( !$A.IsBotOp(from) )
-					return;
-			
-				var [destination, message] = ParseArguments(cmdData);
-				$A.Privmsg( destination, message );
-			},
 
-			ping: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
-
-				if ( !$A.IsBotOp(from) )
-					return;
-			
-				var replyTo = to[0] == '#' ? to : StrBefore(from, '!');
-				$A.Privmsg( replyTo, 'PONG' );
-			},
-			
 			inspect: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
 
 				if ( !$A.IsBotOp(from) )
@@ -352,18 +348,6 @@
 					connection.Close();
 				});
 			}
-/*			
-			,
-			
-			api: function( modCmd, cmdName, cmdData, command, from, to, msg ) {
-				
-				var args = cmdData.split(SPC);
-				var fct = args.shift();
-				
-				$A.
-			}
-*/			
-			
 			
 		} // botcmd
 	} // moduleListener

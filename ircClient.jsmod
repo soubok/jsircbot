@@ -153,8 +153,7 @@
 	var _messageEvent = new Event();
 
 
-// var sendProcedure = AsyncProcHelper(  // (TBD)
-	StartAsyncProc( new function() {
+	var sendProcedure = new AsyncProcHelper( function() {
 
 		var data, interval, length = 0, time = 0, sentNodifyList = [];
 		for (;;) {
@@ -189,9 +188,9 @@
 			while ( sentNodifyList.length )
 				sentNodifyList.shift()();
 		}
-	});
+	} );
 
-
+	
 	// // // // // // //
 	
 
@@ -221,6 +220,8 @@
 					Connect();
 				else
 					Disconnect();
+					
+				sendProcedure.Toggle(polarity);
 			}
 		}
 	];	
