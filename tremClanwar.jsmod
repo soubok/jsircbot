@@ -22,13 +22,6 @@
 
 	var _contactList = {};
 
-	this.interactive = function( stateName, polarity ) {
-
-		if ( !polarity )
-			return;
-
-		_mod.api.Join( _tremClanWarChannel );
-	}
 
 /*
 	this.moduleListener = {
