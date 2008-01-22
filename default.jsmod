@@ -180,7 +180,8 @@
 	}
 
 
-	var webAccessProbe = new AsyncProcHelper( function() {
+
+	var webAccessProbe = new AsyncProcHelper( function() { // (TBD) move this module to a more standard place
 	
 		for (;;) {
 		
@@ -188,9 +189,10 @@
 			$S.Toggle('STATE_HAS_WEB_ACCESS', status == OK );
 			if ( status == OK )
 				yield AsyncSleep( 30*MINUTE );
-			yield AsyncSleep( 1*MINUTE );
+			yield AsyncSleep( RandomRange(2,7)*MINUTE );
 		}
 	});
+
 
 
 	var lagProbe = new AsyncProcHelper( function() {

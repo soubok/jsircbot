@@ -120,17 +120,14 @@ function LoadModuleFromURL( url, retryCount, retryPause, callback ) { // callbac
 }
 
 
-function LoadModuleList( core, moduleList ) {
-	
-	var moduleLoadRetry = getData(core.data.moduleLoadRetry);
-	var moduleLoadRetryPause = getData(core.data.moduleLoadRetryPause);
+function LoadModuleList( coreApi, moduleList, retry, retryPause ) {
 	
 	var sem = new Semaphore(2); // only 2 concurrent loads
 		
 	function ModuleLoaded(status, moduleConstructor, creationFunction, source) {
 	
 		if ( status == OK )
-			core.AddModule(moduleConstructor, creationFunction, source);
+			coreApi.AddModule(moduleConstructor, creationFunction, source);
 		sem.Release();
 	}
 
@@ -139,7 +136,7 @@ function LoadModuleList( core, moduleList ) {
 		for each ( let moduleURL in moduleList ) {
 		
 			yield AsyncSemaphoreAcquire(sem);
-			LoadModuleFromURL( moduleURL, moduleLoadRetry, moduleLoadRetryPause, ModuleLoaded );
+			LoadModuleFromURL( moduleURL, retry, retryPause, ModuleLoaded );
 		}		
 	});
 }
@@ -149,128 +146,131 @@ function LoadModuleList( core, moduleList ) {
 
 function Core( Configurator ) {
 
-	var _core = this;
-	var _data = this.data = newDataNode();
-	Configurator(_data);
-	
-	function ListenerException(ex) ReportError( ExToText(ex) );
-	var _moduleListener = new Listener( ListenerException );
-	var _state = new StateKeeper( ListenerException );
+	var _modules = [];
 
-	var _api = {}; // or new SetOnceObject(); or NewDataObj(); see. AddModule !
-	_api.__noSuchMethod__ = function(methodName) {
+	var $D = newDataNode();
+	Configurator($D);
+
+	var $A = {}; // or new SetOnceObject(); or NewDataObj(); see. AddModule !
+	$A.__noSuchMethod__ = function(methodName) {
 		
 		ReportError( 'UNDEFINED API: '+methodName );
 		return NOSUCHMETHOD;
 	}
 
-	_api.AddModuleListener = _moduleListener.Add;
-	_api.RemoveModuleListener = _moduleListener.Remove;
-	_api.ToggleModuleListener = _moduleListener.Toggle;
-	_api.FireModuleListener = _moduleListener.Fire;
-
-	var _modules = [];
+	function ListenerException(ex) ReportError( ExToText(ex) );
+	var $S = new StateKeeper( ListenerException );
+	var _moduleListener = new Listener( ListenerException );
 	
-	this.AddModule = function( moduleConstructor, creationFunction, source ) {
-	
-		var module = new moduleConstructor(_data, _api, _state);
+	$A.AddModuleListener = _moduleListener.Add;
+	$A.RemoveModuleListener = _moduleListener.Remove;
+	$A.ToggleModuleListener = _moduleListener.Toggle;
+	$A.FireModuleListener = _moduleListener.Fire;
 
-		if ( module.disabled ) {
+	$A.core = {
+	
+		AddModule: function( moduleConstructor, creationFunction, source ) {
+
+			var module = new moduleConstructor($D, $A, $S);
+
+			if ( module.disabled ) {
+
+				ReportWarning( 'Module '+source+' is disabled.' );
+				return;
+			}
+
+			if ( module.moduleApi )
+				for ( let f in module.moduleApi )
+					if ( f in $A ) { // avoid module API do be overwritten ( use hasOwnProperty() ? )
+
+						ReportError( f+' function already defined in module API. Module '+source+' cannot be loaded.' );
+						RemoveModule(module);
+						return;
+					} else {
+
+						$A[f] = module.moduleApi[f];
+					}
+
+			if ( module.stateListener )
+				for each ( let {set:set, reset:reset, trigger:trigger} in module.stateListener )
+					$S.AddStateListener(set, reset, trigger);
+
+			if ( module.moduleListener )
+				$A.AddModuleListener( module.moduleListener );
+
+			module.Reload = creationFunction; // this function allows the module to completly reload itself from the same source
+			module.name = module.name || moduleConstructor.name || IdOf(source).toString(36); // modules MUST have a name.
+			module.source = source; // not mendatory for the moment
+			_modules.push(module);
+			$S.Enter(module.name); // don't move this line
+		},
 		
-			ReportWarning( 'Module '+source+' is disabled.' );
-			return;
-		}
+		LoadModule: function( moduleURL ) {
+
+			var moduleLoadRetry = getData($D.moduleLoadRetry);
+			var moduleLoadRetryPause = getData($D.moduleLoadRetryPause);
+
+			function ModuleLoaded(status, moduleConstructor, creationFunction, source) {
+
+				if ( status == OK )
+					$A.core.AddModule(moduleConstructor, creationFunction, source);
+			}
+			LoadModuleFromURL( moduleURL, moduleLoadRetry, moduleLoadRetryPause, ModuleLoaded );
+		},
+
+		RemoveModule: function( module ) {
 		
-		if ( module.moduleApi )
-			for ( let f in module.moduleApi )
-				if ( f in _api ) { // avoid module API do be overwritten ( use hasOwnProperty() ? )
-					
-					ReportError( f+' function already defined in module API. Module '+source+' cannot be loaded.' );
-					RemoveModule(module);
-					return;
-				} else {
-				
-					_api[f] = module.moduleApi[f];
-				}
+			if ( !DeleteArrayElement(_modules, module) ) // remove the module from the module list
+				return;
+
+			$S.Leave(module.name);
+
+			if ( module.moduleListener )
+				$A.RemoveModuleListener( module.moduleListener );
+
+			if ( module.moduleApi )
+				for ( var f in module.moduleApi )
+					delete $A[f];
+
+			if ( module.stateListener )
+				for each ( let {set:set, reset:reset, trigger:trigger} in module.stateListener )
+					$S.RemoveStateListener(set, reset, trigger);
+
+			Clear(module); // jsstd
+		},
+	
+	
+		ReloadModule: function( module ) {
+
+			var ReloadFct = module.Reload;
+			for each ( let m in $A.core.ModulesByName(module.name) )
+				$A.core.RemoveModule(m); // remove existing module with the same name
+			ReloadFct();
+		},
+		
+		ModulesByName: function( name ) { // note: this.HasModuleName = function( name ) _modules.some(function(mod) mod.name == name);
+
+			return [ mod for each ( mod in _modules ) if ( mod.name == name ) ];
+		},
+
+		ModuleList: function() {
 			
-		if ( module.stateListener )
-			for each ( let {set:set, reset:reset, trigger:trigger} in module.stateListener )
-				_state.AddStateListener(set, reset, trigger);
-		
-		if ( module.moduleListener )
-			_moduleListener.Add( module.moduleListener );
-		
-		module.Reload = creationFunction; // this function allows the module to completly reload itself from the same source
-		module.name = module.name || moduleConstructor.name || IdOf(source).toString(36); // modules MUST have a name.
-		module.source = source; // not mendatory for the moment
-		_modules.push(module);
-		_state.Enter(module.name); // don't move this line
-	}
-	
-
-	this.LoadModule = function( moduleURL ) {
-	
-		var moduleLoadRetry = getData(core.data.moduleLoadRetry);
-		var moduleLoadRetryPause = getData(core.data.moduleLoadRetryPause);
-
-		function ModuleLoaded(status, moduleConstructor, creationFunction, source) {
-
-			if ( status == OK )
-				core.AddModule(moduleConstructor, creationFunction, source);
+			return _modules.slice() // slice() to prevent dead-loop
 		}
-		LoadModuleFromURL( moduleURL, moduleLoadRetry, moduleLoadRetryPause, ModuleLoaded );
-	}
-
+	};
 	
-	this.RemoveModule = function( module ) {
-		
-		if ( !DeleteArrayElement(_modules, module) ) // remove the module from the module list
-			return;
-
-		_state.Leave(module.name);
-
-		if ( module.moduleListener )
-			_moduleListener.Remove( module.moduleListener );
-		
-		if ( module.moduleApi )
-			for ( var f in module.moduleApi )
-				delete _api[f];
-				
-		if ( module.stateListener )
-			for each ( let {set:set, reset:reset, trigger:trigger} in module.stateListener )
-				_state.RemoveStateListener(set, reset, trigger);
-
-		Clear(module); // jsstd
-	}
+	Seal($A.core); // jsstd
 	
-	
-	this.ReloadModule = function( module ) {
-		
-		var ReloadFct = module.Reload;
-		for each ( let m in _core.ModulesByName(module.name) )
-			_core.RemoveModule(m); // remove existing module with the same name
-		ReloadFct();
-	}
-	
-	
-	this.ModulesByName = function( name ) { // note: this.HasModuleName = function( name ) _modules.some(function(mod) mod.name == name);
-
-		return [ mod for each ( mod in _modules ) if ( mod.name == name ) ];
-	}
-
-	this.ModuleList = function() _modules.slice(); // slice() to prevent dead-loop
-
-
 	Seal(this); // jsstd
 
-	LoadModuleList( _core, getData(_data.moduleList) );
+	LoadModuleList( $A.core, getData($D.moduleList), getData($D.moduleLoadRetry), getData($D.moduleLoadRetryPause) );
 
-	_state.Enter(STATE_RUNNING);
+	$S.Enter(STATE_RUNNING);
 	io.Process( function() endSignal );
-	_state.Leave(STATE_RUNNING);
+	$S.Leave(STATE_RUNNING);
 	
-	for each ( mod in _core.ModuleList() )
-		_core.RemoveModule( mod );
+	for each ( mod in $A.core.ModuleList() )
+		$A.core.RemoveModule( mod );
 }
 
 
