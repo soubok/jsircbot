@@ -334,7 +334,7 @@
 					let info = 'Currently, there are '+_tremPlayersCount+' tremulous players spread on '+_tremServerCount+' servers.';
 
 					if ( _scanEndTime > _scanStartTime )
-						info += ' scan finished '+((Now()-_scanEndTime)/1000).toFixed(2)+' seconds ago';
+						info += ' scan finished '+((Now()-_scanEndTime)/1000).toFixed(0)+' seconds ago';
 					else
 						info += ' Scan in progress...';
 //						info += 'started '+((Now()-_scanStartTime)/1000).toFixed(2);

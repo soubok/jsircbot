@@ -205,15 +205,12 @@ function Core( Configurator ) {
 		
 		LoadModule: function( moduleURL ) {
 
-			var moduleLoadRetry = getData($D.moduleLoadRetry);
-			var moduleLoadRetryPause = getData($D.moduleLoadRetryPause);
-
 			function ModuleLoaded(status, moduleConstructor, creationFunction, source) {
 
 				if ( status == OK )
 					$A.core.AddModule(moduleConstructor, creationFunction, source);
 			}
-			LoadModuleFromURL( moduleURL, moduleLoadRetry, moduleLoadRetryPause, ModuleLoaded );
+			LoadModuleFromURL( moduleURL, getData($D.moduleLoadRetry), getData($D.moduleLoadRetryPause), ModuleLoaded );
 		},
 
 		RemoveModule: function( module ) {
