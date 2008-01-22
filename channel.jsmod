@@ -66,14 +66,14 @@
 		}		
 	}
 
-	this.messageListener = {
+	this.moduleListener = { ircMsg:{
 	
-		RPL_CREATIONTIME: function( command, from, to, channel, time ) {
+		RPL_CREATIONTIME: function( tmp, command, from, to, channel, time ) {
 
 			setData( $D.channel[NormalizeChannelName(channel)].creationTime, parseInt(time) );
 		},		
 
-		JOIN: function( command, who, channel ) { // :cdd_etf_bot!~cdd_etf_b@nost.net JOIN #soubok
+		JOIN: function( tmp, command, who, channel ) { // :cdd_etf_bot!~cdd_etf_b@nost.net JOIN #soubok
 
 			// from i= / n= : http://freenode.net/faq.shtml#userequals		
 			// channel name case may be wrong
@@ -93,7 +93,7 @@
 			}
 		},
 			
-		PART: function( command, who, channel ) {
+		PART: function( tmp, command, who, channel ) {
 
 			var nick = StrBefore(who, '!');
 			if ( nick == getData($D.nick) )
@@ -102,7 +102,7 @@
 				delData( $D.channel[NormalizeChannelName(channel)].names[nick] );
 		},
 
-		KICK: function( command, from, channel, who, message ) {
+		KICK: function( tmp, command, from, channel, who, message ) {
 
 			if ( who == getData($D.nick) )
 				delData( $D.channel[NormalizeChannelName(channel)] );
@@ -110,7 +110,7 @@
 				delData( $D.channel[NormalizeChannelName(channel)].names[who] );
 		},
 
-		QUIT: function( command, who ) {
+		QUIT: function( tmp, command, who ) {
 
 			var nick = StrBefore(who, '!');
 			for each ( var chan in $D.channel )
@@ -118,7 +118,7 @@
 					delData( chan.names[nick] );
 		},
 		
-		NICK: function( command, who, newNick ) {
+		NICK: function( tmp, command, who, newNick ) {
 
 			var nick = StrBefore(who, '!');
 //			if ( nick == getData( $D.nick ) ) // do not manage bot nick change here! why ?
@@ -128,17 +128,17 @@
 					moveData( chan.names[nick], chan.names[newNick] );
 		},
 
-		RPL_BANLIST: function( command, from, to, channel, ban, banBy, time ) {
+		RPL_BANLIST: function( tmp, command, from, to, channel, ban, banBy, time ) {
 
 			setData( $D.channel[NormalizeChannelName(channel)].bans[ban], true );
 		},
 
-		RPL_NOTOPIC: function( command, channel ) {
+		RPL_NOTOPIC: function( tmp, command, channel ) {
 
 			delData( $D.channel[NormalizeChannelName(channel)].topic );
 		},
 
-		TOPIC: function( command, from, channel, topic ) {
+		TOPIC: function( tmp, command, from, channel, topic ) {
 			
 			var who = StrBefore(from, '!')			
 			var time = Math.floor( Now()/SECOND ); // adjust time because timezone ?
@@ -147,23 +147,23 @@
 			setData( $D.channel[NormalizeChannelName(channel)].topicWho, time );
 		},
 
-		RPL_TOPIC: function( command, from, to, channel, topic ) {
+		RPL_TOPIC: function( tmp, command, from, to, channel, topic ) {
 
 			setData( $D.channel[NormalizeChannelName(channel)].topic, topic );
 		},
 		
-		RPL_TOPICWHOTIME: function( command, from, to, channel, who, time ) {
+		RPL_TOPICWHOTIME: function( tmp, command, from, to, channel, who, time ) {
 
 			setData( $D.channel[NormalizeChannelName(channel)].topicWho, who );
 			setData( $D.channel[NormalizeChannelName(channel)].topicWho, time );
 		},		
 
-		RPL_CHANNELMODEIS: function( command, from, to, channel, modes /*, ...*/ ) {
+		RPL_CHANNELMODEIS: function( tmp, command, from, to, channel, modes /*, ...*/ ) {
 
 			ParseModes( modes, Array.slice(arguments,5), $D.channel[NormalizeChannelName(channel)], undefined );
 		},
 		
-		MODE: function( command, who, what, modes /*, ...*/ ) {
+		MODE: function( tmp, command, who, what, modes /*, ...*/ ) {
 				
 			if ( what[0] != '#' ) // can be a user mode OR a mod for another channel
 				return;
@@ -171,7 +171,7 @@
 			ParseModes( modes, Array.slice(arguments,4), $D.channel[NormalizeChannelName(what)], who );
 		},
 		
-		RPL_NAMREPLY: function( command, from, to, type, channel, list ) {
+		RPL_NAMREPLY: function( tmp, command, from, to, type, channel, list ) {
 		
 			var chanData = $D.channel[NormalizeChannelName(channel)];
 			

@@ -351,7 +351,7 @@
 	];
 	
 
-	this.messageListener = {
+	this.moduleListener = { ircMsg:{
 
 		ERR_NICKNAMEINUSE: function( nick, nickInUsePhrase ) {
 
@@ -359,6 +359,6 @@
 			// (TBD) wait a response before changingthe nick ?
 			$A.Nick( pv.botNick );
 		}
-	};
+	} };
 
 })

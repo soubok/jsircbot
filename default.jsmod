@@ -16,7 +16,6 @@
 (function DefaultModule($D, $A, $S) {
 	
 	this.name = this.constructor.name;
-
 	var $MD = $D[this.name];
 
 	function TemporaryNick() '_'+RandomString(8);
@@ -24,10 +23,9 @@
 // [TBD] autodetect max message length ( with a self sent mesage )
 // [TBD] autodetect flood limit
 
-	this.messageListener = {
+	this.moduleListener = { ircMsg:{
 	
-	
-		RPL_WELCOME: function( command, from, to ) {
+		RPL_WELCOME: function( tmp, command, from, to ) {
 
 			setData($D.nick, to);
 			$S.Toggle( STATE_HAS_GOOD_NICK, getData($D.nick) == getData($D.wishNick) );
@@ -43,7 +41,7 @@
 //		ERR_RESTRICTED
 
 
-		NICK: function( command, from, newNick ) { // WiZ!jto@tolsun.oulu.fi NICK Kilroy
+		NICK: function( tmp, command, from, newNick ) { // WiZ!jto@tolsun.oulu.fi NICK Kilroy
 			
 			var nick = StrBefore(from, '!');
 			if ( nick != getData($D.nick) ) // only listen for self nickname changing.
@@ -57,7 +55,7 @@
 //			$A.Nick( TemporaryNick() );
 //		},
 
-//		ERR_NICKCOLLISION: function( command, nick, nickCollisionPhrase ) { // Nickname collision KILL from <user>@<host>
+//		ERR_NICKCOLLISION: function( tmp, command, nick, nickCollisionPhrase ) { // Nickname collision KILL from <user>@<host>
 //			
 //			$A.Nick( TemporaryNick() );
 //		},
@@ -82,7 +80,7 @@
 		},
 
 
-		RPL_USERHOST: function( command, from, to, hostList ) {
+		RPL_USERHOST: function( tmp, command, from, to, hostList ) {
 			
 			if ( to == getData($D.nick) ) {
 				
@@ -91,13 +89,13 @@
 			}
 		},
 		
-		PING: function( command, prefix, arg ) {
+		PING: function( tmp, command, prefix, arg ) {
 
 			$A.Send( 'PONG '+arg );
 			setData( $D.lastPingTime, Now() );
 		},
 
-		NOTICE: function( command, from, to, message ) {
+		NOTICE: function( tmp, command, from, to, message ) {
 
 			// irc.clockworkorange.co.uk- on 1 ca 1(2) ft 10(10) tr
 			// where:
@@ -112,7 +110,7 @@
 				var res = /on ([0-9]+) ca ([0-9]+)\(([0-9]+)\) ft ([0-9]+)\(([0-9]+)\) *(tr)?$/(message);
 				if ( res == null )
 					return;
-//				$A.RemoveMessageListener( 'NOTICE', oncafttrNotice );
+//				$A.RemoveModuleListener( 'NOTICE', oncafttrNotice );
 			}
 */
 		}
@@ -197,16 +195,16 @@
 
 	var lagProbe = new AsyncProcHelper( function() {
 
-		var LagProbeResponse = {
+		var LagProbeResponse = { ircMsg:{
 
-			PONG: function( command, from, server, data ) {
+			PONG: function( tmp, command, from, server, data ) {
 
 				if ( data.substr(0,3) == 'LAG' )
 					setData( $D.ping, IntervalNow() - parseInt(data.substr(3)) );
 			}
-		}
+		}}
 
-		$A.AddMessageListener( LagProbeResponse );
+		$A.AddModuleListener( LagProbeResponse );
 		
 		try {
 
@@ -217,7 +215,7 @@
 			}
 		} finally { // called when the procedure is closed
 		
-			$A.RemoveMessageListener( LagProbeResponse );
+			$A.RemoveModuleListener( LagProbeResponse );
 		}
 	});
 

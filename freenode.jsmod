@@ -40,23 +40,23 @@
 		// Syntax: ACCESS <channel> LIST [FULL|mask]
 		AccessInfo: function( channel, OnReply ) _cs.Add( function() {
 
-			var result = [], timeoutId, events = NewDataObj(), startMarker = RandomNumber(8);
-			$A.AddMessageListener(events);
+			var result = [], timeoutId, events = {ircMsg:{}}, startMarker = RandomNumber(8);
+			$A.AddModuleListener(events);
 
 			function End(status, reply) { // response OR timeout
 
-				$A.RemoveMessageListener(events);
+				$A.RemoveModuleListener(events);
 				io.RemoveTimeout(timeoutId);
 				_cs.Next();
 				OnReply(status, reply);
 			}
 
-			events.NOTICE = function( command, from, to, msg ) {
+			events.ircMsg.NOTICE = function( tmp, command, from, to, msg ) {
 
 				if ( msg.indexOf(startMarker) != -1 ) // the message do not contains the sync key ( -NickServ- Unknown command [<startMarker>] )
 					return;
 
-				events.NOTICE = function( command, from, to, msg ) {
+				events.ircMsg.NOTICE = function( tmp, command, from, to, msg ) {
 
 					if ( from != getData($MD.chanServ) || to != getData($D.nick) )
 						return;
@@ -89,23 +89,23 @@
 		// Syntax: INFO <channel>
 		ChanInfo: function( channel, OnReply ) _cs.Add( function() {
 
-			var result = NewDataObj(), timeoutId, events = NewDataObj(), startMarker = RandomNumber(8), endMarker = RandomNumber(8);
-			$A.AddMessageListener(events);
+			var result = NewDataObj(), timeoutId, events = {ircMsg:{}}, startMarker = RandomNumber(8), endMarker = RandomNumber(8);
+			$A.AddModuleListener(events);
 
 			function End(status, reply) { // response OR timeout
 
-				$A.RemoveMessageListener(events);
+				$A.RemoveModuleListener(events);
 				io.RemoveTimeout(timeoutId);
 				_cs.Next();
 				OnReply(status, reply);
 			}
 
-			events.NOTICE = function( command, from, to, msg ) {
+			events.ircMsg.NOTICE = function( tmp, command, from, to, msg ) {
 
 				if ( msg.indexOf(startMarker) == -1 ) // the message do not contains the sync key ( -NickServ- Unknown command [<startMarker>] )
 					return;
 
-				events.NOTICE = function( command, from, to, msg ) {
+				events.ircMsg.NOTICE = function( tmp, command, from, to, msg ) {
 
 					if ( msg.indexOf(endMarker) == -1 ) {
 
@@ -160,23 +160,23 @@
 		// Syntax: ACCESS <channel> LIST [FULL|mask]
 		NickInfo: function( channel, OnReply ) _cs.Add( function() {
 
-			var result = NewDataObj(), timeoutId, events = NewDataObj(), startMarker = RandomNumber(8), endMarker = RandomNumber(8);
-			$A.AddMessageListener(events);
+			var result = NewDataObj(), timeoutId, events = {ircMsg:{}}, startMarker = RandomNumber(8), endMarker = RandomNumber(8);
+			$A.AddModuleListener(events);
 
 			function End(status, reply) { // response OR timeout
 
-				$A.RemoveMessageListener(events);
+				$A.RemoveModuleListener(events);
 				io.RemoveTimeout(timeoutId);
 				_cs.Next();
 				OnReply(status, reply);
 			}
 
-			events.NOTICE = function( command, from, to, msg ) {
+			events.ircMsg.NOTICE = function( tmp, command, from, to, msg ) {
 
 				if ( msg.indexOf(startMarker) != -1 ) // the message do not contains the sync key ( -NickServ- Unknown command [<startMarker>] )
 					return;
 
-				events.NOTICE = function( command, from, to, msg ) {
+				events.ircMsg.NOTICE = function( tmp, command, from, to, msg ) {
 
 					if ( msg.indexOf(endMarker) != -1 ) {// the message do not contains the sync key ( -NickServ- Unknown command [<syncBegin>] )
 						

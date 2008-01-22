@@ -118,16 +118,16 @@
 	}
 
 
-	this.messageListener = {
+	this.moduleListener = { ircMsg:{
 	
-		NOTICE: function( command, from, to, msg ) { // ctcp response
+		NOTICE: function( tmp, command, from, to, msg ) { // ctcp response
 		},
 
-		PRIVMSG: function( command, from, to, msg ) {
+		PRIVMSG: function( tmp, command, from, to, msg ) {
 			
 			[ DispatchCtcpMessage( from, to, m ) for ( [i, m] in Iterator(msg.split(X_DELIM)) ) if ( i % 2 ) ];
 		}
-	}
+	} }
 
 	this.moduleApi = {
 		

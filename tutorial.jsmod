@@ -101,41 +101,35 @@
 	}
 
 
+	// this.moduleListener is a tree where the leafs are functions, each tree level is an argument value of the final function.
 
-
-
-	// MessageListener is a tree where the leafs are functions, each tree level is an argument value of the final function.
-	// In the following case, PRIVMSG is the first level of the tree and is a filter to the first argument of the function.
-	// Only PRIVMSG commands will fire the function.
+	// In the following case, ircMsg is at the first level of the tree and is a filter to the first argument of the function.
+	// Only 'ircMsg' messages will fire the function.
 	// NOTE: the following syntax that is used to create this.messageListener is called "Object Initializer" 
 	//       see http://developer.mozilla.org/en/docs/Core_JavaScript_1.5_Guide:Creating_New_Objects:Using_Object_Initializers
-	this.messageListener = {
-
-		// This function is called each time a  PRIVMSG  command is received from the server.
-		// command argument is the name of the command itself ( PRIVMSG here ).
-		// from argument is who sent the message.
-		// to argument contains the destination of the message ( channel or a nickname )
-		PRIVMSG: function( command, from, to, msg ) {
-
-			// IsBotOp is an AIP function defined in the operator module ( operator.jsmod )
-			if ( !$A.IsBotOp(from) )
-				return;
-			
-			// this function is often used to extract the nickname from the 'from' argument that looks like "nickName!hostname.com"
-			var nick = StrBefore(from, '!');
-			
-			var replyTo = to[0] == '#' ? to : nick;
-			
-			// call Privmsg (defined in default.jsmod ) to send data to a user or a channel
-			$A.Privmsg( replyTo, 'listening' );
-		}
-	}
-
-
-
-
-	// like messageListener, moduleListener ise used to listen events  dispatched by other modules
+	// moduleListener is used to listen events dispatched by other modules
 	this.moduleListener = {
+		ircMsg: {
+		
+			// This function is called each time a  PRIVMSG  command is received from the server.
+			// command argument is the name of the command itself ( PRIVMSG here ).
+			// from argument is who sent the message.
+			// to argument contains the destination of the message ( channel or a nickname )
+			PRIVMSG: function( command, from, to, msg ) {
+
+				// IsBotOp is an AIP function defined in the operator module ( operator.jsmod )
+				if ( !$A.IsBotOp(from) )
+					return;
+
+				// this function is often used to extract the nickname from the 'from' argument that looks like "nickName!hostname.com"
+				var nick = StrBefore(from, '!');
+
+				var replyTo = to[0] == '#' ? to : nick;
+
+				// call Privmsg (defined in default.jsmod ) to send data to a user or a channel
+				$A.Privmsg( replyTo, 'listening' );
+			}
+		},
 		
 		// botcmd messages are sent by bodCmd.jsmod module and allow you to manage commands like: !echo test
 		botcmd: {

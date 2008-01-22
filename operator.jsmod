@@ -294,17 +294,17 @@
 					$A.Send( cmdData );
 				} else {
 
-					function CreateSpy(connection) function() connection.Write( Array.slice(arguments).toSource() + LF );
+					function CreateSpy(connection) function() connection.Write( Array.slice(arguments).toSource() + LF ); // (TBD) remove the 1st argument
 
 					$A.OpenDCCChat( nick, function(connection) {
 
-						var spy = CreateSpy(connection);
-						$A.AddMessageListener(spy);
+						var spy = { ircMsg:CreateSpy(connection) };
+						$A.AddModuleListener(spy);
 						connection.OnData = function(buf) {
 
 							$A.Send( buf.replace(/\r?\n?$/,'') );
 						}
-						connection.OnDisconnected = function() $A.RemoveMessageListener(spy);
+						connection.OnDisconnected = function() $A.RemoveModuleListener(spy);
 					});
 				}
 			},

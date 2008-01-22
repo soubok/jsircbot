@@ -40,9 +40,9 @@ function RateMeter() {
 	var _channelMonitor = new RateMeter();
 	var _userMonitor = new RateMeter();
 
-	this.messageListener = {
+	this.moduleListener = { ircMsg: {
 	
-		PRIVMSG: function( command, from, to, msg ) {
+		PRIVMSG: function( _, command, from, to, msg ) {
 						
 			if ( msg[0] != '!' ) // not a bot command
 				return;
