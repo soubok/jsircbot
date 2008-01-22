@@ -394,8 +394,8 @@
 	
 	this.stateListener = [
 		{
-			set: function(s) s.running && s[_name],
-			reset: function(s) !s.running || !s[_name],
+			set: function(s) s.[STATE_RUNNING] && s[_name],
+			reset: function(s) !s[STATE_RUNNING] || !s[_name],
 			trigger: function(polarity) {
 
 				serverListUpdater.Toggle(polarity);

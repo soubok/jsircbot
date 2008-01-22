@@ -25,50 +25,47 @@
 		Whois: function( nick, OnReply ) _cs.Add(function() {
 
 			var pingData = RandomNumber(16);
-			var timeoutId, events = NewDataObj(), result = NewDataObj();
+			var timeoutId, events = {ircMsg:{}}, result = NewDataObj();
 
-			$A.AddMessageListener(events);
+			$A.AddModuleListener(events);
 
 			function End(status, reply) {
 
-				$A.RemoveMessageListener(events);
+				$A.RemoveModuleListener(events);
 				io.RemoveTimeout(timeoutId);
 				_cs.Next();
 				OnReply(status, reply);
 			}
 
-			events.PONG = function(command, from, server, data) {
+			events.ircMsg.PONG = function( tmp, command, from, server, data ) {
 
 				if ( data != pingData )
 					return;
-				delete events.PONG;
+				delete events.ircMsg.PONG;
 
-				events.RPL_WHOISUSER = function( command, from, to, nick, user, host, star, realName ) {
+				events.ircMsg.RPL_WHOISUSER = function( tmp, command, from, to, nick, user, host, star, realName ) {
 
 					result.nick = nick
 					result.user = user
 					result.host = host;
 					result.realName = realName;
 				}
-				events.RPL_WHOISCHANNELS = function( command, from, to, nick, channelList ) {
+				events.ircMsg.RPL_WHOISCHANNELS = function( tmp, command, from, to, nick, channelList ) {
 
 					result.channelList = RTrim(channelList).split(' ');
 				}
-				events.RPL_WHOISSERVER = function( command, from, to, nick, server, serverInfo ) {
+				events.ircMsg.RPL_WHOISSERVER = function( tmp, command, from, to, nick, server, serverInfo ) {
 					result.server = server;
 					result.serverInfo = serverInfo;
 				}
-				events[320] = function( command, from, to, nick ) { // is identified to services (freenode only ?)
+				events.ircMsg[320] = function( tmp, command, from, to, nick ) { // is identified to services (freenode only ?)
 
 					result.isIdentified = true;
 				}
-				events.ERR_NOSUCHSERVER = function() End(NOTFOUND);
-				events.ERR_NONICKNAMEGIVEN = function() End(BADREQUEST);
-				events.ERR_NOSUCHNICK = function() End(NOTFOUND);
-				events.RPL_ENDOFWHOIS = function( command, from, to, nick ) {
-
-					End(OK, result);
-				}
+				events.ircMsg.ERR_NOSUCHSERVER = function() End(NOTFOUND);
+				events.ircMsg.ERR_NONICKNAMEGIVEN = function() End(BADREQUEST);
+				events.ircMsg.ERR_NOSUCHNICK = function() End(NOTFOUND);
+				events.ircMsg.RPL_ENDOFWHOIS = function() End(OK, result);
 			}
 
 			$A.Send( ['PING '+pingData, 'WHOIS '+nick], false, function() { // PING to sync the request
@@ -82,22 +79,22 @@
 
 			var pingData = RandomNumber(16);
 			var timeoutId;
-			var events = NewDataObj();
+			var events = (ircMsg:{}};
 
 			function End(status, reply) {
 
-				$A.RemoveMessageListener(events);
+				$A.RemoveModuleListener(events);
 				io.RemoveTimeout(timeoutId);
 				_cs.Next();
 				OnReply(status, reply);
 			}
 
-			events.PONG = function(command, from, server, data) {
+			events.ircMsg.PONG = function( tmp, command, from, server, data ) {
 
 				if ( data != pingData )
 					return;
-				delete events.PONG;
-				events.RPL_USERHOST = function( command, from, to, hostList ) {
+				delete events.ircMsg.PONG;
+				events.ircMsg.RPL_USERHOST = function( tmp, command, from, to, hostList ) {
 
 					var result = NewDataObj();
 					for each ( var userhost in hostList.split(' ') ) {
@@ -112,10 +109,10 @@
 					End(OK, result);
 				};
 
-				events.ERR_NEEDMOREPARAMS = function( command, from, to, erroneousCommand, reasonPhrase ) erroneousCommand == 'USERHOST' && End(BADREQUEST);
+				events.ircMsg.ERR_NEEDMOREPARAMS = function( command, from, to, erroneousCommand, reasonPhrase ) erroneousCommand == 'USERHOST' && End(BADREQUEST);
 			};
 
-			$A.AddMessageListener(status, events);
+			$A.AddModuleListener(status, events);
 
 			$A.Send( ['PING '+pingData, 'USERHOST '+nickList.join(' ')], false, function() {
 
@@ -126,31 +123,31 @@
 
 		Prompt: function( nick, message, OnReply ) _cs.Add(function() {
 
-			var timeoutId, events = NewDataObj();
+			var timeoutId, events = {ircMsg:{}});
 
 			function End(status, message) {
 
-				$A.RemoveMessageListener(events);
+				$A.RemoveModuleListener(events);
 				io.RemoveTimeout(timeoutId);
 				_cs.Next();
 				OnReply(status, message);
 			}
 
-			events.ERR_NORECIPIENT = function() End(BADREQUEST);
-			events.ERR_NOTEXTTOSEND = function() End(BADREQUEST);
-			events.ERR_CANNOTSENDTOCHAN = function() End(ERROR);
-			events.ERR_NOTOPLEVEL = function() End(ERROR);
-			events.ERR_WILDTOPLEVEL = function() End(ERROR);
-			events.ERR_TOOMANYTARGETS = function() End(ERROR);
-			events.ERR_NOSUCHNICK = function() End(NOTFOUND);
-			events.RPL_AWAY = function() End(UNAVAILABLE);
-			events.PRIVMSG = function( command, from, to, message ) {
+			events.ircMsg.ERR_NORECIPIENT = function() End(BADREQUEST);
+			events.ircMsg.ERR_NOTEXTTOSEND = function() End(BADREQUEST);
+			events.ircMsg.ERR_CANNOTSENDTOCHAN = function() End(ERROR);
+			events.ircMsg.ERR_NOTOPLEVEL = function() End(ERROR);
+			events.ircMsg.ERR_WILDTOPLEVEL = function() End(ERROR);
+			events.ircMsg.ERR_TOOMANYTARGETS = function() End(ERROR);
+			events.ircMsg.ERR_NOSUCHNICK = function() End(NOTFOUND);
+			events.ircMsg.RPL_AWAY = function() End(UNAVAILABLE);
+			events.ircMsg.PRIVMSG = function( tmp, command, from, to, message ) {
 
 				if ( to == getData($D.nick) && nick == StrBefore(from, '!') )
 					End(OK, message);
 			};
 
-			$A.AddMessageListener(events);
+			$A.AddModuleListener(events);
 			$A.Privmsg( nick, message, function() {
 
 				timeoutId = io.AddTimeout(getData($MD.maxUserReplyInterval), function() End(TIMEOUT) ); // start the timeout ONLY vhen the message has been sent
@@ -164,7 +161,7 @@
 
 			function End(status) {
 
-				$A.RemoveMessageListener(events);
+				$A.RemoveModuleListener(events);
 				io.RemoveTimeout(timeoutId);
 				_cs.Next();
 				OnReply(status);
@@ -172,9 +169,9 @@
 
 			function Reply( command, from, server, data ) data == pingData && End(OK);
 
-			events = { PONG:Reply };
+			events = { ircMsg:{PONG:Reply} };
 
-			$A.AddMessageListener(events);
+			$A.AddModuleListener(events);
 			$A.Send( 'PING '+pingData, false, function() {
 
 				timeoutId = io.AddTimeout(getData($MD.maxServerReplyInterval), function() End(TIMEOUT) ); // start the timeout ONLY vhen the message has been sent
@@ -185,16 +182,16 @@
 
 		Response: function( commandName, OnReply ) _cs.Add(function() {
 
-			var timeoutId, events = {};
+			var timeoutId, events = { ircMsg:{} };
 			function End() {
 
-				$A.RemoveMessageListener(events);
+				$A.RemoveModuleListener(events);
 				io.RemoveTimeout(timeoutId);
 				_cs.Next();
 				OnReply.apply(null, arguments);
 			}
-			$A.AddMessageListener(events);
-			events[commandName] = function( command, from, server, data ) End( OK, command, from, server, data );
+			$A.AddModuleListener(events);
+			events.ircMsg[commandName] = function( tmp, command, from, server, data ) End( OK, command, from, server, data );
 			timeoutId = io.AddTimeout(getData($MD.maxServerReplyInterval), function() End(TIMEOUT) );
 		})
 		

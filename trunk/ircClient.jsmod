@@ -1,0 +1,312 @@
+(function IrcBotModule($D, $A, $S) {
+
+	var _name = this.name = this.constructor.name;
+	
+	var _numericCommand = Exec('NumericCommand.js');
+
+	var _connection;
+
+
+//	this.hasFinished = function() !_connection;
+	
+	function Disconnect() {
+		
+		_connection.Disconnect(); // make a Gracefully disconnect ( disconnect != close )
+	}
+	
+	function Connect() {
+		
+		var _receiveBuffer = new Buffer();
+
+		function OnData(buf) {
+
+			_receiveBuffer.Write(buf);
+			var message;
+			while ( (message = _receiveBuffer.ReadUntil(CRLF)) ) {
+				
+				log.Write( LOG_IRCMSG, 'in', message);
+				try {
+
+					//    message    =  [ ":" prefix SPACE ] command [ params ] crlf
+					//    prefix     =  servername / ( nickname [ [ "!" user ] "@" host ] )
+					//    command    =  1*letter / 3digit
+					//    params     =  *14( SPACE middle ) [ SPACE ":" trailing ]
+					//               =/ 14( SPACE middle ) [ SPACE [ ":" ] trailing ]
+					//    nospcrlfcl =  %x01-09 / %x0B-0C / %x0E-1F / %x21-39 / %x3B-FF
+					//                    ; any octet except NUL, CR, LF, " " and ":"
+					//    middle     =  nospcrlfcl *( ":" / nospcrlfcl )
+					//    trailing   =  *( ":" / " " / nospcrlfcl )
+
+					// The prefix is used by servers to indicate the true origin of the message.
+					var prefix = message.indexOf( ':' );
+					var trailing = message.indexOf( ':', 1 );
+					var args = message.substring( prefix ? 0 : 1, (trailing > 0) ? trailing-1 : message.length ).split(' ');
+					if ( prefix != 0 ) // If the prefix is missing from the message, it is assumed to have originated from the connection from which it was received from.
+						args.unshift( undefined );
+					if ( trailing != 0 )
+						args.push( message.substring( trailing + 1 ) );
+					if ( !isNaN(args[1]) )
+						args[1] = _numericCommand[parseInt(args[1])] || parseInt(args[1]);
+					args.splice(1, 0, args.shift()); // move the command name to the first place.
+					
+					args.unshift('ircMsg'); // add the module message type at the first place
+					$A.FireModuleListener.apply( null, args );
+
+					if ( args[1] == 'RPL_WELCOME' )
+						$S.Enter(STATE_INTERACTIVE);
+
+				} catch (ex if ex == ERR) {
+				
+					ReportError('Invalid IRC server message', message);
+				}
+			}
+		}
+
+		function OnDisconnected( remotelyDisconnected ) {
+			
+			remotelyDisconnected && ReportWarning( 'Remotely disconnected' );
+			!remotelyDisconnected && ReportNotice( 'Locally disconnected' );
+
+			$S.Leave(STATE_INTERACTIVE);
+
+			for each ( mod in _core.ModuleList() )
+				_core.RemoveModule( mod );
+
+			_connection.Close();
+			_connection = undefined; // this is the end
+			// (TBD) retry if remotelyDisconnected ?
+		}
+		
+		function OnConnected() {
+			
+			ReportNotice( 'Connection established' );
+			setData( $D.sockName, _connection.sockName );
+			setData( $D.sockPort, _connection.sockPort );
+			setData( $D.peerPort, _connection.peerPort );
+			setData( $D.peerName, _connection.peerName );
+			_connection.OnData = OnData;
+			_connection.OnDisconnected = OnDisconnected;
+			getData($D.ident) && Ident( io, function(identRequest) identRequest + ' : '+getData($D.ident.userid)+' : '+getData($D.ident.opsys)+' : '+getData($D.nick)+CRLF, 2*SECOND ); // let 2 seconds to the server to make the IDENT request
+		}
+
+		var getServer = new function() {
+			
+			for ( var j = 0; j < getData($D.serverRetry); j++ )
+				for each ( let serverInfo in getData($D.serverList) ) {
+					
+					var [server, ports] = serverInfo.split(':', 2);
+					for each ( let port in ExpandStringRanges(ports) )
+						for ( var i = 0; i < getData($D.serverRetry); i++ )
+							yield [server, port];
+				}
+		}
+		
+		function TryNextServer() {
+			
+			try {
+			
+				var [host, port] = getServer.next();
+			} catch(ex if ex == StopIteration) {
+			
+				Failed('Unable to connect to any server.');
+			}
+			
+			ReportNotice( 'Trying to connect to ' + host + ':' + port );
+			_connection = new TCPConnection(host, port);
+			_connection.OnFailed = function() {
+
+				ReportError('Failed to connect to ' + host + ':' + port );
+				io.AddTimeout( getData($D.serverRetryPause), TryNextServer );
+			}
+			_connection.OnConnected = OnConnected;
+			_connection.Connect( getData($D.connectTimeout) );
+			setData( $D.connectTime, IntervalNow() );
+		}
+		
+		TryNextServer();
+	}
+	
+
+
+	function RawDataSender(buf) {
+
+		log.Write( LOG_IRCMSG, 'out', buf );
+		_connection.Write(buf).length && Failed('Unable to send (more) data.');
+		setData( $D.lastMessageTime, IntervalNow() );
+	}
+
+//	this.Send = MakeFloodSafeMessageSender( getData($D.antiflood.maxMessage), getData($D.antiflood.maxBytes), getData($D.antiflood.interval), RawDataSender, $S );
+
+	function SyncWait() function(callback) {
+
+		var events, sync = RandomNumber(5), time = Now()
+		events = { ircMsg: { PONG: function( tmp, command, from, server, data ) {
+
+			if ( data != sync )
+				return;
+			$A.RemoveModuleListener(events);
+			callback(Now()-time);
+		}}};
+		$A.AddModuleListener(events);
+		RawDataSender( 'PING '+sync+CRLF );
+	}
+
+	var _messageQueue = [];
+	var _messageEvent = new Event();
+
+
+// var sendProcedure = AsyncProcHelper(  // (TBD)
+	StartAsyncProc( new function() {
+
+		var data, interval, length = 0, time = 0, sentNodifyList = [];
+		for (;;) {
+
+			if ( _messageQueue.length == 0 ) // no need to wait if messages are pending
+				yield AsyncEventWait(_messageEvent);
+			interval = Now() - time;
+			time = Now();
+			data = '';
+			while ( _messageQueue.length ) {
+
+				var [message, highPriorityMessage, OnSent] = _messageQueue[0]; // peek
+				if ( message.length >= 512 )
+					Failed('Message too long');
+				if ( data.length + message.length >= 512 )
+					break;
+				data += message;
+				sentNodifyList.push(OnSent);
+				_messageQueue.shift();
+			}
+			var _monitorPeriod = getData($D.antiflood.monitorPeriod);
+			var _messageOverload = getData($D.antiflood.messageOverload);
+			length = Math.floor(length * (interval < _monitorPeriod ? 1 - interval / _monitorPeriod : 0)) + _messageOverload + data.length;
+			if ( length > getData($D.antiflood.maxLength) && !highPriorityMessage ) { // if the rate is too high, test if we are flooding
+
+				length += _messageOverload + 12; // PING message length
+				let [syncTime] = yield SyncWait();
+				if ( syncTime > 5000 && length > 0 )
+					yield AsyncSleep(5000);
+			}
+			RawDataSender(data);
+			while ( sentNodifyList.length )
+				sentNodifyList.shift()();
+		}
+	});
+
+
+	// // // // // // //
+	
+
+	this.moduleApi = {	
+		
+		Send:function(message, highPriorityMessage, OnSent) {
+			
+			if ( message instanceof Array )
+				message = message.join(CRLF);
+			message += CRLF;
+			OnSent = OnSent||Noop;
+			if ( highPriorityMessage )
+				_messageQueue.unshift([message, highPriorityMessage, OnSent]);
+			else
+				_messageQueue.push([message, highPriorityMessage, OnSent]);
+			_messageEvent.Fire();
+		}
+	};
+	
+	this.stateListener = [
+		{
+			set: function(s) s[STATE_RUNNING] && s[_name],
+			reset: function(s) !s[STATE_RUNNING] || !s[_name],
+			trigger: function(polarity) {
+				
+				if ( polarity )
+					Connect();
+				else
+					Disconnect();
+			}
+		}
+	];	
+
+})
+
+
+
+/*
+
+http://www.irchelp.org/irchelp/misc/ccosmos.html
+
+DCC protocol (Direct Client Connection):
+  http://www.irchelp.org/irchelp/rfc/dccspec.html
+  
+CTCP Protocol (Client-To-Client Protocol)
+  http://www.irchelp.org/irchelp/rfc/ctcpspec.html
+  http://mathieu-lemoine.developpez.com/tutoriels/irc/ctcp/
+
+misc links:
+	modes infos/servers: http://www.alien.net.au/irc/chanmodes.html
+	http://www.irchelp.org/irchelp/rfc/rfc2811.txt
+	http://www.croczilla.com/~alex/reference/javascript_ref/object.html
+	http://www.js-examples.com/javascript/core_js15/obj.php
+	CTCP: http://www.irchelp.org/irchelp/rfc/ctcpspec.html
+
+6.9 Characters on IRC
+	For chatting in channels, anything that can be translated to ASCII gets through. (ASCII is a standard way to express characters) Note however, 
+	that since the parts of the ASCII table may be country-specific, 
+	your ASCII-art may not turn out as well for others. Fancy fonts will only show up on your own computer. 
+	You can use character map (charmap.exe) in windows to view the ASCII table.
+
+	Channelnames: After the initial #, & or +, all characters except NUL (\0), BELL (\007), CR (\r), LF (\n) a space or a comma
+	Colons in channelnames are valid for ircu but may be reserved for other purposes on other nets.
+
+	Nicks: The allowed characters are a to z, A to Z, 0 to 9 and [ ] { } [ ] { } \ | ^ ` - _
+	This is the same as saying that ’-’ and the characters ’0’ to ’9’ and ’A’ to ’}’ in the ASCII table are allowed.
+	The first character in a nick cannot be a ’-’ or a number.
+
+	The characters { } | ^ are considered the lower case equivalents of [ ] \ ~ respectively. This is said to be because of IRCs scandinavian origin, 
+	but while scandinavians will notice that Æ,Ø,Å is forced lowercase in channelnames, Å and Ä is not equivalent with each other or 
+	with any of { } | ^. This bear the mark of a backward-compatible ircu feature, and how non-american letters are treated on IRC may vary between nets.
+
+	A weird side-effect happens when trying to ban people with these characters in the name.
+	Trying to ban the nick “ac\dc”, *|*!*@* will work where *\*!*@* fails. *ac\dc*!*@* works just fine too.
+*/
+
+
+/* Character codes
+   
+   ...
+   Because of IRC's Scandinavian origin, the characters {}|^ are
+   considered to be the lower case equivalents of the characters []\~,
+   respectively. This is a critical issue when determining the
+   equivalence of two nicknames or channel names.
+
+*/
+
+
+/* IRC Messages
+
+   Each IRC message may consist of up to three main parts: the prefix
+   (OPTIONAL), the command, and the command parameters (maximum of
+   fifteen (15)).  The prefix, command, and all parameters are separated
+   by one ASCII space character (0x20) each.
+
+   The presence of a prefix is indicated with a single leading ASCII
+   colon character (':', 0x3b), which MUST be the first character of the
+   message itself.  There MUST be NO gap (whitespace) between the colon
+   and the prefix.  The prefix is used by servers to indicate the true
+   origin of the message.  If the prefix is missing from the message, it
+   is assumed to have originated from the connection from which it was
+   received from.  Clients SHOULD NOT use a prefix when sending a
+   message; if they use one, the only valid prefix is the registered
+   nickname associated with the client.
+
+   The command MUST either be a valid IRC command or a three (3) digit
+   number represented in ASCII text.
+
+   IRC messages are always lines of characters terminated with a CR-LF
+   (Carriage Return - Line Feed) pair, and these messages SHALL NOT
+   exceed 512 characters in length, counting all characters including
+   the trailing CR-LF. Thus, there are 510 characters maximum allowed
+   for the command and its parameters.  There is no provision for
+   continuation of message lines.  See section 6 for more details about
+   current implementations.
+*/
