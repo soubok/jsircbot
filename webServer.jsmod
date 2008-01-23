@@ -1,0 +1,43 @@
+(function TutorialModule($D, $A, $S) {
+	
+	this.disabled = false;
+	var _name = this.name = this.constructor.name;
+	var $MD = $D[_name];
+
+	var maxConnections = 3;
+	var count = 0;
+	var serverConnection;
+	
+	
+	
+	function StartServer() {
+	
+		serverConnection = new TCPServer( 80, undefined, 1 );
+		serverConnection.OnIncoming = function(connection) {
+
+			if ( count++ > maxConnections ) {
+				connection.Close(); // we accept only one connection
+			else
+				callback(connection);
+		}
+	
+	}
+	
+	
+	this.moduleListener = {
+	};
+	
+	this.moduleApi = {
+	};	
+	
+	this.stateListener = [
+		{
+			set: function(s) s[STATE_RUNNING] && s[_name],
+			reset: function(s) !s[STATE_RUNNING] || !s[_name],
+			trigger: function(polarity) {
+				
+			}
+		}
+	];	
+
+}
