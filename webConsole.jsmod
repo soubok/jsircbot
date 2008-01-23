@@ -1,4 +1,4 @@
-(function TutorialModule($D, $A, $S) {
+(function webConsoleModule($D, $A, $S) {
 	
 	this.disabled = false;
 	var _name = this.name = this.constructor.name;
@@ -8,19 +8,31 @@
 	var count = 0;
 	var serverConnection;
 	
-	
-	
+	function Console(output) {
+		
+		var file = new File('./webConsole.html'); // (TBD) from config
+		var template = file.content;
+		this.input = function() {
+		}
+	}
+
 	function StartServer() {
 	
 		serverConnection = new TCPServer( 80, undefined, 1 );
 		serverConnection.OnIncoming = function(connection) {
 
 			if ( count++ > maxConnections ) {
-				connection.Close(); // we accept only one connection
-			else
-				callback(connection);
+			
+				connection.Close();
+			} else {
+			
+				connection.OnData = function(buf) {
+					
+					Print( buf );
+				
+				}
+			}
 		}
-	
 	}
 	
 	
@@ -35,6 +47,12 @@
 			set: function(s) s[STATE_RUNNING] && s[_name],
 			reset: function(s) !s[STATE_RUNNING] || !s[_name],
 			trigger: function(polarity) {
+			
+				if (polarity) {
+					//
+				} else {
+					// kill all consoles
+				}
 				
 			}
 		}
