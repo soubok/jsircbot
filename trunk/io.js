@@ -439,7 +439,7 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 }
 
 
-function TCPServer( portRange, ip ) {
+function TCPServer( portRange, ip, backlog ) {
 
 	var _this = this;
 	this.OnIncoming = Noop;
@@ -448,7 +448,7 @@ function TCPServer( portRange, ip ) {
 	_socket.reuseAddr = true;
 	if ( !TryBindSocket( _socket, portRange, ip ) )
 		DBG && ReportError('Unable to create the TCPServer, cannot bind to '+ip+':'+portRange );
-	_socket.Listen();
+	_socket.Listen(backlog);
 	this.port = _socket.sockPort;
 	this.name = _socket.sockName;
 	_socket.readable = function(s) {
