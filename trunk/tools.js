@@ -39,7 +39,8 @@ const CR = '\r';
 const LF = '\n';
 const CRLF = CR+LF;
 const SPC = ' ';
-
+const DOT = '.';
+const SLASH = '/';
 
 
 /////////////////////////////////////////////////////// status objects
@@ -333,7 +334,7 @@ const LOG_CLOSE_FILTER = { toString:function() '' };
 
 function MakeLogScreen() function(data) {
 	
-	Print('    '+data+LF);
+	Print(''+data+LF);
 }
 
 function MakeLogFile(fileNameMaker, append) { // fileNameMaker is a function that returns a filename
@@ -389,7 +390,7 @@ var log = new function(data) {
 	var _outputList = [];
 	var _time0 = Now();
 //	function FormatedTime() StringPad(((Now()-_time0)/SECOND).toFixed(2), 7, ' ');
-	function FormatedTime() let (d = new Date()) d.toLocaleFormat('%m%d%H%M%S.')+String(1000+d.getMilliseconds()).substr(1);
+	function FormatedTime() let (d = new Date()) d.toLocaleFormat('%m-%d,%H:%M:%S.')+String(1000+d.getMilliseconds()).substr(1);
 	
 	this.AddFilter = function( output, typeList ) _outputList.push([output, typeList]);
 
@@ -488,6 +489,9 @@ function True() true;
 function Noop() {}
 
 
+function Identity(arg) arg;
+
+
 function NewDataObj() ({ __proto__: null }); // create a really empty object ( without __parent__, __count__, __proto__, ... )
 
 
@@ -568,7 +572,7 @@ function LTrim(str) str.replace(/^\s+/, '');
 function RTrim(str) str.replace(/\s+$/, '');
 
 
-function Trim(str) str.replace(/^\s+|\s+$/g, '');
+function Trim(str) str.replace(/^\s+|\s+$/g, ''); // or function Trim(string) /^ *(.*?) *$/(string)[1];
 
 
 function StrBefore(str, sep) (sep = str.indexOf(sep)) == -1 ? str : str.substr(0, sep);
