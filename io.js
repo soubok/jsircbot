@@ -134,7 +134,7 @@ function GetHostByName( hostName ) {
 
 function TryBindSocket( Socket, portRange, ip ) {
 
-	for each ( let port in ExpandStringRanges(portRange) )
+	for each ( let port in ExpandStringRanges(String(portRange)) )
 		if ( Socket.Bind( port, ip ) )
 			return true;
 	return false;
@@ -437,6 +437,9 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 
 	this.Write = function(data) _socket.Write(data);
 }
+
+
+function AsyncConnectionRead(connection) function(callback) connection.OnData = callback; // helper function
 
 
 function TCPServer( portRange, ip, backlog ) {
