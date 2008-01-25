@@ -129,7 +129,7 @@
 	function RawDataSender(buf) {
 
 		log.Write( LOG_IRCMSG, 'out', buf );
-		_connection.Write(buf).length && Failed('Unable to send (more) data.');
+		_connection.Write(buf); // && Failed('Unable to send (more) data.'); (TBD) This failure must be detected elsewhere
 		setData( $D.lastMessageTime, IntervalNow() );
 	}
 
