@@ -79,7 +79,7 @@
 
 			var pingData = RandomNumber(16);
 			var timeoutId;
-			var events = (ircMsg:{}};
+			var events = {ircMsg:{}};
 
 			function End(status, reply) {
 
