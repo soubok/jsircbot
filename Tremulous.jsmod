@@ -76,7 +76,7 @@
 			DBG && DebugTraceCall('TremulousServerCommand response');
 			
 			if ( status != OK ) {
-
+			
 				OnResult(status);
 				return;
 			}
@@ -284,9 +284,10 @@
 				var data = _tremulousServerList[server];
 
 				var [status, serverStatus] = yield function(callback) TremulousServerStatus( server, callback );
+
 				if ( status != OK ) {
 					
-					ReportError( 'PlayerScanner failed: '+status );
+					ReportError( 'PlayerScanner failed: '+String(status) );
 					
 					delete data.serverStatus; // clear player data from the server
 					
