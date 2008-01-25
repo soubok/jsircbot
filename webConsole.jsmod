@@ -99,7 +99,7 @@
 
 
 
-	function ProcessRequest( status, headers, output, close ) {
+	function ProcessRequest( status, headers, output, outputHeaders, close ) {
 
 		var root='./';
 		var data = '';
@@ -113,16 +113,12 @@
 			return Noop;
 		}
 
-
 		return function(chunk) {
 
 			if ( !chunk ) {
 			
-			Print( 'Got All Data', '\n')
-
 				var respondeHeaders = {};
 				respondeHeaders['Content-Type'] = MimeTypeByFileName( status.path );
-
 
 				var useChunksEncoding = false;
 				var useKeepAliveConnection = false;
@@ -135,6 +131,8 @@
 
 				if (useKeepAliveConnection)
 					respondeHeaders['Connection'] = 'Keep-Alive';
+				
+				// Keep-Alive: timeout=15, max=88 ... Keep-Alive: timeout=15, max=87
 
 				if (useChunksEncoding)
 					respondeHeaders['Transfer-Encoding'] = 'chunked';
@@ -152,7 +150,7 @@
 				file.Open( File.RDONLY );
 
 				//1
-				output( CreateHttpHeaders( 200, respondeHeaders ) );
+				outputHeaders( 200, respondeHeaders );
 				
 				//2
 				output( function(chunks) {
@@ -187,19 +185,28 @@
 			}
 		}
 	}
+	
+	
+	function ProcessRequestProc(status, headers, asyncBodyRead, outputHeaders, output) {
+		
+		
+		
+		
+	}
+	
 
-
-
-	function ProcessConnection(connection) {
-
-		var _input = '';
+	
+	function ProcessConnectionProc(connection, maxRequest) {
+		
+		var input = new Buffer();
 		var _output = [];
 
-		function ProcessOutput() {
+		function Output( dataInfo ) {
 
-			if ( _output.length ) {
-
-				var dataInfo = _output[0];
+			_output.push(dataInfo);
+			while ( _output.length ) {
+			
+				dataInfo = _output[0];
 				if ( dataInfo instanceof Function ) {
 					var chunks = [];
 					dataInfo(chunks) || _output.shift(); // ''exhausted'' function
@@ -209,126 +216,78 @@
 				}
 				connection.Write( _output.shift() );
 			}
-//			else
-//				delete s.writable;
-		}
-
-		function Output( dataInfo ) {
-
-			_output.push(dataInfo);
-			
-			//s.writable = ProcessOutput;
-			while ( _output.length )
-				ProcessOutput();
-		}
-
-		function Close() {
-
-			connection.Close();
-		}
-
-		function ProcessHeaders() {
-
-			_input && Next('');
-			connection.OnData = function(data) { 
-
-				Next( data );
-				data.length || connection.Close();
-			}
-
-			function Next(chunk) {
-
-				_input += chunk;
-				var eoh = _input.indexOf( CRLF + CRLF );
-				if ( eoh == -1 )
-					return;
-				var [status,headers] = ParseHeaders( _input.substr(0, eoh+4) );
-				status.peerName = connection.peerName;
-				_input = _input.substr(eoh+4);
-
-Print( status.peerName + ' ' + status.method + ' ' + status.path, '\n' );
-
-				switch (status.method) {
-				case 'POST':
-					ProcessBody( status, headers );
-					break;
-				case 'GET':
-					ProcessRequest( status, headers, Output, Close )();
-					break;
-				}
-			}
 		}
 
 
-		function ProcessBody( status, headers ) {
+		requestLoop:
+		while (maxRequest--) {
 
-			var length = headers.contentlength; //['content-length'];
+			var data, pr, eoh;
 
-			var pr = ProcessRequest( status, headers, Output, Close );
-			
-//			if ( length != undefined && length == 0 ) {
-//				pr();
-//				ProcessHeaders();
-//				return; // (TBD) need optimization
-//			}
+			do {
+				[data] = yield AsyncConnectionRead(connection);
+				if (!data)
+					break requestLoop;
+				input.Write(data);
+				eoh = input.IndexOf(CRLF+CRLF);
+			} while (eoh == -1);
 
-			//_input && Next('');
-			Next('');
+			var [status, headers] = ParseHeaders( input.Read(eoh+4) );
+			status.peerName = connection.peerName;
 
-			connection.OnData = function(data) {
+			Print( status.peerName + ' ' + status.method + ' ' + status.path, '\n' );
+
+
+
+			function OutputHeaders( oStatus, oHeaders ) {
 				
-				Next( data );
-//				data.length || connection.Close(); // why closing the connection here ?
+				if ( oHeaders['Connection'] == 'close' )
+					maxRequest = 0;
+					
+				if ( maxRequest == 0 )
+					oHeaders['Connection'] = 'close';
+				
+				Output( CreateHttpHeaders( oStatus, oHeaders ) );
 			}
+			
+			var pr = ProcessRequest( status, headers, Output, OutputHeaders );
+			
+			switch ( status.method ) {
+				case 'GET':
+					break;
+					
+				case 'POST':
+					var clen = headers.contentlength;
+					do {
 
-			function Next(chunk) {
+						if ( input.length < clen ) {
 
-				_input += chunk;
+							[data] = yield AsyncConnectionRead(connection);
+							if (!data)
+								break requestLoop;
+							input.Write(data);
+						}
 
-				if ( length == undefined ) {
+						if ( input.length > clen ) {
 
-					pr(_input);
-					_input = '';
-					return;
-				}
+							pr(input.Read(clen));
+							clen = 0;
+						} else {
 
-				if ( _input.length < length ) {
-
-					length -= _input.length;
-					pr(_input);
-					_input = '';
-				} else {
-
-					pr(_input.substr(0,length));
-					_input = _input.substr(length);
-					pr(); // end
-					ProcessHeaders();
-				}
+							clen -= input.length;
+							pr(input.Read());
+						}
+					} while (clen);
+					break;
 			}
+			
+			pr(); // eof
 		}
+		
+		connection.Close();
+	}
 
-		ProcessHeaders();
-	}
-	
-	
-	function IncomingConnectionProc(connection) {
-		
-		var input = '';
-		var eoh;
-		
-		do {
-			var [data] = yield AsyncConnectionRead(connection);
-			input += data;
-			eoh = input.indexOf(CRLF + CRLF);
-		} while(eoh == -1);
-		
-		var [status,headers] = ParseHeaders( input.substr(0, eoh+4) );
-		status.peerName = connection.peerName;
-		input = input.substr(eoh+4);
-		
-		
-		Print(headers.toSource());
-	}
+
 
 
 	function StartServer() {
@@ -342,8 +301,7 @@ Print( status.peerName + ' ' + status.method + ' ' + status.path, '\n' );
 			} else {
 				
 				count++;
-				//ProcessConnection(connection);
-				StartAsyncProc( IncomingConnectionProc(connection) );
+				StartAsyncProc( ProcessConnectionProc(connection, 3) );
 			}
 		}
 	}
