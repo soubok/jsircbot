@@ -890,12 +890,3 @@ function DebugTraceCall(name) {
 
 	} catch(ex) { DebugTrace( 'DEBUG TRACE ERROR' ) }
 }
-
-
-
-
-var DBG = true;
-
-
-
-
