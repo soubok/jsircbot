@@ -116,7 +116,7 @@ function Ascii(data) data.replace(/[\x00-\x1F,\x7F-\xFF]/g, '?');
 							return;
 						case '@':
 							//if ( !$A.IsOp(to,name) )
-							if ( getData($D.channel[to].names[name].operator) )
+							if ( !getData($D.channel[to].names[name].operator) )
 								continue;
 							break;
 						case '*':
