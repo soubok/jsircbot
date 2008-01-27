@@ -39,13 +39,13 @@
 					break;
 				case 'o' : // operator
 					var nick = args[argPos++];
-					setData( chanData.names[nick].operator, polarity );
-					setData( chanData.names[nick].operator.by, setBy ); // remember who op / deop who
+					setData( chanData.names[NormalizeNickName(nick)].operator, polarity );
+					setData( chanData.names[NormalizeNickName(nick)].operator.by, setBy ); // remember who op / deop who
 					break;
 				case 'v' : // voice
 					var nick = args[argPos++];
-					setData( chanData.names[nick].voice, polarity );
-					setData( chanData.names[nick].voice.by, setBy );
+					setData( chanData.names[NormalizeNickName(nick)].voice, polarity );
+					setData( chanData.names[NormalizeNickName(nick)].voice.by, setBy );
 					break;
 				case 'l' : // userLimit
 					if ( polarity )
@@ -89,7 +89,7 @@
 				$A.Send( 'MODE '+channel+' +b' ); // request banlist
 			} else {
 
-				setData( $D.channel[NormalizeChannelName(channel)].names[nick], true );
+				setData( $D.channel[NormalizeChannelName(channel)].names[NormalizeNickName(nick)], true );
 			}
 		},
 			
@@ -99,7 +99,7 @@
 			if ( nick == getData($D.nick) )
 				delData( $D.channel[NormalizeChannelName(channel)] );
 			else
-				delData( $D.channel[NormalizeChannelName(channel)].names[nick] );
+				delData( $D.channel[NormalizeChannelName(channel)].names[NormalizeNickName(nick)] );
 		},
 
 		KICK: function( tmp, command, from, channel, who, message ) {
@@ -107,7 +107,7 @@
 			if ( who == getData($D.nick) )
 				delData( $D.channel[NormalizeChannelName(channel)] );
 			else
-				delData( $D.channel[NormalizeChannelName(channel)].names[who] );
+				delData( $D.channel[NormalizeChannelName(channel)].names[NormalizeNickName(who)] );
 		},
 
 		QUIT: function( tmp, command, who ) {
@@ -115,7 +115,7 @@
 			var nick = StrBefore(who, '!');
 			for each ( var chan in $D.channel )
 				if ( nick in chan.names )
-					delData( chan.names[nick] );
+					delData( chan.names[NormalizeNickName(nick)] );
 		},
 		
 		NICK: function( tmp, command, who, newNick ) {
@@ -125,7 +125,7 @@
 //				return;
 			for each ( var chan in $D.channel )
 				if ( nick in chan.names )
-					moveData( chan.names[nick], chan.names[newNick] );
+					moveData( chan.names[NormalizeNickName(nick)], chan.names[NormalizeNickName(newNick)] );
 		},
 
 		RPL_BANLIST: function( tmp, command, from, to, channel, ban, banBy, time ) {
@@ -185,9 +185,9 @@
 				var match = /(@?)(\+?)(.*)/(name);
 				if ( !match ) continue;
 				var [, op, voice, nick] = match;
-				setData( chanData.names[nick], true );
-				setData( chanData.names[nick].voice, !!voice );
-				setData( chanData.names[nick].operator, !!op );
+				setData( chanData.names[NormalizeNickName(nick)], true );
+				setData( chanData.names[NormalizeNickName(nick)].voice, !!voice );
+				setData( chanData.names[NormalizeNickName(nick)].operator, !!op );
 			}
 		}
 	} };
@@ -203,6 +203,7 @@
 		
 		IsOp: function(channel, nick) !!getData($D.channel[NormalizeChannelName(channel)].names[NormalizeNickName(nick)].operator),
 		IsVoice: function(channel, nick) !!getData($D.channel[NormalizeChannelName(channel)].names[NormalizeNickName(nick)].voice),
+		
 		ChannelData: function(channel) getData($D.channel[NormalizeChannelName(channel)])
 	}
 
