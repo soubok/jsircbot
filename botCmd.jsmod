@@ -83,8 +83,11 @@ function RateMeter() {
 					if ( config[3] && to[0] == '#' ) {
 
 						let path = $D.channel[to].names[nick];
-						if ( (getData(path.voice)?1:0) + (getData(path.voice)?2:0) < config[3] )
+						if ( (getData(path.voice)?1:0) + (getData(path.operator)?2:0) < config[3] ) {
+						
+							$A.Notice(nick, config[3] == 2 ? 'You are not operator.' : 'You are not voiced.');
 							return;
+						}
 					}
 
 					if ( config[4] && _commandMonitor.Inc(cmdName, 1, config[4][1]) > config[4][0] ) { // command flood protection
