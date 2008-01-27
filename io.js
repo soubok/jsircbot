@@ -434,7 +434,8 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 		_socket.readable = Disconnected;
 		shutdownTimeout = io.AddTimeout( 2*SECOND, Disconnected ); // force disconnect after the timeout
 	}
-	
+
+/* not suitable for !dump command	
 	var _out = [];
 	
 	function Writer(s) {
@@ -450,6 +451,9 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 		_out.push(data);
 		_socket.writable = Writer;
 	}
+*/
+
+	this.Write = function(data) _socket.Write(data);
 }
 
 
