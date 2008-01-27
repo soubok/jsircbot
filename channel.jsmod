@@ -160,7 +160,7 @@
 
 		RPL_CHANNELMODEIS: function( tmp, command, from, to, channel, modes /*, ...*/ ) {
 
-			ParseModes( modes, Array.slice(arguments,5), $D.channel[NormalizeChannelName(channel)], undefined );
+			ParseModes( modes, Array.slice(arguments,6), $D.channel[NormalizeChannelName(channel)], undefined );
 		},
 		
 		MODE: function( tmp, command, who, what, modes /*, ...*/ ) {
@@ -168,7 +168,7 @@
 			if ( what[0] != '#' ) // can be a user mode OR a mod for another channel
 				return;
 			
-			ParseModes( modes, Array.slice(arguments,4), $D.channel[NormalizeChannelName(what)], who );
+			ParseModes( modes, Array.slice(arguments,5), $D.channel[NormalizeChannelName(what)], who );
 		},
 		
 		RPL_NAMREPLY: function( tmp, command, from, to, type, channel, list ) {
