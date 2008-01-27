@@ -435,25 +435,33 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 		shutdownTimeout = io.AddTimeout( 2*SECOND, Disconnected ); // force disconnect after the timeout
 	}
 
-/* not suitable for !dump command	
+
 	var _out = [];
 	
-	function Writer(s) {
+	this.Write = function(data, async, onSent) { // data, asynchronous writing, all-data-are-sent callback (TBD) add a timeout
+		
+		if ( async ) {
 
-		if (_out.length)
-			s.Write(_out.shift());
-		else
-			delete s.writable;
-	}
-	
-	this.Write = function(data) {
-	
-		_out.push(data);
-		_socket.writable = Writer;
-	}
-*/
+			_out.push(data);
+			_socket.writable = function(s) {
 
-	this.Write = function(data) _socket.Write(data);
+				if (_out.length) {
+
+					var remain = s.Write(_out.shift());
+					remain && _out.unshift(remain);
+					DBG && remain && ReportWarning('Unable to write the whole data on the socket ('+s.peerName+':'+s.peerPort+')');
+				} else {
+
+					delete s.writable;
+					onSent && onSent();
+				}
+			}
+			return undefined;
+		} else{
+		
+			return _socket.Write(data);
+		}
+	}
 }
 
 
