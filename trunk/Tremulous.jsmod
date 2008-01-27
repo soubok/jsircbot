@@ -69,7 +69,7 @@
 	
 	function TremulousServerStatus( server, OnResult ) {
 		
-		DebugTraceCall();
+		DBG && DebugTraceCall();
 
 		TremulousServerCommand( server, 'getstatus', function(status, buf) {
 
