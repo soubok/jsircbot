@@ -158,7 +158,7 @@
 
 
 
-	function ProcessFileRequest( iStatus, iHeaders, oStatus, oHeaders, Response ) {
+	function ProcessFileRequest( iStatus, iHeaders, oStatus, oHeaders, Respond ) {
 
 		var root='./';
 		var data = '';
@@ -172,7 +172,7 @@
 			oStatus.code = 404;
 			oHeaders['Content-Length'] = message.length;
 			oHeaders['Content-Type'] = 'text/plain';
-			var output = Response();
+			var output = Respond();
 			output(message);
 			return;
 		}
@@ -206,12 +206,12 @@
 			file.Open( File.RDONLY );
 			
 			//1
-			var output = Response();
+			var output = Respond();
 
 			//2
 			output( function() {
 
-				var data = file.Read(20); // Z.idealInputLength
+				var data = file.Read(Z.idealInputLength);
 				if ( data.length ) {
 
 					data = ContentEncoding(data);
@@ -230,36 +230,39 @@
 		}
 	}
 	
-	
-	function ProcessConnectionProc(connection, remainRequestCount) {
+
+
+	connectionCount = 0;
+
+	function ProcessConnectionProc(connection, remainRequestCount, keepAliveTimeout) {
+
+		connectionCount++;
 		
-		var input = new Buffer();
-		var _output = [];
-		var keepAliveTimeout = 15*SECOND;
+		var input=new Buffer(), output=[];
 
 		function ProcessOutputData() {
 
-			if ( _output.length ) {
+			if ( output.length ) {
 			
-				dataInfo = _output[0];
+				dataInfo = output[0];
 				if ( dataInfo instanceof Function ) {
 				
 					var chunks = dataInfo();
 					if ( chunks )
-						_output = chunks.concat(_output);
+						output = chunks.concat(output);
 					else	
-						_output.shift(); // function is ''exhausted''
+						output.shift(); // function is ''exhausted''
 				}
-				connection.Write( _output.shift(), true, ProcessOutputData ); // async write
+				connection.Write( output.shift(), true, ProcessOutputData ); // 'true' for async write
 			}
 		}
 
-
 		function SendData( dataInfo ) {
 
-			_output.push(dataInfo);
+			output.push(dataInfo);
 			ProcessOutputData();
 		}
+
 
 		requestLoop:
 		do {
@@ -289,58 +292,81 @@
 			oHeaders['Expires'] = '0';
 			oHeaders['Cache-Control'] = 'no-cache';
 			oHeaders['Pragma'] = 'no-cache';
-//			oHeaders['Content-Length'] = 0;
-			oHeaders['Content-Type'] = 'text/plain';
 
 			oStatus.code = 204; // no content
 			oStatus.httpVersion = iStatus.httpVersion;
 			
-			function Response() {
+			function Respond() {
 				
-				if ( iStatus.httpVersion >= 1.1 && iHeaders['Connection'] != 'close' && oHeaders['Connection'] != 'close' && remainRequestCount > 0 && (oHeaders['Content-Length'] > 0 || oHeaders['Transfer-Encoding'] == 'chunked')  )
-					oHeaders['Keep-Alive'] = 'timeout=15, max='+remainRequestCount;
-				else
+				if ( iStatus.httpVersion >= 1.1 && iHeaders['Connection'] != 'close' && oHeaders['Connection'] != 'close' && remainRequestCount > 0 && (oHeaders['Content-Length'] > 0 || oHeaders['Transfer-Encoding'] == 'chunked') ) {
+
+					oHeaders['Connection'] = 'keep-alive';
+					oHeaders['Keep-Alive'] = 'timeout='+(keepAliveTimeout/SECOND).toFixed()+', max='+remainRequestCount;
+				} else
 					oHeaders['Connection'] = 'close';
 				
 				SendData( CreateHttpHeaders( oStatus, oHeaders ) );
 				return SendData;
 			}
 
-	
-			var requestHandler = new ProcessFileRequest( iStatus, iHeaders, oStatus, oHeaders, Response );
+
+			var requestHandler = undefined;
 			
-			switch ( iStatus.method ) {
-				case 'GET':
+			for ( var [pathRegExpr, requestHandlerConstructor] in Iterator(_requestHandlerList) ) {
+				
+				if ( pathRegExpr(iStatus.path) ) {
+				
+					requestHandler = new requestHandlerConstructor( iStatus, iHeaders, oStatus, oHeaders, Respond );
 					break;
-				case 'POST':
-					var clen = iHeaders.contentlength;
-					do {
-
-						if ( input.length < clen ) {
-
-							[status, data] = yield AsyncConnectionRead(connection);
-							if (!data)
-								break requestLoop;
-							input.Write(data);
-						}
-
-						if ( input.length > clen ) {
-
-							requestHandler.OnData && requestHandler.OnData(input.Read(clen));
-							clen = 0;
-						} else {
-
-							clen -= input.length;
-							requestHandler.OnData && requestHandler.OnData(input.Read());
-						}
-					} while (clen);
-					break;
+				}
 			}
-			requestHandler.OnEndOfData && requestHandler.OnEndOfData();
-			
+
+
+			if ( requestHandler ) {
+
+				switch ( iStatus.method ) {
+					case 'GET':
+						break;
+					case 'POST':
+						var iclen = iHeaders.contentlength;
+						do {
+
+							if ( input.length < iclen ) {
+
+								[status, data] = yield AsyncConnectionRead(connection);
+								if (!data)
+									break requestLoop;
+								input.Write(data);
+							}
+
+							if ( input.length > iclen ) {
+
+								requestHandler.OnData && requestHandler.OnData(input.Read(iclen));
+								iclen = 0;
+							} else {
+
+								iclen -= input.length;
+								requestHandler.OnData && requestHandler.OnData(input.Read());
+							}
+						} while (iclen);
+						break;
+				}
+				requestHandler.OnEndOfData && requestHandler.OnEndOfData();
+			} else {
+
+				var message = 'Unable to handle ' + iStatus.path;
+				oStatus.code = 404;
+				oHeaders['Content-Length'] = message.length;
+				oHeaders['Content-Type'] = 'text/plain';
+				var output = Respond();
+				output(message);
+			}			
+
+
 		} while ( --remainRequestCount && oHeaders['Connection'] != 'close' );
-		
 		connection.Close();
+		
+		connectionCount--;
 	}
 
 
@@ -348,18 +374,37 @@
 
 	function StartServer() {
 	
-		serverConnection = new TCPServer( port, undefined, 3 );
+		serverConnection = new TCPServer( port, undefined, getData($MD.socketBackLog) );
 		serverConnection.OnIncoming = function(connection) {
 
-			StartAsyncProc( ProcessConnectionProc(connection, 10) );
+			if ( connectionCount <= getData($MD.maxConnections) ) {
+			
+				StartAsyncProc( ProcessConnectionProc(connection, getData($MD.connectionKeepAliveMax), getData($MD.connectionKeepAliveTimeout)) );
+			} else {	
+			
+				connection.Close();
+				return;
+			}
+
 		}
 	}
 	
+	// AddRequestHandler( /s4f5sd/, function
 	
-	this.moduleListener = {
-	};
+	
+	var _requestHandlerList = {};
 	
 	this.moduleApi = {
+		
+		AddRequestHandler: function( pathRegExpr, requestHandlerConstructor ) {
+		
+			_requestHandlerList[pathRegExpr] = [pathRegExpr, requestHandlerConstructor];
+		},
+		
+		RemoveRequestListener: function( pathRegExpr ) {
+			
+			delete _requestHandlerList[pathRegExpr];
+		}
 	};	
 	
 	this.stateListener = [
@@ -373,6 +418,7 @@
 					StartServer();
 
 				} else {
+
 					// kill all consoles
 				}
 				
