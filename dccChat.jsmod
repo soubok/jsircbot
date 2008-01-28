@@ -37,9 +37,9 @@
 				
 				var connection = new TCPConnection( IntegerToIp(nip), nport );
 				
-				connection.OnData = function( buf ) {
+				connection.OnData = function() {
 					
-					$A.FireModuleListener( 'dcc', 'chatData', from, buf, connection );
+					$A.FireModuleListener( 'dcc', 'chatData', from, connection.Read(), connection );
 				}
 				
 				connection.OnConnected = function() {

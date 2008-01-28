@@ -18,9 +18,9 @@
 		
 		var _receiveBuffer = new Buffer();
 
-		function OnData(buf) {
+		function OnData(connection) {
 
-			_receiveBuffer.Write(buf);
+			_receiveBuffer.Write(connection.Read());
 			var message;
 			while ( (message = _receiveBuffer.ReadUntil(CRLF)) ) {
 				
