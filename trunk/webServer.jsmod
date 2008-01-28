@@ -12,7 +12,7 @@
  * License.
  * ***** END LICENSE BLOCK ***** */
 
-(function webConsoleModule($D, $A, $S) {
+(function webServerModule($D, $A, $S) {
 	
 	LoadModule('jsz');
 	
