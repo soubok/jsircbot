@@ -20,12 +20,6 @@
 	var _name = this.name = this.constructor.name;
 	var $MD = $D[_name];
 
-	var maxConnections = 3;
-	var count = 0;
-	var serverConnection;
-	var port = 80;
-
-
 	const mimeType = {
 		html:'text/html',
 		gif:'image/gif',
@@ -83,8 +77,6 @@
 	};
 
 
-
-
 	// Tools
 
 	function MimeTypeByFileName(fileName) {
@@ -99,7 +91,6 @@
 
 	function ParseHeaders(buffer) {
 
-//		log.WriteLn(buffer);
 		try {
 			var lines = buffer.split(CRLF);
 			var [method,url,proto] = lines[0].split(SPC);
@@ -112,7 +103,7 @@
 				headers[NormalizeHeaderName(name)] = Trim(value);
 			}
 		} catch(error) {
-//			log.WriteLn('Error while parsing headers :\n'+buffer);
+
 			throw new Halt( 'header parsing error (see log file)' );
 		}
 		return [ status, headers ];
@@ -134,7 +125,6 @@
 		this.input = function() {
 		}
 	}
-
 
 
 
@@ -370,11 +360,9 @@
 	}
 
 
-
-
 	function StartServer() {
 	
-		serverConnection = new TCPServer( port, undefined, getData($MD.socketBackLog) );
+		var serverConnection = new TCPServer( getData($MD.port), getData($MD.bind), getData($MD.socketBackLog) );
 		serverConnection.OnIncoming = function(connection) {
 
 			if ( connectionCount <= getData($MD.maxConnections) ) {

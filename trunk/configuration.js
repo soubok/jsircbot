@@ -105,6 +105,8 @@ function(data) {
 	});
 
 // web server
+	setData(data.webServerModule.port, 80);
+	setData(data.webServerModule.bind, undefined);
 	setData(data.webServerModule.connectionKeepAliveTimeout, 15*SECOND);
 	setData(data.webServerModule.connectionKeepAliveMax, 10);
 	setData(data.webServerModule.maxConnections, 5);
