@@ -274,8 +274,9 @@
 					$A.OpenDCCChat( nick, function(connection) {
 
 						var code = '';
-						connection.OnData = function(buf) {
-
+						connection.OnData = function() {
+							
+							var buf = connection.Read();
 							code += buf.replace(/\r?\n?$/,''); // remove trailing CR LF
 							if ( IsStatementValid(code) ) {
 
@@ -312,8 +313,9 @@
 
 						var spy = { ircMsg:CreateSpy(connection) };
 						$A.AddModuleListener(spy);
-						connection.OnData = function(buf) {
-
+						connection.OnData = function() {
+							
+							var buf = connection.Read();
 							$A.Send( buf.replace(/\r?\n?$/,'') );
 						}
 						connection.OnDisconnected = function() $A.RemoveModuleListener(spy);

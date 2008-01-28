@@ -331,10 +331,11 @@ function HttpRequest( url, data, timeout, OnResponse ) { // OnResponse(status, s
 function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous socket )
 	
 	var _this = this;
-	this.OnConnected = Noop;
-	this.OnData = Noop;
-	this.OnDisconnected = Noop;
-	this.OnFailed = Noop;
+//	this.OnConnected;
+//	this.OnData;
+//	this.OnDisconnected;
+//	this.OnFailed;
+	
 	var _connectionTimeout;
 	var _socket;
 	
@@ -348,24 +349,22 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 			_this.sockName = s.sockName;
 			_this.peerPort = s.peerPort;
 			_this.peerName = s.peerName;
-			_this.OnConnected();
+			_this.OnConnected && _this.OnConnected();
 		}
 	
 		_socket.readable = function(s) {
 
 			if ( s.available ) {
 			
-				_this.OnData(s.Read());
+				_this.OnData && _this.OnData(_this);
 			} else {
 			
 				delete s.readable;
-
 				delete _this.sockPort;
 				delete _this.sockName;
 				delete _this.peerPort;
 				delete _this.peerName;
-				
-				_this.OnDisconnected(true);
+				_this.OnDisconnected && _this.OnDisconnected(true);
 			}
 		}
 
@@ -388,7 +387,7 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 				delete _socket.readable;
 				io.RemoveTimeout(_connectionTimeout);
 				_socket.Close();
-				_this.OnFailed(host, port);
+				_this.OnFailed && _this.OnFailed(host, port);
 			}
 
 			_connectionTimeout = io.AddTimeout( timeout||5*SECOND, ConnectionFailed );
@@ -429,7 +428,7 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 			delete _this.peerPort;
 			delete _this.peerName;
 
-			_this.OnDisconnected(false); // locally disconnected
+			_this.OnDisconnected && _this.OnDisconnected(false); // locally disconnected
 		}
 		_socket.readable = Disconnected;
 		shutdownTimeout = io.AddTimeout( 2*SECOND, Disconnected ); // force disconnect after the timeout
@@ -438,9 +437,11 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 
 	var _out = [];
 	
-	this.Write = function(data, async, onSent) { // data, asynchronous writing, all-data-are-sent callback (TBD) add a timeout
+	this.Read = function() _socket.Read();
+	
+	this.Write = function(data, isAsync, onSent) { // data, asynchronous writing, all-data-are-sent callback // (TBD) add a timeout
 		
-		if ( async ) {
+		if ( isAsync ) {
 
 			_out.push(data);
 			_socket.writable = function(s) {
@@ -465,7 +466,19 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 }
 
 
-function AsyncConnectionRead(connection) function(callback) connection.OnData = callback; // helper function
+// function AsyncConnectionRead(connection) function(callback) connection.OnData = callback; // helper function
+
+
+function AsyncConnectionWaitData(connection, timeout) function(callback) {
+
+	 var tid = io.AddTimeout( timeout, function() { delete connection.OnData; callback(TIMEOUT) } ); // force disconnect after the timeout
+	 connection.OnData = function() { delete connection.OnData; io.RemoveTimeout(tid); callback(OK) } // helper function
+}
+
+function AsyncConnectionRead(connection) function(callback) {
+	
+	 connection.OnData = function(data) { delete connection.OnData; callback(OK, connection.Read()) } // helper function
+}
 
 
 function TCPServer( portRange, ip, backlog ) {

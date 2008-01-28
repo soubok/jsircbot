@@ -35,10 +35,55 @@
 		svg:'image/svg+xml'
 	};
 
-	const statusText = { 
-		200:'OK', 
-		404:'Not Found' 
+	const reasonPhrase = {
+		100: 'Continue',
+		101: 'Switching Protocols',
+		
+		200: 'OK',
+		201: 'Created',
+		202: 'Accepted',
+		203: 'Non-Authoritative Information',
+		204: 'No Content',
+		205: 'Reset Content',
+		206: 'Partial Content',
+		
+		300: 'Multiple Choices',
+		301: 'Moved Permanently',
+		302: 'Found',
+		303: 'See Other',
+		304: 'Not Modified',
+		305: 'Use Proxy',
+		307: 'Temporary Redirect',
+		
+		400: 'Bad Request',
+		401: 'Unauthorized',
+		402: 'Payment Required',
+		403: 'Forbidden',
+		404: 'Not Found',
+		405: 'Method Not Allowed',
+		406: 'Not Acceptable',
+		407: 'Proxy Authentication Required',
+		408: 'Request Time-out',
+		409: 'Conflict',
+		410: 'Gone',
+		411: 'Length Required',
+		412: 'Precondition Failed',
+		413: 'Request Entity Too Large',
+		414: 'Request-URI Too Large',
+		415: 'Unsupported Media Type',
+		416: 'Requested range not satisfiable',
+		417: 'Expectation Failed',
+		
+		500: 'Internal Server Error',
+		501: 'Not Implemented',
+		502: 'Bad Gateway',
+		503: 'Service Unavailable',
+		504: 'Gateway Time-out',
+		505: 'HTTP Version not supported'
 	};
+
+
+
 
 	// Tools
 
@@ -75,7 +120,7 @@
 
 	function CreateHttpHeaders( status, headers ) {
 
-		var buf = 'HTTP/1.1' + SPC + status + SPC + statusText[status] + CRLF;
+		var buf = 'HTTP/' + status.httpVersion + SPC + status.code + SPC + reasonPhrase[status.code] + CRLF;
 		for ( var [h,v] in Iterator(headers) )
 			buf += h + ': ' + v + CRLF;
 		return buf + CRLF;
@@ -113,170 +158,167 @@
 
 
 
-	function ProcessRequest( status, headers, output, outputHeaders, close ) {
+	function ProcessFileRequest( iStatus, iHeaders, oStatus, oHeaders, Response ) {
 
 		var root='./';
 		var data = '';
-
-		var file = new File( root + NormalizePath(status.path) );
+		
+		var fileName = root + NormalizePath(iStatus.path);
+		var file = new File( fileName );
 		if ( !file.exist || file.info.type != File.FILE_FILE ) {
 
-			var message = 'file not found';
-			output(CreateHttpHeaders( 404, {'Content-Length':message.length, 'Content-Type':'text/plain'} ));
+			var message = 'file '+fileName+' not found';
+			
+			oStatus.code = 404;
+			oHeaders['Content-Length'] = message.length;
+			oHeaders['Content-Type'] = 'text/plain';
+			var output = Response();
 			output(message);
-			return Noop;
+			return;
+		}
+		
+		oStatus.code = 200;
+		
+		this.OnData = function(buf) {
+			
+			data += buf;
 		}
 
-		return function(chunk) {
+		this.OnEndOfData = function() {
 
-			if ( !chunk ) {
+			oHeaders['Content-Type'] = MimeTypeByFileName( fileName );
+
+			var useChunksEncoding = false;
+			if (iStatus.httpVersion == 1.1) {
 			
-				var respondeHeaders = {};
-				respondeHeaders['Content-Type'] = MimeTypeByFileName( status.path );
+				useChunksEncoding = true;				
+				oHeaders['Transfer-Encoding'] = 'chunked';
+			}
 
-				var useChunksEncoding = false;
-				var useKeepAliveConnection = false;
+			var ContentEncoding = Identity;
+			if ( iHeaders.acceptencoding && iHeaders.acceptencoding.indexOf('deflate') != -1 ) {
 
-
-				if (status.httpVersion == 1.1) {
-					useKeepAliveConnection = true;
-					useChunksEncoding = true;				
-				}
-
-				if (useKeepAliveConnection)
-					respondeHeaders['Connection'] = 'Keep-Alive';
-				
-				// Keep-Alive: timeout=15, max=88 ... Keep-Alive: timeout=15, max=87
-
-				if (useChunksEncoding)
-					respondeHeaders['Transfer-Encoding'] = 'chunked';
+				oHeaders['Content-Encoding'] = 'deflate';
+				ContentEncoding = new Z(Z.DEFLATE);
+			}
 
 
-				var SendChunk = Identity;
-				var ContentEncoding = Identity;
+			file.Open( File.RDONLY );
+			
+			//1
+			var output = Response();
 
-				if ( headers.acceptencoding && headers.acceptencoding.indexOf('deflate') != -1 ) {
+			//2
+			output( function() {
 
-					respondeHeaders['Content-Encoding'] = 'deflate';
-					ContentEncoding = new Z(Z.DEFLATE);
-				}
-
-				file.Open( File.RDONLY );
-
-				//1
-				outputHeaders( 200, respondeHeaders );
-				
-				//2
-				output( function(chunks) {
-
-					var data = file.Read(Z.idealInputLength);
+				var data = file.Read(20); // Z.idealInputLength
+				if ( data.length ) {
 
 					data = ContentEncoding(data);
+					if ( useChunksEncoding )
+						return [ data.length.toString(16) + CRLF, data, CRLF ];
+					else
+						return [ data ];
+				}
+				file.Close();
+				return false;
+			} );
 
-					if ( data.length ) {
-
-						if ( useChunksEncoding )
-							chunks.push( data.length.toString(16) + CRLF, data, CRLF );
-						else
-							chunks.push( data );
-
-						return true; // continue
-					}
-					file.Close();
-					return false;
-				} );
-				
-				//3
-				if ( useChunksEncoding )
-					output( '0' + CRLF + CRLF );
-
-				//4
-				if ( !useKeepAliveConnection )
-					output(close); // close the socket
-			} else {
-	
-				data += chunk;
-			}
+			//3
+			if ( useChunksEncoding )
+				output( '0' + CRLF + CRLF );
 		}
 	}
 	
 	
-	function ProcessRequestProc(status, headers, asyncBodyRead, outputHeaders, output) {
-		
-		
-		
-		
-	}
-	
-
-	
-	function ProcessConnectionProc(connection, maxRequest) {
+	function ProcessConnectionProc(connection, remainRequestCount) {
 		
 		var input = new Buffer();
 		var _output = [];
+		var keepAliveTimeout = 15*SECOND;
 
-		function Output( dataInfo ) {
+		function ProcessOutputData() {
 
-			_output.push(dataInfo);
-			while ( _output.length ) {
+			if ( _output.length ) {
 			
 				dataInfo = _output[0];
 				if ( dataInfo instanceof Function ) {
-					var chunks = [];
-					dataInfo(chunks) || _output.shift(); // ''exhausted'' function
-					if ( chunks.length == 0 )
-						return; // cannot shift here because the next item may be a Function
-					_output = chunks.concat(_output);
+				
+					var chunks = dataInfo();
+					if ( chunks )
+						_output = chunks.concat(_output);
+					else	
+						_output.shift(); // function is ''exhausted''
 				}
-				connection.Write( _output.shift(), true ); // async write
+				connection.Write( _output.shift(), true, ProcessOutputData ); // async write
 			}
 		}
 
 
+		function SendData( dataInfo ) {
+
+			_output.push(dataInfo);
+			ProcessOutputData();
+		}
+
 		requestLoop:
-		while (maxRequest--) {
+		do {
 
-			var data, pr, eoh;
+			var status, data, pr, eoh;
 
+			[status] = yield AsyncConnectionWaitData(connection, keepAliveTimeout);
+			if ( status != OK )
+				break requestLoop;
+			
 			do {
-				[data] = yield AsyncConnectionRead(connection);
-				if (!data)
+
+				[status, data] = yield AsyncConnectionRead(connection);
+				if ( status != OK || !data )
 					break requestLoop;
 				input.Write(data);
 				eoh = input.IndexOf(CRLF+CRLF);
 			} while (eoh == -1);
 
-			var [status, headers] = ParseHeaders( input.Read(eoh+4) );
-			status.peerName = connection.peerName;
+			var [iStatus, iHeaders] = ParseHeaders( input.Read(eoh+4) );
 
-			Print( status.peerName + ' ' + status.method + ' ' + status.path, '\n' );
+			Print( connection.peerName + ' ' + iStatus.method + ' ' + iStatus.path, '\n' );
 
+			var oStatus = {}, oHeaders = {};
+			oHeaders['Date'] = new Date().toUTCString();
+			oHeaders['Server'] = _name;
+			oHeaders['Expires'] = '0';
+			oHeaders['Cache-Control'] = 'no-cache';
+			oHeaders['Pragma'] = 'no-cache';
+//			oHeaders['Content-Length'] = 0;
+			oHeaders['Content-Type'] = 'text/plain';
 
-
-			function OutputHeaders( oStatus, oHeaders ) {
+			oStatus.code = 204; // no content
+			oStatus.httpVersion = iStatus.httpVersion;
+			
+			function Response() {
 				
-				if ( oHeaders['Connection'] == 'close' )
-					maxRequest = 0;
-					
-				if ( maxRequest == 0 )
+				if ( iStatus.httpVersion >= 1.1 && iHeaders['Connection'] != 'close' && oHeaders['Connection'] != 'close' && remainRequestCount > 0 && (oHeaders['Content-Length'] > 0 || oHeaders['Transfer-Encoding'] == 'chunked')  )
+					oHeaders['Keep-Alive'] = 'timeout=15, max='+remainRequestCount;
+				else
 					oHeaders['Connection'] = 'close';
 				
-				Output( CreateHttpHeaders( oStatus, oHeaders ) );
+				SendData( CreateHttpHeaders( oStatus, oHeaders ) );
+				return SendData;
 			}
+
+	
+			var requestHandler = new ProcessFileRequest( iStatus, iHeaders, oStatus, oHeaders, Response );
 			
-			var pr = ProcessRequest( status, headers, Output, OutputHeaders );
-			
-			switch ( status.method ) {
+			switch ( iStatus.method ) {
 				case 'GET':
 					break;
-					
 				case 'POST':
-					var clen = headers.contentlength;
+					var clen = iHeaders.contentlength;
 					do {
 
 						if ( input.length < clen ) {
 
-							[data] = yield AsyncConnectionRead(connection);
+							[status, data] = yield AsyncConnectionRead(connection);
 							if (!data)
 								break requestLoop;
 							input.Write(data);
@@ -284,19 +326,19 @@
 
 						if ( input.length > clen ) {
 
-							pr(input.Read(clen));
+							requestHandler.OnData && requestHandler.OnData(input.Read(clen));
 							clen = 0;
 						} else {
 
 							clen -= input.length;
-							pr(input.Read());
+							requestHandler.OnData && requestHandler.OnData(input.Read());
 						}
 					} while (clen);
 					break;
 			}
+			requestHandler.OnEndOfData && requestHandler.OnEndOfData();
 			
-			pr(); // eof
-		}
+		} while ( --remainRequestCount && oHeaders['Connection'] != 'close' );
 		
 		connection.Close();
 	}
@@ -309,14 +351,7 @@
 		serverConnection = new TCPServer( port, undefined, 3 );
 		serverConnection.OnIncoming = function(connection) {
 
-			if ( count > maxConnections ) {
-			
-				connection.Close();
-			} else {
-				
-				count++;
-				StartAsyncProc( ProcessConnectionProc(connection, 3) );
-			}
+			StartAsyncProc( ProcessConnectionProc(connection, 10) );
 		}
 	}
 	
