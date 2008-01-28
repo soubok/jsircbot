@@ -466,18 +466,15 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 }
 
 
-// function AsyncConnectionRead(connection) function(callback) connection.OnData = callback; // helper function
+function AsyncConnectionWaitData(c, timeout) function(callback) {
 
-
-function AsyncConnectionWaitData(connection, timeout) function(callback) {
-
-	 var tid = io.AddTimeout( timeout, function() { delete connection.OnData; callback(TIMEOUT) } ); // force disconnect after the timeout
-	 connection.OnData = function() { delete connection.OnData; io.RemoveTimeout(tid); callback(OK) } // helper function
+	 var tid = io.AddTimeout( timeout, function() { delete c.OnData; callback(TIMEOUT) } ); // force disconnect after the timeout
+	 c.OnData = function() { delete c.OnData; io.RemoveTimeout(tid); callback(OK) } // helper function
 }
 
-function AsyncConnectionRead(connection) function(callback) {
+function AsyncConnectionRead(c) function(callback) {
 	
-	 connection.OnData = function(data) { delete connection.OnData; callback(OK, connection.Read()) } // helper function
+	 c.OnData = function(data) { delete c.OnData; callback(OK, c.Read()) } // helper function
 }
 
 
