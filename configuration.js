@@ -104,4 +104,9 @@ function(data) {
 		gather:[ /#cy/, , 2 ]
 	});
 
+// web server
+	setData(data.webServerModule.connectionKeepAliveTimeout, 15*SECOND);
+	setData(data.webServerModule.connectionKeepAliveMax, 10);
+	setData(data.webServerModule.maxConnections, 5);
+	setData(data.webServerModule.socketBackLog, 3);
 }
