@@ -2,11 +2,143 @@
 <html>
 <head>
 <title>console</title>
+<style type="text/css">
+
+
+html,
+body {
+	padding: 0px;
+	margin: 0px;
+	height: 100%;
+	background-color: black;
+}
+
+#in,
+#out {
+
+	border-style: none;
+	background-color: transparent;
+	color: #BBB;
+	font-family: console, monospace;
+	font-weight: bold;
+	font-size: 10pt;
+}
+
+#in {
+	display: block;
+	position: absolute;
+	bottom: 0px;
+	width: 100%;
+	background-color: #222;
+}
+
+#out {
+	overflow: auto;
+}
+
+
+</style>
+<script type="text/javascript">
+var sid;
+var xhr = new XMLHttpRequest;
+var _in, _out;
+
+function recalcLayout() {
+
+	_out.style.height = document.documentElement.clientHeight - _in.offsetHeight - 1 + 'px';
+	_out.scrollTop = _out.scrollHeight;
+}
+
+function Send(data) {
+
+	xhr.open( 'POST', '?action=submit&sid='+sid, false );
+	xhr.send( data );
+	_out.innerHTML += xhr.responseText + '<br>';
+	_out.scrollTop = _out.scrollHeight;
+}
+
+var pxhr = new XMLHttpRequest;
+function StartPendingRequest() {
+
+	pxhr.open( 'GET', '?async=true&sid='+sid, true );
+	pxhr.send( data );
+	pxhr.onreadystatechange = function() {
+
+		if ( pxhr.readyState != 4 )
+			return;
+		_out.innerHTML += pxhr.responseText + '<br>';
+		StartPendingRequest();
+	}
+}
+
+function Init() {
+
+	_in = document.getElementById('in');
+	_out = document.getElementById('out');
+	xhr.open( 'GET', '?action=new', false );
+	xhr.send(null);
+	sid = xhr.responseText;
+	_out.innerHTML = 'Ready.<br>';
+	_in.focus();
+	recalcLayout();
+}
+
+var stack = [''], stackp = 0;
+
+function OnKey(event) {
+
+	switch (event.keyCode) {
+
+		case 38: // up
+			if ( stackp == 0 )
+				stack[0] = _in.value;
+			if ( stackp < stack.length-1 )
+				stackp++;
+			_in.value = stack[stackp];
+			break;
+		case 40: // down
+			if ( stackp )
+				_in.value = stack[--stackp];
+			break;
+		case 13:
+			stackp = 0;
+			stack[0] = _in.value;
+
+			if ( stack[0] == stack[1] )
+				stack[0] = '';
+			else
+				stack.unshift('');
+			Send(_in.value);
+			_in.value = '';
+			_in.focus();
+			break;
+		case 27:
+			stackp = 0;
+			_in.value = stack[0];
+			break;
+		case 33: // pageup
+			_out.scrollTop -= _out.clientHeight;
+			break;
+		case 34: // pagedown
+			_out.scrollTop += _out.clientHeight;
+			break;
+		case 35: // end
+			_out.scrollTop = _out.scrollHeight;
+			break;
+		case 36: // home
+			_out.scrollTop = 0;
+			break;
+		default:
+			return;
+	}
+
+	event.preventDefault ? event.preventDefault() : event.cancelBubble = true;
+	event.stopPropagation ? event.stopPropagation() : event.returnValue = false;
+}
+
+</script>
 </head>
-<body>
-test
-<form method="POST" action="webConsole.html">
-<input type="submit" name="xxx" value="GO" />
-</form>
+<body onload="Init(event)" onbeforeunload="return 'This will close the current session.'" onresize="recalcLayout()">
+<div id="out"></div><input type="text" id="in" onkeydown="OnKey(event)" autocomplete="off" />
 </body>
 </html>
