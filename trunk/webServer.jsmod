@@ -21,7 +21,9 @@
 	var $MD = $D[_name];
 
 	const mimeType = {
+		htm:'text/html',
 		html:'text/html',
+		xml:'text/xml',
 		gif:'image/gif',
 		jpeg:'image/jpeg',
 		jpg:'image/jpeg',
@@ -85,8 +87,8 @@
 	}
 
 	function NormalizeHeaderName(rawName) {
-
-		return rawName.toLowerCase().split('-').join('');
+		
+		return [ h[0].toUpperCase()+h.substr(1) for each( h in rawName.split('-')) ].join('-');
 	}
 
 	function ParseHeaders(buffer) {
@@ -99,15 +101,17 @@
 			var status = { method:method, url:url, httpVersion:httpVersion, path:path, query:query };
 			var headers = {};
 			for ( var i=1; lines[i].length; i++ ) {
+			
 				var [name,value] = lines[i].split(':');
 				headers[NormalizeHeaderName(name)] = Trim(value);
 			}
 		} catch(error) {
 
-			throw new Halt( 'header parsing error (see log file)' );
+			throw ReportFailure( 'header parsing error (see log file)' );
 		}
 		return [ status, headers ];
 	}
+
 
 	function CreateHttpHeaders( status, headers ) {
 
@@ -118,14 +122,15 @@
 	}
 
 	
-	function Console(output) {
+	function UrlDecodeString(str) {
 		
-		var file = new File('./webConsole.html'); // (TBD) from config
-		var template = file.content;
-		this.input = function() {
-		}
+		var qvar = {};
+		if ( str )
+			for each ( var p in str.split('&') )
+				let ( [key, val] = p.split('=') )
+					qvar[key] = val;
+		return qvar;
 	}
-
 
 
 	function NormalizePath( path ) { // (TBD) try with regexp
@@ -158,12 +163,11 @@
 		if ( !file.exist || file.info.type != File.FILE_FILE ) {
 
 			var message = 'file '+fileName+' not found';
-			
 			oStatus.code = 404;
 			oHeaders['Content-Length'] = message.length;
 			oHeaders['Content-Type'] = 'text/plain';
-			var output = Respond();
-			output(message);
+			var res = Respond();
+			res(message);
 			return;
 		}
 		
@@ -179,27 +183,22 @@
 			oHeaders['Content-Type'] = MimeTypeByFileName( fileName );
 
 			var useChunksEncoding = false;
-			if (iStatus.httpVersion == 1.1) {
+			if (iStatus.httpVersion >= 1.1) {
 			
 				useChunksEncoding = true;				
 				oHeaders['Transfer-Encoding'] = 'chunked';
 			}
 
 			var ContentEncoding = Identity;
-			if ( iHeaders.acceptencoding && iHeaders.acceptencoding.indexOf('deflate') != -1 ) {
+			if ( iHeaders['Accept-Encoding'] && iHeaders['Accept-Encoding'].indexOf('deflate') != -1 ) {
 
 				oHeaders['Content-Encoding'] = 'deflate';
 				ContentEncoding = new Z(Z.DEFLATE);
 			}
 
-
 			file.Open( File.RDONLY );
-			
-			//1
-			var output = Respond();
-
-			//2
-			output( function() {
+			var res = Respond();
+			res( function() {
 
 				var data = file.Read(Z.idealInputLength);
 				if ( data.length ) {
@@ -213,16 +212,82 @@
 				file.Close();
 				return false;
 			} );
-
-			//3
 			if ( useChunksEncoding )
-				output( '0' + CRLF + CRLF );
+				res( '0' + CRLF + CRLF );
 		}
 	}
 	
+	
+	var _consoles = {};
+	
+	function ProcessConsoleAccess( iStatus, iHeaders, oStatus, oHeaders, Respond ) {
+		
+		if ( !iStatus.query ) {
+
+			var file = new File('./webConsole.html'); // (TBD) from config
+			var template = file.content;
+			oHeaders['Content-Type'] = 'text/html';
+			oHeaders['Content-Length'] = template.length;
+			oStatus.code = 200;
+			Respond()(template);
+			return;
+		}
+		
+		var qvar = UrlDecodeString(iStatus.query);
+		
+		if ( qvar.action == 'new' )	{
+
+			var sid = RandomString(64);
+			_consoles[sid] = 1;
+			oHeaders['Content-Type'] = 'text/html';
+			oHeaders['Content-Length'] = sid.length;
+			oStatus.code = 200;
+			Respond()(sid);
+			return;
+		}
+
+/*
+		if ( 'async' in qvar ) {
+			
+			_consoles.Write = function(data) {
+				
+				oHeaders['Content-Type'] = 'text/html';
+				oHeaders['Content-Length'] = data.length;
+				oStatus.code = 200;
+				Respond()(data);
+			}
+		}
+*/
+
+		var consData = '';
+		this.OnData = function(buf) {
+			
+			consData += buf;
+		}
+
+		this.OnEndOfData = function() {
+			
+			var message;
+			if ( qvar.sid in _consoles ) { 
+
+				message = String(_consoles[qvar.sid]++);
+				message += ' '+consData;
+			} else {
+				
+				message = '<span style="color:red">Invalid session.</span>';
+			}
+
+			oHeaders['Content-Type'] = 'text/html';
+			oHeaders['Content-Length'] = message.length;
+			oStatus.code = 200;
+			Respond()(message);
+		}	
+	
+	}
 
 
-	connectionCount = 0;
+
+	var connectionCount = 0;
 
 	function ProcessConnectionProc(connection, remainRequestCount, keepAliveTimeout) {
 
@@ -234,10 +299,9 @@
 
 			if ( output.length ) {
 			
-				dataInfo = output[0];
-				if ( dataInfo instanceof Function ) {
+				if ( output[0] instanceof Function ) {
 				
-					var chunks = dataInfo();
+					var chunks = output[0]();
 					if ( chunks )
 						output = chunks.concat(output);
 					else	
@@ -248,7 +312,7 @@
 		}
 
 		function SendData( dataInfo ) {
-
+			
 			output.push(dataInfo);
 			ProcessOutputData();
 		}
@@ -274,7 +338,7 @@
 
 			var [iStatus, iHeaders] = ParseHeaders( input.Read(eoh+4) );
 
-			Print( connection.peerName + ' ' + iStatus.method + ' ' + iStatus.path, '\n' );
+			Print( connection.peerName + ' ' + iStatus.method + ' ' + iStatus.path + ' ' + iStatus.query, '\n' );
 
 			var oStatus = {}, oHeaders = {};
 			oHeaders['Date'] = new Date().toUTCString();
@@ -292,23 +356,22 @@
 
 					oHeaders['Connection'] = 'keep-alive';
 					oHeaders['Keep-Alive'] = 'timeout='+(keepAliveTimeout/SECOND).toFixed()+', max='+remainRequestCount;
-				} else
+				} else {
+					
 					oHeaders['Connection'] = 'close';
-				
+				}
 				SendData( CreateHttpHeaders( oStatus, oHeaders ) );
 				return SendData;
 			}
 
 
 			var requestHandler = undefined;
-			
-			for ( var [pathRegExpr, requestHandlerConstructor] in Iterator(_requestHandlerList) ) {
-				
-				if ( pathRegExpr(iStatus.path) ) {
-				
-					requestHandler = new requestHandlerConstructor( iStatus, iHeaders, oStatus, oHeaders, Respond );
-					break;
-				}
+			for each ( var [pathRegExpr, requestHandlerConstructor] in _requestHandlerList ) {
+
+				if ( !pathRegExpr(iStatus.path) )
+					continue;
+				requestHandler = new requestHandlerConstructor( iStatus, iHeaders, oStatus, oHeaders, Respond );
+				break;
 			}
 
 
@@ -318,7 +381,7 @@
 					case 'GET':
 						break;
 					case 'POST':
-						var iclen = iHeaders.contentlength;
+						var iclen = iHeaders['Content-Length'];
 						do {
 
 							if ( input.length < iclen ) {
@@ -348,8 +411,8 @@
 				oStatus.code = 404;
 				oHeaders['Content-Length'] = message.length;
 				oHeaders['Content-Type'] = 'text/plain';
-				var output = Respond();
-				output(message);
+				var res = Respond();
+				res(message);
 			}			
 
 
@@ -377,23 +440,16 @@
 		}
 	}
 	
-	// AddRequestHandler( /s4f5sd/, function
-	
-	
 	var _requestHandlerList = {};
-	
+
 	this.moduleApi = {
 		
-		AddRequestHandler: function( pathRegExpr, requestHandlerConstructor ) {
-		
-			_requestHandlerList[pathRegExpr] = [pathRegExpr, requestHandlerConstructor];
-		},
-		
-		RemoveRequestListener: function( pathRegExpr ) {
-			
-			delete _requestHandlerList[pathRegExpr];
-		}
-	};	
+		AddRequestHandler: function( pathRegExpr, requestHandlerConstructor ) _requestHandlerList[String(pathRegExpr)] = [pathRegExpr, requestHandlerConstructor],
+		RemoveRequestListener: function( pathRegExpr ) delete _requestHandlerList[String(pathRegExpr)]
+	};
+	
+	
+	
 	
 	this.stateListener = [
 		{
@@ -404,7 +460,8 @@
 				if (polarity) {
 					
 					StartServer();
-
+					$A.AddRequestHandler( /^\/doc\//, ProcessFileRequest );
+					$A.AddRequestHandler( /^\/cons/, ProcessConsoleAccess );
 				} else {
 
 					// kill all consoles
