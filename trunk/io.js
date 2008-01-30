@@ -414,7 +414,8 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 	}
 
 	this.Disconnect = function() {
-
+		
+		_socket.linger = 2000;
 		delete _socket.writable;
 		_socket.Shutdown(); // both
 		var shutdownTimeout;
@@ -422,6 +423,7 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 
 			delete _socket.readable;
 			io.RemoveTimeout(shutdownTimeout); // cancel the timeout
+			io.RemoveDescriptor(_socket); // no more read/write notifications are needed
 
 			delete _this.sockPort;
 			delete _this.sockName;
@@ -429,6 +431,7 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 			delete _this.peerName;
 
 			_this.OnDisconnected && _this.OnDisconnected(false); // locally disconnected
+			_socket.Close();
 		}
 		_socket.readable = Disconnected;
 		shutdownTimeout = io.AddTimeout( 2*SECOND, Disconnected ); // force disconnect after the timeout
@@ -439,28 +442,50 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 	
 	this.Read = function() _socket.Read();
 	
-	this.Write = function(data, isAsync, onSent) { // data, asynchronous writing, all-data-are-sent callback // (TBD) add a timeout
-		
-		if ( isAsync ) {
+	this.Write = function(item, async) { // string|function|generator, use_asynchronous_writing // (TBD) add a timeout
 
-			_out.push(data);
-			_socket.writable = function(s) {
+		function SendNext(s) {
 
-				if (_out.length) {
+			while (_out.length) {
 
-					var remain = s.Write(_out.shift());
-					remain && _out.unshift(remain);
-					DBG && remain && ReportWarning('Unable to write the whole data on the socket ('+s.peerName+':'+s.peerPort+')');
-				} else {
+				var item = _out.shift();
+				if (!item)
+					continue;
+				if (item instanceof Function) {
 
-					delete s.writable;
-					onSent && onSent();
+					let chunk = item();
+					if (chunk)
+						_out = Array.concat(chunk, item, _out);
+					continue;
 				}
+				if (item.__iterator__) {
+
+					try {
+
+						_out = Array.concat(item.next(), item, _out);
+					} catch (ex if ex == StopIteration) {}
+					continue;
+				}
+				item = s.Write(item);
+				item && _out.unshift(item);
+				DBG && remain && ReportWarning('Unable to write the whole data on the socket, split was needed ('+s.peerName+':'+s.peerPort+')');
+				return true;
 			}
-			return undefined;
-		} else{
-		
-			return _socket.Write(data);
+			return false;
+		}
+
+		_out.push(item);
+
+		if (async) {
+			
+			_socket.writable = function(s) {
+				
+				SendNext(s) || delete s.writable;
+			}
+		} else {
+			
+			delete _socket.writable;
+			while ( SendNext(_socket) );
 		}
 	}
 }
