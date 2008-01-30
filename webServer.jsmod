@@ -173,10 +173,7 @@
 		
 		oStatus.code = 200;
 		
-		this.OnData = function(buf) {
-			
-			data += buf;
-		}
+		this.OnData = function(buf) data += buf;
 
 		this.OnEndOfData = function() {
 
@@ -216,6 +213,10 @@
 				res( '0' + CRLF + CRLF );
 		}
 	}
+	
+	
+	
+	
 	
 	
 	var _consoles = {};
@@ -260,11 +261,8 @@
 */
 
 		var consData = '';
-		this.OnData = function(buf) {
-			
-			consData += buf;
-		}
-
+		this.OnData = function(buf) consData += buf;
+		
 		this.OnEndOfData = function() {
 			
 			var message;
@@ -297,18 +295,19 @@
 
 		function ProcessOutputData() {
 
-			if ( output.length ) {
+			if ( !output.length )
+				return;
 			
-				if ( output[0] instanceof Function ) {
-				
-					var chunks = output[0]();
-					if ( chunks )
-						output = chunks.concat(output);
-					else	
-						output.shift(); // function is ''exhausted''
-				}
-				connection.Write( output.shift(), true, ProcessOutputData ); // 'true' for async write
+			if ( output[0] instanceof Function ) {
+
+				var chunks = output[0]();
+				if ( chunks )
+					output = chunks.concat(output);
+				else	
+					output.shift(); // function is ''exhausted''
 			}
+			connection.Write( _xxx = output.shift(), true, ProcessOutputData ); // 'true' for async write
+			Print(_xxx);
 		}
 
 		function SendData( dataInfo ) {
@@ -320,6 +319,9 @@
 
 		requestLoop:
 		do {
+		
+			remainRequestCount--;
+			DPrint(remainRequestCount);
 
 			var status, data, pr, eoh;
 
@@ -338,7 +340,7 @@
 
 			var [iStatus, iHeaders] = ParseHeaders( input.Read(eoh+4) );
 
-			Print( connection.peerName + ' ' + iStatus.method + ' ' + iStatus.path + ' ' + iStatus.query, '\n' );
+// Print( connection.peerName + ' ' + iStatus.method + ' ' + iStatus.path + ' ' + iStatus.query, '\n' );
 
 			var oStatus = {}, oHeaders = {};
 			oHeaders['Date'] = new Date().toUTCString();
@@ -354,7 +356,7 @@
 				
 				if ( iStatus.httpVersion >= 1.1 && iHeaders['Connection'] != 'close' && oHeaders['Connection'] != 'close' && remainRequestCount > 0 && (oHeaders['Content-Length'] > 0 || oHeaders['Transfer-Encoding'] == 'chunked') ) {
 
-					oHeaders['Connection'] = 'keep-alive';
+					oHeaders['Connection'] = 'Keep-Alive';
 					oHeaders['Keep-Alive'] = 'timeout='+(keepAliveTimeout/SECOND).toFixed()+', max='+remainRequestCount;
 				} else {
 					
@@ -387,7 +389,7 @@
 							if ( input.length < iclen ) {
 
 								[status, data] = yield AsyncConnectionRead(connection);
-								if (!data)
+								if (status != OK || !data)
 									break requestLoop;
 								input.Write(data);
 							}
@@ -415,28 +417,28 @@
 				res(message);
 			}			
 
-
-		} while ( --remainRequestCount && oHeaders['Connection'] != 'close' );
-		connection.Close();
+			
+		} while ( oHeaders['Connection'] != 'close' );
 		
+		connection.Close();
 		connectionCount--;
 	}
 
 
 	function StartServer() {
+
+		var connectionRate = new RateMeter();
 	
 		var serverConnection = new TCPServer( getData($MD.port), getData($MD.bind), getData($MD.socketBackLog) );
 		serverConnection.OnIncoming = function(connection) {
 
-			if ( connectionCount <= getData($MD.maxConnections) ) {
-			
-				StartAsyncProc( ProcessConnectionProc(connection, getData($MD.connectionKeepAliveMax), getData($MD.connectionKeepAliveTimeout)) );
-			} else {	
-			
+			if ( connectionCount > getData($MD.maxConnections) ) { //  || connectionRate.Inc(0, 1, 1000 ) > 10
+				
 				connection.Close();
 				return;
 			}
 
+			StartAsyncProc( ProcessConnectionProc(connection, getData($MD.connectionKeepAliveMax), getData($MD.connectionKeepAliveTimeout)) );
 		}
 	}
 	
@@ -460,7 +462,7 @@
 				if (polarity) {
 					
 					StartServer();
-					$A.AddRequestHandler( /^\/doc\//, ProcessFileRequest );
+//					$A.AddRequestHandler( /^\/doc\//, ProcessFileRequest );
 					$A.AddRequestHandler( /^\/cons/, ProcessConsoleAccess );
 				} else {
 

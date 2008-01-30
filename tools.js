@@ -549,6 +549,26 @@ function DeleteArrayElement( array, element ) !!let (pos=array.lastIndexOf(eleme
 function SetOnceObject() new ObjEx( undefined,undefined,undefined, function(name, value) this[name] ? Failed('Property Already defined') : value );
 
 
+// RateMeter usage:
+//   var foo = new RateMeter();
+//   if ( foo.Inc(cmdName, 1, 1*SECOND) > 5 ) Print('More than 5 times per seconds is too fast');
+function RateMeter() {
+
+    var _keyList = {};
+    this.Inc = function(key, amount, monitorPeriod) {
+
+    	var now = Now();
+    	for ( var k in Iterator(_keyList, true) ) // clean the list
+			if ( now - _keyList[k].time > monitorPeriod )
+				delete _keyList[k];
+        var data = _keyList[key] || (_keyList[key] = { time:0, amount:0 });
+   		var interval = now - data.time;
+   		data.amount = data.amount * (interval < monitorPeriod ? 1 - interval / monitorPeriod : 0) + amount;
+   		data.time = now;
+		return data.amount;
+    }
+}
+
 
 /////////////////////////////////////////////////////// String functions
 
