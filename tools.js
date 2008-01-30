@@ -72,6 +72,7 @@ const DAY = 24*HOUR;
 const WEEK = 7*DAY;
 const YEAR = 365*DAY + 5*HOUR + 48*MINUTE + 45*SECOND;
 
+const KILOBYTE = 1024;
 
 
 /////////////////////////////////////////////////////// Errors
@@ -567,6 +568,33 @@ function RateMeter() {
    		data.time = now;
 		return data.amount;
     }
+}
+
+
+// RateMeter usage:
+//   var foo = new RateMeter([5:1000]);
+//   if ( !foo.Inc() ) Print('More than 5 times per seconds is too fast');
+function SingleRateMeter([max,monitorPeriod]) {
+
+	var time=0, total=0;
+	this.Inc = function(amount) {
+
+		var now = Now();
+		var interval = now - time;
+		total = total * (interval < monitorPeriod ? 1 - interval / monitorPeriod : 0) + amount;
+		time = now;
+		return total <= max;
+	}
+
+	this.Check = function() this.Inc(0); // check if we are under the limit
+	
+	this.RestTime = function() { // time needed to return under the limit
+		
+		this.Inc(0);
+		if ( total < max )
+			return 0;
+		return monitorPeriod * (total - max) / max;
+	}
 }
 
 

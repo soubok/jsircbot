@@ -1,13 +1,15 @@
 function(data) {
 
 	setData( data.moduleList, [
+		'file:///./webServer.jsmod',
+/*
 		'file:///./default.jsmod',
 		'file:///./channel.jsmod',
 		'file:///./dccChat.jsmod',
 		'file:///./botCmd.jsmod',
 		'file:///./Tremulous.jsmod',
 		'file:///./operator.jsmod',
-
+*/
 
 //		'file:///./',
 /*
@@ -106,9 +108,13 @@ function(data) {
 
 // web server
 	setData(data.webServerModule.port, 80);
-	setData(data.webServerModule.bind, undefined);
-	setData(data.webServerModule.connectionKeepAliveTimeout, 15*SECOND);
-	setData(data.webServerModule.connectionKeepAliveMax, 10);
-	setData(data.webServerModule.maxConnections, 5);
+	setData(data.webServerModule.bind, '127.0.0.1');
 	setData(data.webServerModule.socketBackLog, 3);
+	setData(data.webServerModule.maxConnections, 6);
+	setData(data.webServerModule.incomingConnectionRate, [4,1*SECOND]);
+	setData(data.webServerModule.connectionKeepAliveTimeout, 30*SECOND);
+	setData(data.webServerModule.connectionKeepAliveMax, 100);
+	setData(data.webServerModule.connectionDataRate, [2*KILOBYTE,1*SECOND]);
+	
+	
 }

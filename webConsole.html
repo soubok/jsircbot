@@ -53,7 +53,7 @@ function Send(data) {
 
 	xhr.open( 'POST', '?action=submit&sid='+sid, false );
 	xhr.send( data );
-	_out.innerHTML += xhr.responseText + '<br>';
+	_out.innerHTML += xhr.responseText;
 	_out.scrollTop = _out.scrollHeight;
 }
 
