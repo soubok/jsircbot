@@ -60,15 +60,22 @@ function Send(data) {
 var pxhr = new XMLHttpRequest;
 function StartPendingRequest() {
 
-	pxhr.open( 'GET', '?async=true&sid='+sid, true );
-	pxhr.send( data );
+	pxhr.open( 'GET', '?async&sid='+sid, true );
+
+	pxhr.onerror = function() {
+
+		try { pxhr.abort() } catch(ex) {}
+		_out.innerHTML += '<span style="color:red">Connection lost.</span><br/>';
+	}
+
 	pxhr.onreadystatechange = function() {
 
-		if ( pxhr.readyState != 4 )
+		if ( pxhr.readyState != 4 ) //  || pxhr.status != 200
 			return;
-		_out.innerHTML += pxhr.responseText + '<br>';
+		_out.innerHTML += pxhr.responseText;
 		StartPendingRequest();
 	}
+	pxhr.send(null);
 }
 
 function Init() {
@@ -78,7 +85,8 @@ function Init() {
 	xhr.open( 'GET', '?action=new', false );
 	xhr.send(null);
 	sid = xhr.responseText;
-	_out.innerHTML = 'Ready.<br>';
+	StartPendingRequest();
+	_out.innerHTML = '<span style="color:lightgreen">Ready.</span><br/>';
 	_in.focus();
 	recalcLayout();
 }
@@ -97,11 +105,10 @@ function OnKey(event) {
 			_in.value = stack[stackp];
 			break;
 		case 40: // down
-			if ( stackp )
-				_in.value = stack[--stackp];
+			_in.value = stackp ? stack[--stackp] : stack[0];
 			break;
 		case 13:
-			stackp = 0;
+			stackp=0;
 			stack[0] = _in.value;
 
 			if ( stack[0] == stack[1] )
@@ -113,8 +120,7 @@ function OnKey(event) {
 			_in.focus();
 			break;
 		case 27:
-			stackp = 0;
-			_in.value = stack[0];
+			_in.value = stackp ? stack[stackp=0] : '';
 			break;
 		case 33: // pageup
 			_out.scrollTop -= _out.clientHeight;
