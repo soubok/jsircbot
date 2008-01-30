@@ -223,26 +223,30 @@
 		}
 		
 		var qvar = UrlDecodeString(iStatus.query);
+
+		if ( 'sid' in qvar && qvar.sid in _consoles )
+			_consoles[qvar.sid].count++;
 		
 		if ( qvar.action == 'new' )	{
 
 			let sid = RandomString(32);
-			_consoles[sid] = 1;
+			_consoles[sid] = { count:0 };
 			oHeaders['Content-Length'] = sid.length;
 			Respond(200)(sid);
 			return;
 		}
 
-/*
-		if ( 'async' in qvar ) {
+
+		if ( 'async' in qvar && qvar.sid in _consoles ) {
 			
-			_consoles.Write = function(data) {
+			_consoles[qvar.sid].Write = function(data) {
 				
 				oHeaders['Content-Length'] = data.length;
 				Respond(200)(data);
 			}
+			return;
 		}
-*/
+
 		if ( qvar.action != 'submit' ) {
 			
 			Respond(204);
@@ -257,7 +261,7 @@
 			let message;
 			if ( qvar.sid in _consoles ) {
 
-				message = String(_consoles[qvar.sid]++);
+				message = String(_consoles[qvar.sid].count);
 				message += ' '+consData + '<br>';
 			} else {
 				
@@ -269,7 +273,7 @@
 		}	
 	}
 
-
+	var _requestHandlerList = {};
 
 	var connectionCount = 0;
 
@@ -314,15 +318,16 @@
 					'Cache-Control': 'no-cache',
 					'Pragma': 'no-cache',
 					'Content-Type': 'text/html'
+					// beware: do not set 'Connection' and 'Content-Length'
 				};
 				
 				function Respond(statusCode, httpVersion) {
 					
-					statusCode || ReportFailure('Invalid status code ('+statusCode+')');
+					statusCode = statusCode || 200;
 					httpVersion = httpVersion || iStatus.httpVersion;
 					httpVersion > iStatus.httpVersion && ReportFailure('HTTP version too high ('+httpVersion+')');
 
-					if ( iStatus.httpVersion >= 1.1 && iHeaders['Connection'] == 'keep-alive' && oHeaders['Connection'] != 'close' && remainRequestCount > 0 && (oHeaders['Content-Length'] > 0 || oHeaders['Transfer-Encoding'] == 'chunked') ) {
+					if ( iStatus.httpVersion >= 1.1 && iHeaders['Connection'] == 'keep-alive' && oHeaders['Connection'] != 'close' && remainRequestCount > 0 && (oHeaders['Content-Length'] != undefined || oHeaders['Transfer-Encoding'] == 'chunked') ) {
 
 						oHeaders['Connection'] = 'keep-klive';
 						oHeaders['Keep-Alive'] = 'timeout='+(keepAliveTimeout/SECOND).toFixed()+', max='+remainRequestCount;
@@ -344,10 +349,10 @@
 
 				if ( requestHandler ) {
 
-					switch ( iStatus.method ) {
-						case 'GET':
+					switch ( iStatus.method.toLowerCase() ) {
+						case 'get':
 							break;
-						case 'POST':
+						case 'post':
 							var iclen = iHeaders['Content-Length'];
 							do {
 
@@ -374,6 +379,9 @@
 								}
 							} while (iclen);
 							break;
+						default:
+							ReportWarning('...Unable to manage this request.');
+							Respond(204);
 					}
 					requestHandler.OnEndOfData && requestHandler.OnEndOfData();
 				} else {
@@ -414,8 +422,6 @@
 		}
 	}
 	
-	var _requestHandlerList = {};
-
 	this.moduleApi = {
 		
 		AddRequestHandler: function( pathRegExpr, requestHandlerConstructor ) _requestHandlerList[String(pathRegExpr)] = [pathRegExpr, requestHandlerConstructor],
