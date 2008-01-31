@@ -49,6 +49,7 @@ ENUM({
 	OK:undefined,
 	ERROR:undefined,
 	TIMEOUT:undefined,
+	DISCONNECTED:undefined,
 	NOTFOUND:undefined,
 	BADREQUEST:undefined,
 	BADRESPONSE:undefined,
@@ -570,10 +571,30 @@ function RateMeter() {
     }
 }
 
+// RateMeter usage:
+//   var foo = new MultiRateMeter([5:1000]);
+//   if ( !foo.Inc('127.0.0.1', 1) ) Print('Sorry, your connection rate is too high');
+function MultiRateMeter([max,monitorPeriod]) {
+
+    var _keyList = {};
+    this.Inc = function(key, amount) {
+
+    	var now = Now();
+    	for ( var k in Iterator(_keyList, true) ) // clean the list
+			if ( now - _keyList[k].time > monitorPeriod )
+				delete _keyList[k];
+        var data = _keyList[key] || (_keyList[key] = { time:0, amount:0 });
+   		var interval = now - data.time;
+   		data.amount = data.amount * (interval < monitorPeriod ? 1 - interval / monitorPeriod : 0) + amount;
+   		data.time = now;
+		return data.amount <= max;
+    }
+}
+
 
 // RateMeter usage:
-//   var foo = new RateMeter([5:1000]);
-//   if ( !foo.Inc() ) Print('More than 5 times per seconds is too fast');
+//   var foo = new SingleRateMeter([5:1000]);
+//   if ( !foo.Inc(1) ) Print('More than 5 times per seconds is too fast');
 function SingleRateMeter([max,monitorPeriod]) {
 
 	var time=0, total=0;

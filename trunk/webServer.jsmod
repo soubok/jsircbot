@@ -99,11 +99,13 @@
 			var httpVersion = Number(proto.split(SLASH)[1]);
 			var [path,query] = url.split('?');
 			var status = { method:method, url:url, httpVersion:httpVersion, path:path, query:query };
-			var headers = {};
+
+			var headers = new HttpHeaders();
 			for ( var i=1; lines[i].length; i++ ) {
 			
-				var [name,value] = lines[i].split(':');
-				headers[NormalizeHeaderName(name)] = Trim(value);
+				var [name,value] = lines[i].split(': ');
+				//headers[NormalizeHeaderName(name)] = Trim(value);
+				headers.Set(name,value);
 			}
 		} catch(error) {
 
@@ -113,24 +115,94 @@
 	}
 
 
+
+	function HttpHeaders() {
+
+		var _headers = {};		
+		this.Parse = function(rawHeaders) {
+
+			var hre = /(.*?): ?(.*?)\r?\n/g;
+			var res;
+			for ( hre.lastIndex = 0; res = _rexp_keyval.exec(rawHeaders); _headers[res[1]] = res[2]);
+		}
+		this.Has = function(name) {
+			
+			return name in _headers;
+		}
+		this.Set = function(name, value) {
+			
+			_headers[name] = value;
+		}
+		this.Get = function(name) {
+			
+			return _headers[name];
+		}
+		this.Is = function(name, value) {
+			
+			return name in _headers && _headers[name].toLowerCase() == value.toLowerCase();
+		}
+		this.Serialize = function() {
+			
+			var tmp = '';
+			for ( var [h,v] in Iterator(_headers) )
+				tmp += h + ': ' + v + CRLF;
+			return tmp;
+		}
+	}
+
+
+
 	function CreateHttpHeaders( statusCode, httpVersion, headers ) {
 
 		var buf = 'HTTP/' + httpVersion + SPC + statusCode + SPC + reasonPhrase[statusCode] + CRLF;
-		for ( var [h,v] in Iterator(headers) )
-			buf += h + ': ' + v + CRLF;
-		return buf + CRLF;
+		return buf + headers.Serialize() + CRLF;
 	}
 
 	
-	function UrlDecodeString(str) {
+	function ParseQueryData(str) {
 		
-		var qvar = {};
+		var map = {};
 		if ( str )
 			for each ( var p in str.split('&') )
-				let ( [key, val] = p.split('=') )
-					qvar[key] = val;
-		return qvar;
+				let ( [key, val] = p.split('=') ) // report a "strict warning: reference to undefined property 1" because 'foo'.split('=') do not have a [1]
+					map[key] = val;
+		return map;
 	}
+	
+	function ParseCookieData(str) {
+		
+		var map = {};
+		if ( str )
+			for each ( var p in str.split('; ') )
+				let ( [key, val] = p.split('=') )
+					map[key] = val;
+		return map;
+	}
+	
+	function SaveData(name, data) {
+
+		var expires = new Date;
+		expires.setDate(expires.getDate() + 365); // espires in 1 year
+		document.cookie = name + "=" + encodeURIComponent(data) + ";expires=" + expires.toGMTString();
+	}
+
+
+	function LoadData(name) {
+
+		 if (document.cookie.length) {
+
+			  var start = document.cookie.indexOf(name + "=");
+			  if (start != -1) {
+
+					start = start + name.length + 1;
+					var end = document.cookie.indexOf(";", start);
+					if (end == -1)
+						 end = document.cookie.length;
+					return decodeURIComponent(document.cookie.substring(start, end));
+			  }
+		 }
+		 return "";
+	}	
 
 
 	function NormalizePath( path ) { // (TBD) try with regexp
@@ -163,29 +235,29 @@
 		if ( !file.exist || file.info.type != File.FILE_FILE ) {
 
 			var message = 'file '+fileName+' not found';
-			oHeaders['Content-Length'] = message.length;
-			oHeaders['Content-Type'] = 'text/plain';
+			oHeaders.Set('Content-Length', message.length);
+			oHeaders.Set('Content-Type', 'text/plain');
 			Respond(404)(message);
 			return;
 		}
 		
-		this.OnData = function(buf) data += buf;
+		this.OnBodyData = function(buf) data += buf;
 
-		this.OnEndOfData = function() {
+		this.OnEndOfBody = function() {
 
-			oHeaders['Content-Type'] = MimeTypeByFileName( fileName );
+			oHeaders.Set('Content-Type', MimeTypeByFileName(fileName));
 
 			var useChunksEncoding = false;
 			if (iStatus.httpVersion >= 1.1) {
 			
 				useChunksEncoding = true;				
-				oHeaders['Transfer-Encoding'] = 'chunked';
+				oHeaders.Set('Transfer-Encoding', 'chunked');
 			}
 
 			var ContentEncoding = Identity;
-			if ( iHeaders['Accept-Encoding'] && iHeaders['Accept-Encoding'].indexOf('deflate') != -1 ) {
+			if ( iHeaders.Has('Accept-Encoding') && iHeaders.Get('Accept-Encoding').indexOf('deflate') != -1 ) {
 
-				oHeaders['Content-Encoding'] = 'deflate';
+				oHeaders.Set('Content-Encoding', 'deflate');
 				ContentEncoding = new Z(Z.DEFLATE);
 			}
 
@@ -213,75 +285,78 @@
 	var _consoles = {};
 	
 	function ProcessConsoleAccess( iStatus, iHeaders, oHeaders, Respond ) {
+
+		var query = ParseQueryData(iStatus.query);
+		var cookie = ParseCookieData(iHeaders.Get('Cookie'));
 		
-		if ( !iStatus.query ) {
+
+		var sid = cookie.sid;
+		var action = query.action;
+		
+		if ( !action ) {
 
 			let content = new File('./webConsole.html').content; // (TBD) filename from config
-			oHeaders['Content-Length'] = content.length;
+			oHeaders.Set('Content-Length', content.length);
+
+			let sid = RandomString(32);
+			_consoles[sid] = { sid:sid, count:0, pendingMessages:[] };
+			oHeaders.Set('Set-Cookie', 'sid='+sid+'; path='+iStatus.path);// Set-Cookie: <name>=<value>[; <name>=<value>]... [; expires=<date>][; domain=<domain_name>][; path=<some_path>][; secure][; httponly]
 			Respond(200)(content);
 			return;
 		}
 		
-		var qvar = UrlDecodeString(iStatus.query);
-
-		if ( 'sid' in qvar && qvar.sid in _consoles )
-			_consoles[qvar.sid].count++;
-		
-		if ( qvar.action == 'new' )	{
-
-			let sid = RandomString(32);
-			_consoles[sid] = { count:0 };
-			oHeaders['Content-Length'] = sid.length;
-			Respond(200)(sid);
-			return;
-		}
-
-
-		if ( 'async' in qvar && qvar.sid in _consoles ) {
+		if ( action == 'wait' && sid in _consoles ) {
 			
-			_consoles[qvar.sid].Write = function(data) {
+			_consoles[sid].Write = function(data) {
 				
-				oHeaders['Content-Length'] = data.length;
-				Respond(200)(data);
+				oHeaders.Set('Content-Length', data.length);
+				var status = Respond(200)(data);
 			}
+			
+			io.AddTimeout( 2000, function() { _consoles[sid].Write('test<br/>') })
 			return;
 		}
 
-		if ( qvar.action != 'submit' ) {
+		if ( action != 'submit' ) {
 			
 			Respond(204);
 			return;
 		}
 			
 		var consData = '';
-		this.OnData = function(buf) consData += buf;
+		this.OnBodyData = function(buf) consData += buf;
 		
-		this.OnEndOfData = function() {
+		this.OnEndOfBody = function() {
 			
 			let message;
-			if ( qvar.sid in _consoles ) {
+			if ( sid in _consoles ) {
 
-				message = String(_consoles[qvar.sid].count);
+				message = String(_consoles[sid].count);
 				message += ' '+consData + '<br>';
 			} else {
 				
 				message = '<span style="color:red">Invalid session.</span><br/>';
 			}
 
-			oHeaders['Content-Length'] = message.length;
+			oHeaders.Set('Content-Length', message.length);
 			Respond(200)(message);
 		}	
 	}
 
 	var _requestHandlerList = {};
 
-	var connectionCount = 0;
+	var totalConnectionCount = 0;
 
 	function ProcessConnectionProc(connection, remainRequestCount, keepAliveTimeout) { // this async procedure manages the lifetime of an HTTP connection
 
-		connectionCount++;
+		totalConnectionCount++;
 		var input = new Buffer();
-		function SendData(item) connection.Write(item, true); // true for async 
+		function SendData(data) {
+			
+			connection.Write(data, true);
+			return OK;
+		}
+
 		var connectionDataRate = new SingleRateMeter(getData($MD.connectionDataRate));
 		
 		try {
@@ -291,7 +366,7 @@
 				var status, data, pr, eoh;
 
 				[status] = yield AsyncConnectionWaitData(connection, keepAliveTimeout);
-				if ( status != OK ) // == TIMEOUT
+				if ( status != OK ) // TIMEOUT || DISCONNECTED
 					AbortAsyncProc();
 
 				do {
@@ -299,27 +374,25 @@
 					[status, data] = yield AsyncConnectionRead(connection);
 					if ( status != OK || !data )
 						AbortAsyncProc();
-
-					if ( !connectionDataRate.Inc(data.length) )
-						yield AsyncSleep( connectionDataRate.RestTime() );
-
 					input.Write(data);
 					eoh = input.IndexOf(CRLF+CRLF);
 				} while (eoh == -1);
 
+				if ( !connectionDataRate.Inc(input.length) )
+					yield AsyncSleep( connectionDataRate.RestTime() );
 				var [iStatus, iHeaders] = ParseHeaders( input.Read(eoh+4) );
-				
+
 				ReportNotice( connection.peerName + ' ' + iStatus.method + ' ' + iStatus.path + ' ' + iStatus.query, '\n' );
 
-				var oHeaders = { // default header values
-					'Date': new Date().toUTCString(),
-					'Server': _name,
-					'Expires': '0',
-					'Cache-Control': 'no-cache',
-					'Pragma': 'no-cache',
-					'Content-Type': 'text/html'
-					// beware: do not set 'Connection' and 'Content-Length'
-				};
+				
+				var oHeaders = new HttpHeaders();
+				oHeaders.Set( 'Date', new Date().toUTCString() );
+				oHeaders.Set( 'Server', _name );
+				oHeaders.Set( 'Expires', '0' );
+				oHeaders.Set( 'Cache-Control', 'no-cache' );
+				oHeaders.Set( 'Pragma', 'no-cache' );
+				oHeaders.Set( 'Content-Type', 'text/html' );
+				// beware: do not set 'Connection' or 'Content-Length'
 				
 				function Respond(statusCode, httpVersion) {
 					
@@ -327,15 +400,17 @@
 					httpVersion = httpVersion || iStatus.httpVersion;
 					httpVersion > iStatus.httpVersion && ReportFailure('HTTP version too high ('+httpVersion+')');
 
-					if ( iStatus.httpVersion >= 1.1 && iHeaders['Connection'] == 'keep-alive' && oHeaders['Connection'] != 'close' && remainRequestCount > 0 && (oHeaders['Content-Length'] != undefined || oHeaders['Transfer-Encoding'] == 'chunked') ) {
+					if ( iStatus.httpVersion >= 1.1 && iHeaders.Is('Connection', 'keep-alive') && !oHeaders.Is('Connection', 'close') && remainRequestCount > 0 && (oHeaders.Has('Content-Length') || oHeaders.Is('Transfer-Encoding', 'chunked')) ) {
 
-						oHeaders['Connection'] = 'keep-klive';
-						oHeaders['Keep-Alive'] = 'timeout='+(keepAliveTimeout/SECOND).toFixed()+', max='+remainRequestCount;
+						oHeaders.Set('Connection', 'keep-klive' );
+						oHeaders.Set('Keep-Alive', 'timeout='+(keepAliveTimeout/SECOND).toFixed()+', max='+remainRequestCount );
 					} else {
-						oHeaders['Connection'] = 'close';
+						oHeaders.Set('Connection', 'close');
 					}
-					SendData( CreateHttpHeaders( statusCode, httpVersion, oHeaders ) );
-					return SendData;
+					
+					SendData( CreateHttpHeaders( statusCode, httpVersion, oHeaders ), true); // true for async
+					
+					return function(data) SendData(data);
 				}
 
 				var requestHandler = undefined;
@@ -353,7 +428,7 @@
 						case 'get':
 							break;
 						case 'post':
-							var iclen = iHeaders['Content-Length'];
+							var iclen = iHeaders.Get('Content-Length');
 							do {
 
 								if ( input.length < iclen ) {
@@ -370,12 +445,12 @@
 
 								if ( input.length > iclen ) {
 
-									requestHandler.OnData && requestHandler.OnData(input.Read(iclen));
+									requestHandler.OnBodyData && requestHandler.OnBodyData(input.Read(iclen));
 									iclen = 0;
 								} else {
 
 									iclen -= input.length;
-									requestHandler.OnData && requestHandler.OnData(input.Read());
+									requestHandler.OnBodyData && requestHandler.OnBodyData(input.Read());
 								}
 							} while (iclen);
 							break;
@@ -383,23 +458,24 @@
 							ReportWarning('...Unable to manage this request.');
 							Respond(204);
 					}
-					requestHandler.OnEndOfData && requestHandler.OnEndOfData();
+					requestHandler.OnEndOfBody && requestHandler.OnEndOfBody();
 				} else {
 
 					var message = 'Unable to handle ' + iStatus.path;
-					oHeaders['Content-Length'] = message.length;
-					oHeaders['Content-Type'] = 'text/plain';
+					oHeaders.Set('Content-Length', message.length);
+					oHeaders.Set('Content-Type', 'text/plain');
 					Respond(404)(message);
 				}			
 
 				remainRequestCount--;
 
-			} while ( oHeaders['Connection'] != 'close' );
+			} while ( !oHeaders.Is('Connection', 'close') );
 		
 		} finally {
 
-			SendData( function() void connection.Disconnect() );
-			connectionCount--; // even if the disconnection may occurs after this line (because SendData is async)
+			SendData(function() void connection.Disconnect()); // true for async
+			function SendData() UNAVAILABLE;
+			totalConnectionCount--; // even if the disconnection may occurs after this line (because connection.Write is async)
 		}
 	}
 
@@ -408,11 +484,12 @@
 
 	function StartServer() {
 
-		var connectionRate = new SingleRateMeter(getData($MD.incomingConnectionRate));
+		var incomingConnectionRatePerPeer = new MultiRateMeter(getData($MD.incomingConnectionRatePerPeer));
+		
 		var serverConnection = new TCPServer( getData($MD.port), getData($MD.bind), getData($MD.socketBackLog) );
 		serverConnection.OnIncoming = function(connection) {
-
-			if ( connectionCount > getData($MD.maxConnections) || !connectionRate.Inc(1) ) {
+			
+			if ( totalConnectionCount > getData($MD.maxConnections) || !incomingConnectionRatePerPeer.Inc(connection.peerName, 1) ) {
 				
 				connection.Close();
 				return;

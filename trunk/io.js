@@ -490,14 +490,22 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 	}
 }
 
-
+/*
 function AsyncConnectionWaitData(c, timeout) function(callback) {
 
 	 var tid = io.AddTimeout( timeout, function() { delete c.OnData; callback(TIMEOUT) } ); // force disconnect after the timeout
 	 c.OnData = function() { delete c.OnData; io.RemoveTimeout(tid); callback(OK) } // helper function
 }
+*/
 
-function AsyncConnectionRead(c) function(callback) {
+function AsyncConnectionWaitData(c, timeout) function(callback) { // beware: this function redefines OnData and OnDisconnected
+
+	 var tid = io.AddTimeout( timeout, function() { delete c.OnData; callback(TIMEOUT) } ); // force disconnect after the timeout
+	 c.OnData = function() { delete c.OnData; delete c.OnDisconnected; io.RemoveTimeout(tid); callback(OK) }
+	 c.OnDisconnected = function() { delete c.OnData; delete c.OnDisconnected; io.RemoveTimeout(tid); callback(DISCONNECTED) }
+}
+
+function AsyncConnectionRead(c) function(callback) { // beware: this function redefines OnData
 	
 	 c.OnData = function(data) { delete c.OnData; callback(OK, c.Read()) } // helper function
 }

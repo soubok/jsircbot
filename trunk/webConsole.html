@@ -11,6 +11,7 @@ body {
 	margin: 0px;
 	height: 100%;
 	background-color: black;
+	overflow: hidden;
 }
 
 #in,
@@ -36,11 +37,10 @@ body {
 	overflow: auto;
 }
 
-
 </style>
 <script type="text/javascript">
-var sid;
 var xhr = new XMLHttpRequest;
+var pxhr = new XMLHttpRequest;
 var _in, _out;
 
 function recalcLayout() {
@@ -49,31 +49,48 @@ function recalcLayout() {
 	_out.scrollTop = _out.scrollHeight;
 }
 
-function Send(data) {
+function DisplayMessage(msg, color) {
 
-	xhr.open( 'POST', '?action=submit&sid='+sid, false );
-	xhr.send( data );
-	_out.innerHTML += xhr.responseText;
+	_out.innerHTML += '<span style="color:'+(color||'red')+'">'+msg+'</span><br/>';
 	_out.scrollTop = _out.scrollHeight;
 }
 
-var pxhr = new XMLHttpRequest;
+function Send(data) {
+
+//	DisplayMessage('pxhr.readyState '+pxhr.readyState );
+	try {
+
+		xhr.open( 'POST', '?action=submit', false );
+		xhr.send( data );
+		_out.innerHTML += xhr.responseText;
+		_out.scrollTop = _out.scrollHeight;
+	} catch(ex) {
+
+		DisplayMessage('Connection closed, err1, '+pxhr.status);
+	}
+	_in.focus();
+}
+
 function StartPendingRequest() {
 
-	pxhr.open( 'GET', '?async&sid='+sid, true );
-
-	pxhr.onerror = function() {
-
-		try { pxhr.abort() } catch(ex) {}
-		_out.innerHTML += '<span style="color:red">Connection lost.</span><br/>';
-	}
-
+	pxhr.open( 'GET', '?action=wait', true );
 	pxhr.onreadystatechange = function() {
 
-		if ( pxhr.readyState != 4 ) //  || pxhr.status != 200
-			return;
-		_out.innerHTML += pxhr.responseText;
-		StartPendingRequest();
+		try {
+			if ( pxhr.readyState != 4 )
+				return;
+			if ( pxhr.status != 200 ) {
+
+				DisplayMessage('Connection closed, err3, '+pxhr.status);
+				return;
+			}
+			_out.innerHTML += pxhr.responseText;
+			_out.scrollTop = _out.scrollHeight;
+			StartPendingRequest();
+		} catch(ex) {
+
+			DisplayMessage('Connection closed, err2, '+pxhr.status);
+		}
 	}
 	pxhr.send(null);
 }
@@ -82,19 +99,18 @@ function Init() {
 
 	_in = document.getElementById('in');
 	_out = document.getElementById('out');
-	xhr.open( 'GET', '?action=new', false );
-	xhr.send(null);
-	sid = xhr.responseText;
 	StartPendingRequest();
-	_out.innerHTML = '<span style="color:lightgreen">Ready.</span><br/>';
-	_in.focus();
+	DisplayMessage('Ready.', 'lightgreen');
 	recalcLayout();
+	_in.focus();
 }
 
-var stack = [''], stackp = 0;
 
+var stack = [''], stackp = 0;
 function OnKey(event) {
 
+	if ( event.shiftKey || event.ctrlKey || event.altKey )
+		return;
 	switch (event.keyCode) {
 
 		case 38: // up
@@ -110,7 +126,6 @@ function OnKey(event) {
 		case 13:
 			stackp=0;
 			stack[0] = _in.value;
-
 			if ( stack[0] == stack[1] )
 				stack[0] = '';
 			else
@@ -137,7 +152,6 @@ function OnKey(event) {
 		default:
 			return;
 	}
-
 	event.preventDefault ? event.preventDefault() : event.cancelBubble = true;
 	event.stopPropagation ? event.stopPropagation() : event.returnValue = false;
 }
@@ -145,6 +159,7 @@ function OnKey(event) {
 </script>
 </head>
 <body onload="Init(event)" onbeforeunload="return 'This will close the current session.'" onresize="recalcLayout()">
-<div id="out"></div><input type="text" id="in" onkeydown="OnKey(event)" autocomplete="off" />
+<div id="out"></div>
+<input type="text" id="in" onkeydown="OnKey(event)" autocomplete="off" />
 </body>
 </html>
