@@ -109,12 +109,12 @@ function(data) {
 // web server
 	setData(data.webServerModule.port, 80);
 	setData(data.webServerModule.bind, '127.0.0.1');
-	setData(data.webServerModule.socketBackLog, 3);
-	setData(data.webServerModule.maxConnections, 6);
-	setData(data.webServerModule.incomingConnectionRate, [4,1*SECOND]);
-	setData(data.webServerModule.connectionKeepAliveTimeout, 30*SECOND);
+	setData(data.webServerModule.socketBackLog, 5); // socketBackLog is the maximum length of the queue of pending connections.
+	setData(data.webServerModule.maxConnections, 10);
+	setData(data.webServerModule.incomingConnectionRatePerPeer, [2, 1*SECOND]);
+	setData(data.webServerModule.connectionKeepAliveTimeout, 10*SECOND);
 	setData(data.webServerModule.connectionKeepAliveMax, 100);
-	setData(data.webServerModule.connectionDataRate, [2*KILOBYTE,1*SECOND]);
+	setData(data.webServerModule.connectionDataRate, [5*KILOBYTE, 1*SECOND]);
 	
 	
 }
