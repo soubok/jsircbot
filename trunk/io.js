@@ -451,18 +451,19 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 				var item = _out.shift();
 				if (!item)
 					continue;
+				if (item instanceof Array)
+					_out = Array.concat(item, _out);
 				if (item instanceof Function) {
 
 					let chunk = item();
-					if (chunk)
-						_out = Array.concat(chunk, item, _out);
+					chunk && _out.unshift(chunk, item);
 					continue;
 				}
 				if (item.__iterator__) {
 
 					try {
-
-						_out = Array.concat(item.next(), item, _out);
+					
+						_out.unshift(item.next(), item);
 					} catch (ex if ex == StopIteration) {}
 					continue;
 				}
