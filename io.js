@@ -352,7 +352,7 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 			_this.OnConnected && _this.OnConnected();
 		}
 	
-		_socket.readable = function(s) {
+		_socket.readable = function(s) { // (TBD) link _socket.readable to _this.OnData
 
 			if ( s.available ) {
 			

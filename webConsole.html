@@ -66,7 +66,7 @@ function Send(data) {
 		_out.scrollTop = _out.scrollHeight;
 	} catch(ex) {
 
-		DisplayMessage('Connection closed, err1, '+pxhr.status);
+		DisplayMessage('Connection closed');
 	}
 	_in.focus();
 }
@@ -81,7 +81,7 @@ function StartPendingRequest() {
 				return;
 			if ( pxhr.status != 200 ) {
 
-				DisplayMessage('Connection closed, err3, '+pxhr.status);
+				DisplayMessage('Connection closed');
 				return;
 			}
 			_out.innerHTML += pxhr.responseText;
@@ -89,7 +89,7 @@ function StartPendingRequest() {
 			StartPendingRequest();
 		} catch(ex) {
 
-			DisplayMessage('Connection closed, err2, '+pxhr.status);
+			DisplayMessage('Connection closed');
 		}
 	}
 	pxhr.send(null);
