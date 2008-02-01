@@ -609,6 +609,12 @@ function SingleRateMeter([max,monitorPeriod]) {
 
 	this.Check = function() this.Inc(0); // check if we are under the limit
 	
+	this.Rate = function() {
+
+		this.Inc(0);
+		return total / monitorPeriod;
+	}
+	
 	this.RestTime = function() { // time needed to return under the limit
 		
 		this.Inc(0);
@@ -911,6 +917,7 @@ function Inspect() '$'+[fct() for each (fct in INSPECT)].join(LF);
 
 function DPrint() {
 	
+	Print(LF);
 	for ( let i = 0; i < arguments.length; i++ )
 		Print( '{'+arguments[i]+'} ' );
 	Print(LF);

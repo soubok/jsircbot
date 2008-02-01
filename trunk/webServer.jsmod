@@ -91,39 +91,40 @@
 		return [ h[0].toUpperCase()+h.substr(1) for each( h in rawName.split('-')) ].join('-');
 	}
 
-	function ParseHeaders(buffer) { // (TBD) try with  /(.*?): ?(.*?)\r?\n/g;
-
-		try {
-			var lines = buffer.split(CRLF);
-			var [method,url,proto] = lines[0].split(SPC);
-			var httpVersion = Number(proto.split(SLASH)[1]);
-			var [path,query] = url.split('?');
-			var status = { method:method, url:url, httpVersion:httpVersion, path:path, query:query };
-
-			var headers = new HttpHeaders();
-			for ( var i=1; lines[i].length; i++ ) {
-			
-				var [name,value] = lines[i].split(': ');
-				//headers[NormalizeHeaderName(name)] = Trim(value);
-				headers.Set(name,value);
-			}
-		} catch(error) {
-
-			throw ReportFailure( 'header parsing error (see log file)' );
-		}
-		return [ status, headers ];
+	function ParseHttpStatus(buffer) {
+		
+		var status = {};
+		status.method = buffer.ReadUntil(SPC);
+		status.url = buffer.ReadUntil(SPC);
+		status.protoName = buffer.ReadUntil(SLASH);
+		status.protoVersion = buffer.ReadUntil(CRLF);
+		var [path,query] = status.url.split('?');
+		status.path = path;
+		status.query = query;
+		return status;
 	}
+	
+	function ParseHttpHeaders(buffer) {
 
-
+		var headers = new HttpHeaders();
+		for (;;) {
+			var key = buffer.ReadUntil(': ');
+			var value = buffer.ReadUntil(CRLF);
+			if ( !key )
+				break;
+			headers.Set(key, value);
+		}
+		return headers;
+	}
 
 	function HttpHeaders() {
 
 		var _headers = {};		
 		this.Parse = function(rawHeaders) {
-
+			
 			var hre = /(.*?): ?(.*?)\r?\n/g;
 			var res;
-			for ( hre.lastIndex = 0; res = _rexp_keyval.exec(rawHeaders); _headers[res[1]] = res[2]);
+			for ( hre.lastIndex = 0; res = hre.exec(rawHeaders); _headers[res[1]] = res[2]);
 		}
 		this.Has = function(name) {
 			
@@ -152,9 +153,9 @@
 
 
 
-	function CreateHttpHeaders( statusCode, httpVersion, headers ) {
+	function CreateHttpHeaders( statusCode, protoVersion, headers ) {
 
-		var buf = 'HTTP/' + httpVersion + SPC + statusCode + SPC + reasonPhrase[statusCode] + CRLF;
+		var buf = 'HTTP/' + protoVersion + SPC + statusCode + SPC + reasonPhrase[statusCode] + CRLF;
 		return buf + headers.Serialize() + CRLF;
 	}
 
@@ -248,7 +249,7 @@
 			oHeaders.Set('Content-Type', MimeTypeByFileName(fileName));
 
 			var useChunksEncoding = false;
-			if (iStatus.httpVersion >= 1.1) {
+			if (iStatus.protoVersion >= 1.1) {
 			
 				useChunksEncoding = true;				
 				oHeaders.Set('Transfer-Encoding', 'chunked');
@@ -288,7 +289,6 @@
 
 		var query = ParseQueryData(iStatus.query);
 		var cookie = ParseCookieData(iHeaders.Get('Cookie'));
-		
 
 		var sid = cookie.sid;
 		var action = query.action;
@@ -346,12 +346,12 @@
 	var _requestHandlerList = {};
 
 	var totalConnectionCount = 0;
-
+/*
 	function ProcessConnectionProc(connection, remainRequestCount, keepAliveTimeout) { // this async procedure manages the lifetime of an HTTP connection
 
 		totalConnectionCount++;
 		var input = new Buffer();
-		function SendData(data) {
+		var SendData = function(data) {
 			
 			connection.Write(data, true);
 			return OK;
@@ -363,27 +363,26 @@
 
 			do {
 
-				var status, data, pr, eoh;
+				var status, data, pr;
 
 				[status] = yield AsyncConnectionWaitData(connection, keepAliveTimeout);
 				if ( status != OK ) // TIMEOUT || DISCONNECTED
 					AbortAsyncProc();
-
 				do {
 
 					[status, data] = yield AsyncConnectionRead(connection);
-					if ( status != OK || !data )
+					if ( status != OK || !data || input.length > 8192 )
 						AbortAsyncProc();
 					input.Write(data);
-					eoh = input.IndexOf(CRLF+CRLF);
-				} while (eoh == -1);
+				} while (input.IndexOf(CRLF+CRLF) == -1);
 
 				if ( !connectionDataRate.Inc(input.length) )
 					yield AsyncSleep( connectionDataRate.RestTime() );
-				var [iStatus, iHeaders] = ParseHeaders( input.Read(eoh+4) );
-
+					
+				var iStatus = ParseHttpStatus( input );
+				var iHeaders = ParseHttpHeaders( input );
+				
 				ReportNotice( connection.peerName + ' ' + iStatus.method + ' ' + iStatus.path + ' ' + iStatus.query, '\n' );
-
 				
 				var oHeaders = new HttpHeaders();
 				oHeaders.Set( 'Date', new Date().toUTCString() );
@@ -394,13 +393,13 @@
 				oHeaders.Set( 'Content-Type', 'text/html' );
 				// beware: do not set 'Connection' or 'Content-Length'
 				
-				function Respond(statusCode, httpVersion) {
+				function Respond(statusCode, protoVersion) {
 					
 					statusCode = statusCode || 200;
-					httpVersion = httpVersion || iStatus.httpVersion;
-					httpVersion > iStatus.httpVersion && ReportFailure('HTTP version too high ('+httpVersion+')');
+					protoVersion = protoVersion || iStatus.protoVersion;
+					protoVersion > iStatus.protoVersion && ReportFailure('HTTP version too high ('+protoVersion+')');
 
-					if ( iStatus.httpVersion >= 1.1 && iHeaders.Is('Connection', 'keep-alive') && !oHeaders.Is('Connection', 'close') && remainRequestCount > 0 && (oHeaders.Has('Content-Length') || oHeaders.Is('Transfer-Encoding', 'chunked')) ) {
+					if ( iStatus.protoVersion >= 1.1 && iHeaders.Is('Connection', 'keep-alive') && !oHeaders.Is('Connection', 'close') && remainRequestCount > 0 && (oHeaders.Has('Content-Length') || oHeaders.Is('Transfer-Encoding', 'chunked')) ) {
 
 						oHeaders.Set('Connection', 'keep-klive' );
 						oHeaders.Set('Keep-Alive', 'timeout='+(keepAliveTimeout/SECOND).toFixed()+', max='+remainRequestCount );
@@ -408,7 +407,7 @@
 						oHeaders.Set('Connection', 'close');
 					}
 					
-					SendData( CreateHttpHeaders( statusCode, httpVersion, oHeaders ), true); // true for async
+					SendData( CreateHttpHeaders( statusCode, protoVersion, oHeaders ), true); // true for async
 					
 					return function(data) SendData(data);
 				}
@@ -424,10 +423,10 @@
 
 				if ( requestHandler ) {
 
-					switch ( iStatus.method.toLowerCase() ) {
-						case 'get':
+					switch ( iStatus.method.toUpperCase() ) {
+						case 'GET':
 							break;
-						case 'post':
+						case 'POST':
 							var iclen = iHeaders.Get('Content-Length');
 							do {
 
@@ -443,7 +442,7 @@
 									input.Write(data);
 								}
 
-								if ( input.length > iclen ) {
+								if ( input.length >= iclen ) {
 
 									requestHandler.OnBodyData && requestHandler.OnBodyData(input.Read(iclen));
 									iclen = 0;
@@ -474,11 +473,137 @@
 		} finally {
 
 			SendData(function() void connection.Disconnect()); // true for async
-			function SendData() UNAVAILABLE;
+			SendData = function() UNAVAILABLE;
 			totalConnectionCount--; // even if the disconnection may occurs after this line (because connection.Write is async)
 		}
 	}
+*/
 
+
+	function HttpConnection(connection, remainRequestCount, keepAliveTimeout) {
+		
+		totalConnectionCount++;
+		var input = new Buffer();
+//		var connectionDataRate = new SingleRateMeter(getData($MD.connectionDataRate));
+		var state = ProcessHttpHeader;
+		var timeout;
+
+		function ResetTimeout() {
+			
+			timeout && io.RemoveTimeout(timeout);
+			timeout = io.AddTimeout( keepAliveTimeout, function() connection.Write( function() void connection.Disconnect() , true ) );
+		}
+
+		connection.OnFailed = function(c) {
+		}
+		
+		connection.OnDisconnected = function(c) {
+			
+			io.RemoveTimeout(timeout);
+			state = Noop;
+			totalConnectionCount--;
+		}
+
+		connection.OnData = function(c) {
+
+			var data = c.Read();
+//			connectionDataRate.Inc(data.length);
+			input.Write(data);
+			state = state() || state;
+		}		
+
+		function EndOfConnection() {
+
+			connection.Write( function() void connection.Disconnect() , true );
+			return Noop;
+		}
+
+		function ProcessHttpHeader() {
+			
+			ResetTimeout();
+			remainRequestCount--;
+			if ( input.IndexOf(CRLF+CRLF) == -1 )
+				return;
+			var iStatus = ParseHttpStatus( input );
+			var iHeaders = ParseHttpHeaders( input );
+			
+			Print( connection.peerName + ' ' + iStatus.method + ' ' + iStatus.path + ' ' + iStatus.query, '\n' );
+			
+			var oHeaders = new HttpHeaders(); // beware: do not set 'Connection' or 'Content-Length'
+			oHeaders.Set( 'Date', new Date().toUTCString() );
+			oHeaders.Set( 'Server', _name );
+			oHeaders.Set( 'Expires', '0' );
+			oHeaders.Set( 'Cache-Control', 'no-cache' );
+			oHeaders.Set( 'Pragma', 'no-cache' );
+			oHeaders.Set( 'Content-Type', 'text/html' );
+
+			function Respond(statusCode, protoVersion) {
+
+				statusCode = statusCode || 200;
+				protoVersion = protoVersion || iStatus.protoVersion;
+				protoVersion > iStatus.protoVersion && ReportFailure('HTTP version too high ('+protoVersion+')');
+
+				if ( iStatus.protoVersion >= 1.1 && iHeaders.Is('Connection', 'keep-alive') && !oHeaders.Is('Connection', 'close') && remainRequestCount > 0 && (oHeaders.Has('Content-Length') || oHeaders.Is('Transfer-Encoding', 'chunked')) ) {
+
+					oHeaders.Set('Connection', 'keep-klive' );
+					oHeaders.Set('Keep-Alive', 'timeout='+(keepAliveTimeout/SECOND).toFixed()+', max='+remainRequestCount );
+				} else {
+					oHeaders.Set('Connection', 'close');
+				}
+
+				connection.Write( CreateHttpHeaders( statusCode, protoVersion, oHeaders ), true )
+				return function(data) connection.Write( data, true );
+			}
+
+			var requestHandler;
+			for each ( let [matchFct, requestHandlerConstructor] in _requestHandlerList )
+				if ( matchFct(iStatus.path) ) {
+				
+					requestHandler = new requestHandlerConstructor( iStatus, iHeaders, oHeaders, Respond );
+					break;
+				}
+			
+			if ( !requestHandler ) {
+
+				var message = 'Unable to handle ' + iStatus.path;
+				oHeaders.Set('Content-Length', message.length);
+				oHeaders.Set('Content-Type', 'text/plain');
+				Respond(404)(message);
+				return EndOfConnection();
+			}
+
+			function EndOfRequest() {
+
+				requestHandler.OnEndOfBody && requestHandler.OnEndOfBody();
+				return oHeaders.Is('Connection', 'close') ? EndOfConnection() : ProcessHttpHeader;
+			}
+			
+			switch ( iStatus.method.toUpperCase() ) {
+
+				case 'GET':
+					return EndOfRequest();
+				case 'POST':
+					var iclen = iHeaders.Get('Content-Length'); 
+					function ProcessPost() {
+					
+						if ( input.length >= iclen ) {
+
+							requestHandler.OnBodyData && requestHandler.OnBodyData(input.Read(iclen));
+							iclen = 0;
+						} else {
+							iclen -= input.length;
+							requestHandler.OnBodyData && requestHandler.OnBodyData(input.Read(iclen));
+						}
+						return iclen ? ProcessPost : EndOfRequest();
+					}
+					return ProcessPost();
+				default:
+					ReportWarning('...Unable to manage this request.');
+					Respond(204);
+					return EndOfConnection();
+			}
+		}
+	}
 
 
 
@@ -495,7 +620,8 @@
 				return;
 			}
 
-			StartAsyncProc( ProcessConnectionProc(connection, getData($MD.connectionKeepAliveMax), getData($MD.connectionKeepAliveTimeout)) );
+//			StartAsyncProc( ProcessConnectionProc(connection, getData($MD.connectionKeepAliveMax), getData($MD.connectionKeepAliveTimeout)) );
+			new HttpConnection(connection, getData($MD.connectionKeepAliveMax), getData($MD.connectionKeepAliveTimeout));
 		}
 	}
 	
