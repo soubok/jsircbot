@@ -150,6 +150,7 @@ function UDPGet( host, port, data, timeout, OnResponse ) { // OnResponse( status
 	var time = IntervalNow();
 	var socket = new Socket( Socket.UDP );
 	socket.nonblocking = true;
+	// socket.noDelay = true; // (TBD) good for UDP ?
 
 	try {
 	
@@ -171,7 +172,7 @@ function UDPGet( host, port, data, timeout, OnResponse ) { // OnResponse( status
 		var status, data;
 		try {
 		
-			data = socket.Read(8192);
+			data = socket.Read(8192); // (TBD) find better than '''8192'''
 			status = OK;
 		} catch(ex if ex instanceof IoError) {
 			
@@ -330,25 +331,25 @@ function HttpRequest( url, data, timeout, OnResponse ) { // OnResponse(status, s
 
 function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous socket )
 	
-	var _this = this;
 //	this.OnConnected;
 //	this.OnData;
 //	this.OnDisconnected;
 //	this.OnFailed;
 	
-	var _connectionTimeout;
-	var _socket;
+	var _this = this;
+	var _socket, _connectionTimeout;
 	
 	function Connecting() {
 
 		_socket.writable = function(s) {
-
+			
 			delete s.writable;
 			_connectionTimeout && io.RemoveTimeout(_connectionTimeout);
 			_this.sockPort = s.sockPort;
 			_this.sockName = s.sockName;
 			_this.peerPort = s.peerPort;
 			_this.peerName = s.peerName;
+			delete _this.Connect;
 			_this.OnConnected && _this.OnConnected();
 		}
 	
@@ -358,13 +359,17 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 			
 				_this.OnData && _this.OnData(_this);
 			} else {
-			
+
 				delete s.readable;
 				delete _this.sockPort;
 				delete _this.sockName;
 				delete _this.peerPort;
 				delete _this.peerName;
-				_this.OnDisconnected && _this.OnDisconnected(true);
+				delete _this.Connect;
+				delete _this.Sleep;
+				delete _this.Read;
+				delete _this.Write;
+				_this.OnDisconnected && _this.OnDisconnected(true); // (TBD) define an enum like REMOTELY ?
 			}
 		}
 
@@ -381,12 +386,17 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 		
 			DBG && ReportNotice( 'TCP CONNECTING TO: '+host+':'+port );
 
+			delete _this.Connect;
+
 			function ConnectionFailed() {
 
 				delete _socket.writable;
 				delete _socket.readable;
 				io.RemoveTimeout(_connectionTimeout);
 				_socket.Close();
+				delete _this.Sleep;
+				delete _this.Read;
+				delete _this.Write;
 				_this.OnFailed && _this.OnFailed(host, port);
 			}
 
@@ -405,12 +415,28 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 			}
 			Connecting();
 		}
-	}	
+	}
+	
+	this.Sleep = function(time) {
+		
+		var prev = [ arguments.callee, _socket.readable, _socket.writable ];
+		delete _this.Sleep;
+		delete _socket.readable;
+		delete _socket.writable;
+		io.AddTimeout( time, function() {
+			
+			[ _this.Sleep, _socket.readable, _socket.writable ] = prev;
+		});
+	}
 	
 	this.Close = function() {
 
 		io.RemoveDescriptor(_socket); // no more read/write notifications are needed
 		_socket.Close();
+		delete _this.Connect;
+		delete _this.Sleep;
+		delete _this.Read;
+		delete _this.Write;
 	}
 
 	this.Disconnect = function() {
@@ -430,13 +456,16 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 			delete _this.peerPort;
 			delete _this.peerName;
 
-			_this.OnDisconnected && _this.OnDisconnected(false); // locally disconnected
+			_this.OnDisconnected && _this.OnDisconnected(false); // locally disconnected  // (TBD) define an enum like LOCALLY ?
 			_socket.Close();
 		}
 		_socket.readable = Disconnected;
 		shutdownTimeout = io.AddTimeout( 2*SECOND, Disconnected ); // force disconnect after the timeout
+		delete _this.Connect;
+		delete _this.Sleep;
+		delete _this.Read;
+		delete _this.Write;
 	}
-
 
 	var _out = [];
 	
