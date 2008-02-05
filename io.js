@@ -45,28 +45,16 @@ var io = new function() {
 			
 			var now = IntervalNow();
 			if ( _min <= now ) {
-/* memory leak has been fixed: https://bugzilla.mozilla.org/show_bug.cgi?id=404755
-				var nextList = {}, expiredList = {}, i = 0;
-				for ( let [date, fct] in Iterator(_tlist) )
+
+				var date, expiredList = {};
+				for ( date in _tlist )
 					if ( date <= now )
-						expiredList[i++] = fct;
-					else
-						nextList[date] = fct; // copy to avoid memory leaks ( bz404755 )
+						expiredList[date] = _tlist[date];
+				for ( date in expiredList ) {
 				
-				_tlist = nextList;
-*/
-
-				var expiredList = {}, i = 0;
-				for ( let [date, fct] in Iterator(_tlist) )
-					if ( date <= now ) {
-						
-						delete _tlist[date];
-						expiredList[i++] = fct;
-					}
-
-				for each ( var fct in expiredList )
-					void fct.call(fct); // 'this' will be the function itself
-					
+					delete _tlist[date];
+					void expiredList[date].call(expiredList[date]); // 'this' will be the function itself
+				}
 				_min = Infinity;
 				for ( let date in Iterator(_tlist, true) )
 					if ( date < _min )
@@ -158,6 +146,7 @@ function UDPGet( host, port, data, timeout, OnResponse ) { // OnResponse( status
 	} catch(ex) {
 	
 		OnResponse && OnResponse.call(OnResponse, UNREACHABLE); // UDP, never UNREACHABLE ?
+		return;
 	}
 
 	socket.writable = function() {
@@ -183,7 +172,7 @@ function UDPGet( host, port, data, timeout, OnResponse ) { // OnResponse( status
 		io.RemoveDescriptor(socket);
 		OnResponse && OnResponse.call(OnResponse, status, data, IntervalNow() - time);
 	}
-	
+
 /* (TBD) manage UDP errors and UDP exceptions
 	socket.error =
 	socket.exception = function() {
@@ -219,6 +208,7 @@ function TCPGet( host, port, data, timeout, OnResponse ) {
 	} catch(ex) {
 	
 		OnResponse && OnResponse.call(OnResponse, UNREACHABLE);
+		return;
 	}
 
 	var buffer = new Buffer();
