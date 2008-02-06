@@ -319,7 +319,7 @@
 		var action = query.action;
 
 		var console = _consoles[sid];
-		
+
 		if ( !action ) {
 		
 			let sid = RandomString(32);
@@ -364,11 +364,7 @@
 				req.Respond(200);
 				req.Send(data);
 				req.End();
-
-				console.Send = function(data) {
-					
-					console.pendingMessagesQueue.push(data);
-				}
+				console.Send = function(data) console.pendingMessagesQueue.push(data);
 			
 			} else {
 			
@@ -413,7 +409,19 @@
 	}
 
 
+
+
+
 	var _requestHandlerList = {};
+	
+	function FindRequestHandler(path) {
+		
+		for each ( var [match, requestHandler] in _requestHandlerList )
+			if ( match(path) )
+				return requestHandler;
+		return undefined;
+	}
+	
 	var totalConnectionCount = 0;
 
 	function HttpConnection(connection, remainRequestCount, keepAliveTimeout) {
@@ -422,34 +430,25 @@
 		var connectionDataRate = new SingleRateMeter(getData($MD.connectionDataRate));
 		var timeout;
 		var req;
+		var OnData;
 		
 		totalConnectionCount++;
 
-		ResetTimeout();
-		SetDataHandler(ProcessHttpHeader);
-		
 		function ResetTimeout() {
 			
 			timeout && io.RemoveTimeout(timeout);
 			timeout = io.AddTimeout( keepAliveTimeout, function() connection.Write( function() void connection.Disconnect(), true ) );
 		}
 
-		var _dataHandler;
-		function SetDataHandler(handler) {
-			
-			_dataHandler = handler;
-			if ( input.length )
-				_dataHandler();
-		}
-
+		ResetTimeout();
+		
 		connection.OnData = function() {
 
 			var data = connection.Read();
 			input.Write(data);
 			if ( !connectionDataRate.Inc(data.length) )
 				connection.Sleep( connectionDataRate.RestTime() );
-DPrint( 'OnData', data, _dataHandler.name )
-			_dataHandler();
+			OnData();
 		}
 			
 		connection.OnDisconnected = function(c) { // OnFailed ?
@@ -462,10 +461,23 @@ DPrint( 'OnData', data, _dataHandler.name )
 
 		function Request(iStatus, iHeaders) {
 
-			this.Send = function(item) { // (TBD) contextual send that manages chunks
-			
-				connection.Write(item, true);
+			this.iStatus = iStatus;
+			this.iHeaders = iHeaders;
+			this.oHeaders = new HttpHeaders();
+			this.OnBodyData = Noop;
+			this.OnEndOfBody = Noop;
+			this.OnDisconnected = Noop;
+
+			this.Close = function() {
+				
+				delete this.Respond;
+				delete this.Send;
+				delete this.End;
+				req.OnBodyData = Noop;
+				req.OnEndOfBody = Noop;
 			}
+		
+			this.Send = function(item) connection.Write(item, true); // (TBD) contextual send that manages chunks
 			
 			this.Respond = function(statusCode, protoVersion) {
 			
@@ -479,102 +491,85 @@ DPrint( 'OnData', data, _dataHandler.name )
 				} else {
 					this.oHeaders.Set('Connection', 'close');
 				}
-				this.Send( CreateHttpHeaders( statusCode, protoVersion, this.oHeaders ) )
+				this.Send( CreateHttpHeaders( statusCode, protoVersion, this.oHeaders ) );
 			}
 			
 			this.End = function() {
 				
-				if ( this.oHeaders.Is('Connection', 'close') ) {
+				this.end = true;
 				
-					this.Send( function() void connection.Disconnect() );
+				if ( this.oHeaders.Is('Connection', 'close') ) {
+					
+					connection.Write(function() void connection.Disconnect(), true);
 					req.Close();
-				} else {
-
-!!! need to ensure that the request body is read !
-
-					req.Close();
-					SetDataHandler(ProcessHttpHeader);
+					OnData = Noop;
+				} else { // we must read the whole body before getting the next request
+					
+					req.OnBodyData = Noop;
+					req.OnEndOfBody = Noop;
 				}
 			}
-			
-			this.Close = function() {
-				
-				delete this.Respond;
-				delete this.Send;
-				delete this.End;
-			}
-		
-			this.iStatus = iStatus;
-			this.iHeaders = iHeaders;
-			this.oHeaders = new HttpHeaders();
-			this.OnBodyData = Noop;
-			this.OnEndOfBody = Noop;
-			this.OnDisconnected = Noop;
 		}
 
-		function ProcessHttpHeader() {
+		ProcessHttpHeader();
 
+		
+		function ProcessHttpHeader() {
+			
+			OnData = arguments.callee;
 			if ( input.IndexOf(CRLF+CRLF) == -1 )
 				return;
+			
 			ResetTimeout();
 			remainRequestCount--;
-			SetDataHandler(Noop);
+
 			req = new Request(ParseHttpStatus(input), ParseHttpHeaders(input));
 			req.oHeaders.MSet({ 'Date':new Date().toUTCString(), 'Server':_name, 'Expires':'0', 'Cache-Control':'no-cache', 'Pragma':'no-cache', 'Content-Type':'text/html' }); // beware: do not set 'Connection' or 'Content-Length'
+			
+			EndOfRequest = Noop;
+			req.iclen = req.iHeaders.Get('Content-Length');
+			
 
 			Print( connection.peerName + ' ' + req.iStatus.method + ' ' + req.iStatus.path + ' ' + req.iStatus.query, '\n' );
 
-			notFound:do {
-
-				for each ( let [matchFct, requestHandler] in _requestHandlerList )
-					if ( matchFct(req.iStatus.path) ) {
-
-						requestHandler(req);
-						break notFound;
-					}
+			var requestHandler = FindRequestHandler(req.iStatus.path);
+			if ( !requestHandler ) {
 
 				var message = 'Unable to handle ' + req.iStatus.path;
 				req.oHeaders.MSet({'Content-Length':message.length, 'Content-Type':'text/plain', 'Connection':'close'});
-				req.Respond(404);
+				req.Respond(200);
 				req.Send(message);
 				req.End();
 				return;
-			} while(0);
-
-			var iclen = Number(req.iHeaders.Get('Content-Length'));
-			
-			if ( req.iStatus.method == 'GET' || iclen == 0 ) {
-
-				SetDataHandler(Noop);
-				req.OnEndOfBody();
-				return;
 			}
-			
-			if ( req.iStatus.method == 'POST' ) {
-
-				SetDataHandler(function() {
-
-					if ( input.length >= iclen ) {
-
-						req.OnBodyData(input.Read(iclen));
-						iclen = 0;
-					} else {
-						iclen -= input.length;
-						req.OnBodyData(input.Read(iclen));
-					}
-					if ( iclen == 0 ) {
-
-						SetDataHandler(Noop);
-						req.OnEndOfBody();
-					}
-				});
-				return;
-			}
-
-			ReportWarning('...Unable to manage this request.');
-			req.Respond(204);
-			req.End();
+			requestHandler(req);
+			ProcessHttpBody();
 		}
+		
+		function ProcessHttpBody() {
+			
+			OnData = arguments.callee;
+			if ( !input.length )
+				return;
+			
+			if ( input.length >= req.iclen ) {
+
+				req.OnBodyData(input.Read(req.iclen));
+				req.iclen = 0;
+			} else {
+				req.iclen -= input.length;
+				req.OnBodyData(input.Read(req.iclen));
+			}
+			if ( !req.iclen ) {
+
+				req.OnEndOfBody();
+
+???
+
+				
+			}
+		}
+		
 	}
 
 
