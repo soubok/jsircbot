@@ -606,6 +606,8 @@
 			OnData = arguments.callee;
 			if ( input.IndexOf(CRLF+CRLF) == -1 )
 				return;
+			OnData = Noop;
+				
 			// got headers
 			count++;
 			req = {};
@@ -625,9 +627,7 @@
 			req.End = function() {
 				
 				delete req.End; // we can end only once
-				
 				if ( req.oHeaders.Is('Connection', 'close') )
-					
 					Disconnect();
 				else
 					if ( req.remainingBodyLength > 0 )
@@ -637,20 +637,22 @@
 			}
 			
 			req.OnRequest && req.OnRequest();
-			
-			if ( req.End )
-				if ( req.remainingBodyLength > 0 )
-					ProcessHttpBody();
-				else
-					OnData = Noop; // wait
+			if ( !req.End )
+				return;
+
+			if ( req.remainingBodyLength > 0 )
+				ProcessHttpBody();
 		}
+
 
 		function ProcessHttpBody() {
 			
 			OnData = arguments.callee;
 			if ( !input.length )
 				return;
-			
+
+			req.End = Disconnect; // [TBD) enhance this
+
 			if ( input.length >= req.remainingBodyLength ) {
 
 				req.OnBodyData && req.OnBodyData(input.Read(req.remainingBodyLength));
@@ -662,16 +664,23 @@
 
 			if ( req.remainingBodyLength )
 				return;
-			
-			if ( !req.End )
-				return;
-
-??? check this !
-
-
-			req.OnEndOfBody();
-				
 			OnData = Noop;
+
+			if ( !req.End ) {
+			
+				ProcessHttpHeader();
+				return;
+			}
+
+			req.End = function() {
+				
+				delete req.End; // we can end only once
+				if ( req.oHeaders.Is('Connection', 'close') )
+					Disconnect();
+				else
+					ProcessHttpHeader();
+			}
+			req.OnEndOfBody();
 		}
 		
 		function Disconnect() {
