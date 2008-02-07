@@ -424,6 +424,7 @@
 	
 	var totalConnectionCount = 0;
 
+/*
 	function HttpConnection(connection, remainRequestCount, keepAliveTimeout) {
 		
 		var input = new Buffer();
@@ -563,16 +564,122 @@
 			if ( !req.iclen ) {
 
 				req.OnEndOfBody();
-
 ???
-
-				
 			}
 		}
-		
 	}
+*/
 
 
+	function Respond(statusCode, protoVersion) {
+		
+		delete this.Respond; // we can respond only once
+		
+		if ( this.iStatus.protoVersion >= 1.1 && this.iHeaders.Is('Connection', 'keep-alive') && !this.oHeaders.Is('Connection', 'close') && this.count <= getData($MD.connectionKeepAliveMax) && (this.oHeaders.Has('Content-Length') || this.oHeaders.Is('Transfer-Encoding', 'chunked')) ) {
+
+			this.oHeaders.Set('Connection', 'keep-klive' );
+			this.oHeaders.Set('Keep-Alive', 'timeout='+(keepAliveTimeout/SECOND).toFixed()+', max='+remainRequestCount );
+		} else {
+			this.oHeaders.Set('Connection', 'close');
+		}
+		this.Send( CreateHttpHeaders( statusCode, protoVersion, this.oHeaders ) );
+	}
+			
+	
+	function ProcessHttpConnection(connection) {
+
+		var count = 0;
+		var input = new Buffer();
+		var OnData = ProcessHttpHeader;
+		var req;
+		
+		function Send(item) connection.Write(item, true);
+		
+		connection.OnData = function() {
+			
+			input.Write(connection.Read());
+			OnData();
+		}
+		
+		function ProcessHttpHeader() {
+			
+			OnData = arguments.callee;
+			if ( input.IndexOf(CRLF+CRLF) == -1 )
+				return;
+			// got headers
+			count++;
+			req = {};
+			req.count = count;
+
+			var requestHandler = FindRequestHandler(req.iStatus.path);
+
+			req.iStatus = ParseHttpStatus(input);
+			req.iHeaders = ParseHttpHeaders(input);
+			req.oHeaders = new HttpHeaders();
+			req.oHeaders.MSet({ 'Date':new Date().toUTCString(), 'Server':_name, 'Expires':'0', 'Cache-Control':'no-cache', 'Pragma':'no-cache', 'Content-Type':'text/html' }); // beware: do not set 'Connection' or 'Content-Length'
+			req.remainingBodyLength = req.iHeaders.Get('Content-Length');
+			
+			req.Send = Send;
+			req.Respond = Respond;
+
+			req.End = function() {
+				
+				delete req.End; // we can end only once
+				
+				if ( req.oHeaders.Is('Connection', 'close') )
+					
+					Disconnect();
+				else
+					if ( req.remainingBodyLength > 0 )
+						ProcessHttpBody();
+					else
+						ProcessHttpHeader();
+			}
+			
+			req.OnRequest && req.OnRequest();
+			
+			if ( req.End )
+				if ( req.remainingBodyLength > 0 )
+					ProcessHttpBody();
+				else
+					OnData = Noop; // wait
+		}
+
+		function ProcessHttpBody() {
+			
+			OnData = arguments.callee;
+			if ( !input.length )
+				return;
+			
+			if ( input.length >= req.remainingBodyLength ) {
+
+				req.OnBodyData && req.OnBodyData(input.Read(req.remainingBodyLength));
+				req.remainingBodyLength = 0;
+			} else {
+				req.remainingBodyLength -= input.length;
+				req.OnBodyData && req.OnBodyData(input.Read(req.remainingBodyLength));
+			}
+
+			if ( req.remainingBodyLength )
+				return;
+			
+			if ( !req.End )
+				return;
+
+??? check this !
+
+
+			req.OnEndOfBody();
+				
+			OnData = Noop;
+		}
+		
+		function Disconnect() {
+			
+			OnData = Noop;
+			req.Send( function() void connection.Disconnect() );
+		}
+	}
 
 
 	function StartServer() {
@@ -589,7 +696,7 @@
 			}
 
 //			StartAsyncProc( ProcessConnectionProc(connection, getData($MD.connectionKeepAliveMax), getData($MD.connectionKeepAliveTimeout)) );
-			new HttpConnection(connection, getData($MD.connectionKeepAliveMax), getData($MD.connectionKeepAliveTimeout));
+			ProcessHttpConnection(connection, getData($MD.connectionKeepAliveMax), getData($MD.connectionKeepAliveTimeout));
 		}
 	}
 	
