@@ -42,6 +42,7 @@ body {
 var xhr = new XMLHttpRequest;
 var pxhr = new XMLHttpRequest;
 var _in, _out;
+var unloadMessage = 'This will close the current session.';
 
 function recalcLayout() {
 
@@ -49,26 +50,36 @@ function recalcLayout() {
 	_out.scrollTop = _out.scrollHeight;
 }
 
-function DisplayMessage(msg, color) {
+function Cout(msg) {
 
-	_out.innerHTML += '<span style="color:'+(color||'red')+'">'+msg+'</span><br/>';
-	_out.scrollTop = _out.scrollHeight;
+	var isAtEnd = (_out.scrollTop + _out.offsetHeight >= _out.scrollHeight );
+	_out.innerHTML += msg;
+	if ( isAtEnd )
+		_out.scrollTop = _out.scrollHeight;
+}
+
+function Error(msg, color) {
+
+	return '<span style="color:'+(color||'red')+'">'+msg+'</span><br/>';
+}
+
+function CloseConnection() {
+
+	Cout(Error('Connection closed'));
+	unloadMessage = undefined;
 }
 
 function Send(data) {
 
-//	DisplayMessage('pxhr.readyState '+pxhr.readyState );
 	try {
 
 		xhr.open( 'POST', '?action=submit', false );
 		xhr.send( data );
-		_out.innerHTML += xhr.responseText;
-		_out.scrollTop = _out.scrollHeight;
+		Cout(xhr.responseText);
 	} catch(ex) {
 
-		DisplayMessage('Connection closed');
+		CloseConnection();
 	}
-	_in.focus();
 }
 
 function StartPendingRequest() {
@@ -82,14 +93,14 @@ function StartPendingRequest() {
 			if ( pxhr.status != 200 ) {
 
 				DisplayMessage('Connection closed');
+				unloadMessage = undefined;
 				return;
 			}
-			_out.innerHTML += pxhr.responseText;
-			_out.scrollTop = _out.scrollHeight;
+			Cout(pxhr.responseText);
 			StartPendingRequest();
 		} catch(ex) {
 
-			DisplayMessage('Connection closed');
+			CloseConnection();
 		}
 	}
 	pxhr.send(null);
@@ -100,11 +111,10 @@ function Init() {
 	_in = document.getElementById('in');
 	_out = document.getElementById('out');
 	StartPendingRequest();
-	DisplayMessage('Ready.', 'lightgreen');
+	Cout(Error('Ready.', 'lightgreen'));
 	recalcLayout();
 	_in.focus();
 }
-
 
 var stack = [''], stackp = 0;
 function OnKey(event) {
@@ -155,11 +165,10 @@ function OnKey(event) {
 	event.preventDefault ? event.preventDefault() : event.cancelBubble = true;
 	event.stopPropagation ? event.stopPropagation() : event.returnValue = false;
 }
-
 </script>
 </head>
-<body onload="Init(event)" onbeforeunload="return 'This will close the current session.'" onresize="recalcLayout()">
-<div id="out"></div>
+<body onload="Init()" onbeforeunload="return unloadMessage" onresize="recalcLayout()">
+<div id="out" onclick="_in.focus()"></div>
 <input type="text" id="in" onkeydown="OnKey(event)" autocomplete="off" />
 </body>
 </html>

@@ -296,7 +296,7 @@
 		
 		io.AddTimeout( 1000, function() { 
 			_this.Send('123<br/>');
-			io.AddTimeout( 1000, arguments.callee );
+			io.AddTimeout( 5000, arguments.callee );
 		});
 		
 		
@@ -312,117 +312,102 @@
 	var _consoles = {};
 	
 	function ProcessConsoleAccess(req) {
-
-		var query = ParseQueryData(req.iStatus.query);
-		var cookie = ParseCookieData(req.iHeaders.Get('Cookie'));
-		var sid = cookie.sid;
-		var action = query.action;
-
-		var console = _consoles[sid];
-
-		if ( !action ) {
 		
-			let sid = RandomString(32);
-			_consoles[sid] = console = new ConsoleSession(); // (TBD) remove it !
-			console.pendingMessagesQueue = [];
-			console.Send = function(data) void console.pendingMessagesQueue.push(data);
-			
-//			io.RemoveTimeout(console.timeout);
-//			console.timeout = io.AddTimeout( getData($MD.consoleSessionTimeout), function() delete onsoles[sid] );
-			
-//			sessionTimeout && io.RemoveTimeout(sessionTimeout);
-//			sessionTimeout = io.AddTimeout( getData($MD.consoleSessionTimeout), KillConsoleSession );
+			var query = ParseQueryData(req.iStatus.query);
+			var cookie = ParseCookieData(req.iHeaders.Get('Cookie'));
+			var sid = cookie.sid;
+			var action = query.action;
 
-			let content = new File('./webConsole.html').content; // (TBD) filename from config
-			req.oHeaders.Set('Content-Length', content.length);
-			req.oHeaders.Set('Set-Cookie', 'sid='+sid+'; path='+req.iStatus.path); // Set-Cookie: <name>=<value>[; <name>=<value>]... [; expires=<date>][; domain=<domain_name>][; path=<some_path>][; secure][; httponly]
-			req.Respond(200);
-			req.Send(content);
-			req.End();
-			return;
-		}
-		
-		if ( !console ) {
-			
-			let message = '<span style="color:red">Invalid session.</span><br/>';
-			req.oHeaders.Set('Content-Length', message.length);
-			req.oHeaders.Set('Connection', 'close'); // needed to ignore request body !! else, we need to read it !
-			req.Respond(404);
-			req.Send(message);
-			req.End();
-			return;
-		}
+			var console = _consoles[sid];
 
+			if ( !action ) {
 
-		if ( action == 'wait' ) {
-			
-			if ( console.pendingMessagesQueue.length ) {
-				
-				let data = console.pendingMessagesQueue.join('');
-				console.pendingMessagesQueue.splice(0);
-				req.oHeaders.Set('Content-Length', data.length);
-				req.Respond(200);
-				req.Send(data);
+				let sid = RandomString(32);
+				_consoles[sid] = console = new ConsoleSession(); // (TBD) remove it !
+				console.pendingMessagesQueue = [];
+				console.Send = function(data) void console.pendingMessagesQueue.push(data);
+
+	//			io.RemoveTimeout(console.timeout);
+	//			console.timeout = io.AddTimeout( getData($MD.consoleSessionTimeout), function() delete onsoles[sid] );
+
+	//			sessionTimeout && io.RemoveTimeout(sessionTimeout);
+	//			sessionTimeout = io.AddTimeout( getData($MD.consoleSessionTimeout), KillConsoleSession );
+
+				let content = new File('./webConsole.html').content; // (TBD) filename from config
+				req.oHeaders.Set('Content-Length', content.length);
+				req.oHeaders.Set('Set-Cookie', 'sid='+sid+'; path='+req.iStatus.path); // Set-Cookie: <name>=<value>[; <name>=<value>]... [; expires=<date>][; domain=<domain_name>][; path=<some_path>][; secure][; httponly]
+				req.Respond(200)(content);
 				req.End();
-				console.Send = function(data) console.pendingMessagesQueue.push(data);
-			
-			} else {
-			
-				console.Send = function(data) {
+				return;
+			}
 
-					if ( req.Respond ) {
+			if ( !console ) {
 
-						req.oHeaders.Set('Content-Length', data.length);
-						req.Respond(200);
-						req.Send(data);
-						req.End();
-					} else {
+				let message = '<span style="color:red">Invalid session.</span><br/>';
+				req.oHeaders.Set('Content-Length', message.length);
+				req.oHeaders.Set('Connection', 'close'); // needed to ignore request body !! else, we need to read it !
+				req.Respond(404)(message);
+				req.End();
+				return;
+			}
 
-						console.pendingMessagesQueue.push(data);
+
+			if ( action == 'wait' ) {
+
+				if ( console.pendingMessagesQueue.length ) {
+
+					let data = console.pendingMessagesQueue.join('');
+					console.pendingMessagesQueue.splice(0);
+					req.oHeaders.Set('Content-Length', data.length);
+					req.Respond(200)(data);
+					req.End();
+					console.Send = function(data) console.pendingMessagesQueue.push(data);
+
+				} else {
+
+					console.Send = function(data) {
+
+						if ( req.Respond ) {
+
+							req.oHeaders.Set('Content-Length', data.length);
+							req.Respond(200)(data);
+							req.End();
+						} else {
+
+							console.pendingMessagesQueue.push(data);
+						}
 					}
 				}
+				return;
+			} 
+
+
+			if ( action == 'submit' ) {
+
+				var consData = '';
+				req.OnBodyData = function(buf) consData += buf;
+				req.OnEndOfBody = function() {
+					
+					let prevSend = console.Send;
+
+					console.Send = function(data) void console.pendingMessagesQueue.push(data);
+					console.Request(consData);
+					let data = console.pendingMessagesQueue.join('');
+					console.pendingMessagesQueue.splice(0);
+					req.oHeaders.Set('Content-Length', data.length);
+					req.Respond(200)(data);
+					req.End();
+					console.Send = prevSend;
+				}
+				return;
 			}
-			return;
-		} 
 
-
-		if ( action == 'submit' ) {
-			
-			var consData = '';
-			req.OnBodyData = function(buf) consData += buf;
-			req.OnEndOfBody = function() {
-
-				let prevSend = console.Send;
-				
-				console.Send = function(data) void console.pendingMessagesQueue.push(data);
-				console.Request(consData);
-				let data = console.pendingMessagesQueue.join('');
-				console.pendingMessagesQueue.splice(0);
-				req.oHeaders.Set('Content-Length', data.length);
-				req.Respond(200);
-				req.Send(data);
-				req.End();
-				console.Send = prevSend;
-			}
-			return;
-		}
 	}
 
 
 
 
 
-	var _requestHandlerList = {};
-	
-	function FindRequestHandler(path) {
-		
-		for each ( var [match, requestHandler] in _requestHandlerList )
-			if ( match(path) )
-				return requestHandler;
-		return undefined;
-	}
-	
-	var totalConnectionCount = 0;
 
 /*
 	function HttpConnection(connection, remainRequestCount, keepAliveTimeout) {
@@ -571,35 +556,72 @@
 */
 
 
+	var totalConnectionCount = 0;
+	var requestHandlerList = {};
+	
+	function FindRequestHandler(path) {
+		
+		for each ( var [match, requestHandler] in requestHandlerList )
+			if ( match(path) )
+				return requestHandler;
+		return undefined;
+	}
+	
+
 	function Respond(statusCode, protoVersion) {
 		
 		delete this.Respond; // we can respond only once
-		
-		if ( this.iStatus.protoVersion >= 1.1 && this.iHeaders.Is('Connection', 'keep-alive') && !this.oHeaders.Is('Connection', 'close') && this.count <= getData($MD.connectionKeepAliveMax) && (this.oHeaders.Has('Content-Length') || this.oHeaders.Is('Transfer-Encoding', 'chunked')) ) {
+		protoVersion = protoVersion || this.iStatus.protoVersion;
+		var connectionKeepAliveMax = getData($MD.connectionKeepAliveMax);
+		if ( this.iStatus.protoVersion >= 1.1 && this.iHeaders.Is('Connection', 'keep-alive') && !this.oHeaders.Is('Connection', 'close') && this.count <= connectionKeepAliveMax && (this.oHeaders.Has('Content-Length') || this.oHeaders.Is('Transfer-Encoding', 'chunked')) ) {
 
 			this.oHeaders.Set('Connection', 'keep-klive' );
-			this.oHeaders.Set('Keep-Alive', 'timeout='+(keepAliveTimeout/SECOND).toFixed()+', max='+remainRequestCount );
+			this.oHeaders.Set('Keep-Alive', 'timeout='+(getData($MD.connectionKeepAliveTimeout)/SECOND).toFixed()+', max='+(connectionKeepAliveMax-this.count) );
 		} else {
 			this.oHeaders.Set('Connection', 'close');
 		}
 		this.Send( CreateHttpHeaders( statusCode, protoVersion, this.oHeaders ) );
+		return this.Send;
 	}
 			
 	
 	function ProcessHttpConnection(connection) {
 
-		var count = 0;
+		totalConnectionCount++;
+
 		var input = new Buffer();
-		var OnData = ProcessHttpHeader;
-		var req;
-		
-		function Send(item) connection.Write(item, true);
-		
+		var connectionDataRate = new SingleRateMeter(getData($MD.connectionDataRate));
+
+		var count = 0, timeout = ResetTimeout(1*SECOND); // after accepting the connection, let 1s to the client to send headers
+		var req, OnData = ProcessHttpHeader;
+
+		function ResetTimeout(time) {
+			
+			io.RemoveTimeout(timeout);
+			if ( time )
+				timeout = io.AddTimeout(time, Disconnect);
+		}
+
 		connection.OnData = function() {
 			
-			input.Write(connection.Read());
+			var data = connection.Read();
+			input.Write(data);
 			OnData();
+			if ( !connectionDataRate.Inc(data.length) )
+				connection.Sleep( connectionDataRate.RestTime() );
 		}
+
+		connection.OnDisconnected = function() {
+
+			ResetTimeout();
+			totalConnectionCount--;
+			delete req.Respond;
+			delete req.Send;
+			delete req.End;
+			req.OnDisconnected && req.OnDisconnected();
+		}
+		
+		function Send(item) connection.Write(item, true);
 		
 		function ProcessHttpHeader() {
 			
@@ -607,63 +629,74 @@
 			if ( input.IndexOf(CRLF+CRLF) == -1 )
 				return;
 			OnData = Noop;
-				
-			// got headers
-			count++;
+			ResetTimeout(getData($MD.connectionKeepAliveTimeout));
 			req = {};
-			req.count = count;
-
-			var requestHandler = FindRequestHandler(req.iStatus.path);
-
+			req.count = ++count;
 			req.iStatus = ParseHttpStatus(input);
 			req.iHeaders = ParseHttpHeaders(input);
 			req.oHeaders = new HttpHeaders();
 			req.oHeaders.MSet({ 'Date':new Date().toUTCString(), 'Server':_name, 'Expires':'0', 'Cache-Control':'no-cache', 'Pragma':'no-cache', 'Content-Type':'text/html' }); // beware: do not set 'Connection' or 'Content-Length'
 			req.remainingBodyLength = req.iHeaders.Get('Content-Length');
-			
 			req.Send = Send;
 			req.Respond = Respond;
 
 			req.End = function() {
 				
-				delete req.End; // we can end only once
+				delete req.End; // kind of flag
 				if ( req.oHeaders.Is('Connection', 'close') )
 					Disconnect();
-				else
+				else {
+					delete req.Respond;
+					delete req.Send;
 					if ( req.remainingBodyLength > 0 )
 						ProcessHttpBody();
 					else
 						ProcessHttpHeader();
+				}
+			}
+
+			var requestHandler = FindRequestHandler(req.iStatus.path);
+			if ( requestHandler )
+				requestHandler(req); // ***
+			else {
+
+				var message = 'Unable to handle ' + req.iStatus.path;
+				req.oHeaders.MSet({'Content-Length':message.length, 'Content-Type':'text/plain' /*, 'Connection':'close'*/});
+				req.Respond(200)(message);
+				req.End();
 			}
 			
-			req.OnRequest && req.OnRequest();
 			if ( !req.End )
 				return;
 
-			if ( req.remainingBodyLength > 0 )
+			if ( req.remainingBodyLength > 0 ) // (string > number) is valid
 				ProcessHttpBody();
+			else
+				req.OnEndOfBody && req.OnEndOfBody(); // ***
 		}
 
 
 		function ProcessHttpBody() {
-			
+
 			OnData = arguments.callee;
 			if ( !input.length )
 				return;
-
-			req.End = Disconnect; // [TBD) enhance this
+			
+			if ( req.End )
+				req.End = Disconnect; // (TBD) enhance this
 
 			if ( input.length >= req.remainingBodyLength ) {
 
-				req.OnBodyData && req.OnBodyData(input.Read(req.remainingBodyLength));
+				req.OnBodyData && req.OnBodyData(input.Read(req.remainingBodyLength)); // ***
 				req.remainingBodyLength = 0;
 			} else {
 				req.remainingBodyLength -= input.length;
-				req.OnBodyData && req.OnBodyData(input.Read(req.remainingBodyLength));
+				req.OnBodyData && req.OnBodyData(input.Read(req.remainingBodyLength)); // ***
 			}
 
-			if ( req.remainingBodyLength )
+			if ( req.remainingBodyLength > 0 )
 				return;
+				
 			OnData = Noop;
 
 			if ( !req.End ) {
@@ -673,22 +706,30 @@
 			}
 
 			req.End = function() {
-				
-				delete req.End; // we can end only once
+
+				delete req.End; // kind of flag
 				if ( req.oHeaders.Is('Connection', 'close') )
 					Disconnect();
-				else
+				else {
+					delete req.Respond;
+					delete req.Send;
 					ProcessHttpHeader();
+				}
 			}
-			req.OnEndOfBody();
+			req.OnEndOfBody && req.OnEndOfBody(); // ***
 		}
 		
 		function Disconnect() {
-			
+
+			req.Send && req.Send( function() void connection.Disconnect() );
+			delete req.Respond;
+			delete req.Send;
+			delete req.End;
 			OnData = Noop;
-			req.Send( function() void connection.Disconnect() );
 		}
 	}
+
+
 
 
 	function StartServer() {
@@ -698,26 +739,21 @@
 		var serverConnection = new TCPServer( getData($MD.port), getData($MD.bind), getData($MD.socketBackLog) );
 		serverConnection.OnIncoming = function(connection) {
 			
-			if ( totalConnectionCount > getData($MD.maxConnections) || !incomingConnectionRatePerPeer.Inc(connection.peerName, 1) ) {
-				
+			if ( totalConnectionCount <= getData($MD.maxConnections) && incomingConnectionRatePerPeer.Inc(connection.peerName, 1) )
+				ProcessHttpConnection(connection);
+			else				
 				connection.Close();
-				return;
-			}
-
-//			StartAsyncProc( ProcessConnectionProc(connection, getData($MD.connectionKeepAliveMax), getData($MD.connectionKeepAliveTimeout)) );
-			ProcessHttpConnection(connection, getData($MD.connectionKeepAliveMax), getData($MD.connectionKeepAliveTimeout));
 		}
 	}
-	
+
+
 	this.moduleApi = {
 		
-		AddRequestHandler: function( pathRegExpr, requestHandlerConstructor ) _requestHandlerList[String(pathRegExpr)] = [pathRegExpr, requestHandlerConstructor],
-		RemoveRequestListener: function( pathRegExpr ) delete _requestHandlerList[String(pathRegExpr)]
+		AddRequestHandler: function( pathRegExpr, requestHandlerConstructor ) requestHandlerList[String(pathRegExpr)] = [pathRegExpr, requestHandlerConstructor],
+		RemoveRequestListener: function( pathRegExpr ) delete requestHandlerList[String(pathRegExpr)]
 	};
-	
-	
-	
-	
+
+
 	this.stateListener = [
 		{
 			set: function(s) s[STATE_RUNNING] && s[_name],
@@ -730,7 +766,8 @@
 //					$A.AddRequestHandler( /^\/dccFiles\//, ProcessFileRequest );
 					$A.AddRequestHandler( /^\/cons/, ProcessConsoleAccess );
 				} else {
-
+					
+					// (TBD) StopServeur();
 					// kill all consoles
 				}
 				
