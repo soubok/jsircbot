@@ -326,6 +326,7 @@ ENUM({
 	LOG_DEBUG   : bit*=2,
 	LOG_MISC    : bit*=2,
 	LOG_IRCMSG  : bit*=2,
+	LOG_CONSOLE : bit*=2,
 	LOG_NET     : bit*=2,
 	LOG_HTTP    : bit*=2,
 	LOG_PROC    : bit*=2,
@@ -626,6 +627,12 @@ function SingleRateMeter([max,monitorPeriod]) {
 
 
 /////////////////////////////////////////////////////// String functions
+
+function StringRepeat(c, n) {
+	
+	for (var s=''; n; s+=c, n--);
+	return s;
+}
 
 function StringPad( str, count, chr ) {
 	

@@ -3,20 +3,14 @@
 <head>
 <title>console</title>
 <style type="text/css">
-
-
-html,
-body {
+html, body {
 	padding: 0px;
 	margin: 0px;
 	height: 100%;
 	background-color: black;
 	overflow: hidden;
 }
-
-#in,
-#out {
-
+#in, #out {
 	border-style: none;
 	background-color: transparent;
 	color: #BBB;
@@ -24,23 +18,28 @@ body {
 	font-weight: bold;
 	font-size: 10pt;
 }
-
 #in {
 	display: block;
 	position: absolute;
 	bottom: 0px;
 	width: 100%;
-	background-color: #222;
+	border-top: 2px solid #666;
+	padding-left: 2px;
 }
-
 #out {
 	overflow: auto;
 }
-
 </style>
 <script type="text/javascript">
-var xhr = new XMLHttpRequest;
-var pxhr = new XMLHttpRequest;
+
+if (window.ActiveXObject) {
+    var xhr = new ActiveXObject("Microsoft.XMLHTTP");
+	var pxhr = new ActiveXObject("Microsoft.XMLHTTP");
+} else {
+	var xhr = new XMLHttpRequest;
+	var pxhr = new XMLHttpRequest;
+}
+
 var _in, _out;
 var unloadMessage = 'This will close the current session.';
 
@@ -60,50 +59,74 @@ function Cout(msg) {
 
 function Error(msg, color) {
 
-	return '<span style="color:'+(color||'red')+'">'+msg+'</span><br/>';
+	return '<span style="color:'+(color||'red')+'">'+msg+'</span>';
 }
 
-function CloseConnection() {
+function Disconnect() {
 
-	Cout(Error('Connection closed'));
+	Cout(Error('Connection closed<br/>'));
 	unloadMessage = undefined;
+	xhr.abort();
+	pxhr.abort();
+}
+
+function ProcessResponse(data, type) {
+
+	if ( data )
+		switch (type) {
+			case 'application/javascript':
+			case 'application/x-javascript':
+				eval(data);
+				break
+			case 'text/html':
+			case 'text/plain':
+				Cout(data);
+				break
+			default:
+				Cout(Error(type,'yellow')+'<br/>');
+		}
+}
+
+function Request(x, url, data, OnResponse) {
+
+	try {
+		x.open( data==null ? 'GET' : 'POST', url, true );
+		x.onreadystatechange = function() {
+
+			try {
+				if ( x.readyState != 4 )
+					return;
+				if ( x.status != 200 )
+					OnResponse(false);
+				else
+					OnResponse(true, x.responseText, x.getResponseHeader('Content-Type'));
+			} catch(ex) { OnResponse(false) }
+		}
+		x.send(data);
+	} catch(ex) { OnResponse(false) }
 }
 
 function Send(data) {
 
-	try {
+	Request(xhr, '?action=submit', data, function(status, data, type) {
 
-		xhr.open( 'POST', '?action=submit', false );
-		xhr.send( data );
-		Cout(xhr.responseText);
-	} catch(ex) {
-
-		CloseConnection();
-	}
+		if ( status )
+			ProcessResponse(data, type);
+		else
+			Disconnect();
+	});
 }
 
 function StartPendingRequest() {
 
-	pxhr.open( 'GET', '?action=wait', true );
-	pxhr.onreadystatechange = function() {
+	Request(pxhr, '?action=wait', null, function(status, data, type) {
 
-		try {
-			if ( pxhr.readyState != 4 )
-				return;
-			if ( pxhr.status != 200 ) {
-
-				DisplayMessage('Connection closed');
-				unloadMessage = undefined;
-				return;
-			}
-			Cout(pxhr.responseText);
+		if ( status ) {
+			ProcessResponse(data, type);
 			StartPendingRequest();
-		} catch(ex) {
-
-			CloseConnection();
-		}
-	}
-	pxhr.send(null);
+		} else
+			Disconnect();
+	});
 }
 
 function Init() {
@@ -111,7 +134,6 @@ function Init() {
 	_in = document.getElementById('in');
 	_out = document.getElementById('out');
 	StartPendingRequest();
-	Cout(Error('Ready.', 'lightgreen'));
 	recalcLayout();
 	_in.focus();
 }
@@ -119,11 +141,11 @@ function Init() {
 var stack = [''], stackp = 0;
 function OnKey(event) {
 
-	if ( event.shiftKey || event.ctrlKey || event.altKey )
-		return;
 	switch (event.keyCode) {
 
 		case 38: // up
+			if ( event.shiftKey || event.ctrlKey || event.altKey )
+				return;
 			if ( stackp == 0 )
 				stack[0] = _in.value;
 			if ( stackp < stack.length-1 )
@@ -131,9 +153,13 @@ function OnKey(event) {
 			_in.value = stack[stackp];
 			break;
 		case 40: // down
+			if ( event.shiftKey || event.ctrlKey || event.altKey )
+				return;
 			_in.value = stackp ? stack[--stackp] : stack[0];
 			break;
 		case 13:
+			if ( event.shiftKey || event.ctrlKey || event.altKey )
+				return;
 			stackp=0;
 			stack[0] = _in.value;
 			if ( stack[0] == stack[1] )
@@ -148,16 +174,28 @@ function OnKey(event) {
 			_in.value = stackp ? stack[stackp=0] : '';
 			break;
 		case 33: // pageup
-			_out.scrollTop -= _out.clientHeight;
+			if ( event.ctrlKey )
+				_out.scrollTop -= _out.clientHeight;
+			else
+				return;
 			break;
 		case 34: // pagedown
-			_out.scrollTop += _out.clientHeight;
+			if ( event.ctrlKey )
+				_out.scrollTop += _out.clientHeight;
+			else
+				return;
 			break;
 		case 35: // end
-			_out.scrollTop = _out.scrollHeight;
+			if ( event.ctrlKey )
+				_out.scrollTop = _out.scrollHeight;
+			else
+				return;
 			break;
 		case 36: // home
-			_out.scrollTop = 0;
+			if ( event.ctrlKey )
+				_out.scrollTop = 0;
+			else
+				return;
 			break;
 		default:
 			return;

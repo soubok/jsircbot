@@ -185,7 +185,7 @@
 	
 		for (;;) {
 		
-			var [status,,,] = yield function(callback) HttpRequest( 'http://www.google.com/wwwcheck', undefined, 5000, callback ); // or http://www.microsoft.com/wwwcheck
+			var [status] = yield function(callback) HttpRequest( 'http://www.google.com/wwwcheck', undefined, 5000, callback ); // or http://www.microsoft.com/wwwcheck
 			$S.Toggle('STATE_HAS_WEB_ACCESS', status == OK );
 			if ( status == OK )
 				yield AsyncSleep( 30*MINUTE );

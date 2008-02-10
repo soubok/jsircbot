@@ -218,9 +218,12 @@
 			reset: False,
 			trigger: function(polarity) {
 
-				var chanList = getData($MD.joinList);
-				for each ( var channel in chanList )
+				for each ( let channel in getData($MD.joinList) ) {
+					
+					channel = NormalizeChannelName(channel)
 					$A.Send( 'JOIN ' + channel );
+					$A.Send( 'MODE ' + channel + ' +s');
+				}
 			}
 		}
 	];
