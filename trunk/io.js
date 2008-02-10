@@ -359,6 +359,7 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 				delete _this.Sleep;
 				delete _this.Read;
 				delete _this.Write;
+				io.RemoveDescriptor(_socket); // no more read/write notifications are needed
 				_this.OnDisconnected && _this.OnDisconnected(true); // (TBD) define an enum like REMOTELY ?
 			}
 		}
@@ -387,6 +388,7 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 				delete _this.Sleep;
 				delete _this.Read;
 				delete _this.Write;
+				io.RemoveDescriptor(_socket); // no more read/write notifications are needed
 				_this.OnFailed && _this.OnFailed(host, port);
 			}
 
@@ -409,6 +411,7 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 	
 	this.Sleep = function(time) {
 		
+		// (TBD) use  io.RemoveDescriptor(_socket); / io.AddDescriptor instead  but beware Close and Disconnect !
 		var prev = [ arguments.callee, _socket.readable, _socket.writable ];
 		delete _this.Sleep;
 		delete _socket.readable;
@@ -488,7 +491,7 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 				}
 				item = s.Write(item);
 				item && _out.unshift(item);
-				DBG && remain && ReportWarning('Unable to write the whole data on the socket, split was needed ('+s.peerName+':'+s.peerPort+')');
+				DBG && item && ReportWarning('Unable to write the whole data on the socket, split was needed ('+s.peerName+':'+s.peerPort+')');
 				return true;
 			}
 			return false;
