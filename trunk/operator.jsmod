@@ -16,7 +16,7 @@
 (function OperatorManagerModule($D, $A, $S) {
 	
 	var _name = this.name = this.constructor.name;
-	var modData = $D[_name];
+	var $MD = $D[_name];
 	
 
 	var flooder = new AsyncProcHelper( function( replyTo, period, amount, times, instant ) {
@@ -38,8 +38,8 @@
 
 				if ( !$A.IsBotOp(from) )
 					return;
-				delData( modData.password );
-				setData( modData.list, [] );
+				delData( $MD.password );
+				setData( $MD.list, [] );
 				var replyTo = to[0] == '#' ? to : StrBefore(from, '!');
 				$A.Privmsg( replyTo, 'Operator functions locked.' );
 			},
@@ -54,7 +54,7 @@
 					return;
 				}
 
-				DeleteArrayElement( getData( modData.list ), from );
+				DeleteArrayElement( getData( $MD.list ), from );
 				$A.Privmsg( replyTo, 'Done.' );
 			},
 
@@ -64,10 +64,10 @@
 				var replyTo = to[0] == '#' ? to : StrBefore(from, '!');
 				if ( !$A.IsBotOp(from) ) {
 	
-					var password = getData( modData.password );
+					var password = getData( $MD.password );
 					if ( password && cmdData == password ) {
 
-						getData( modData.list ).push(from);
+						getData( $MD.list ).push(from);
 						$A.Privmsg( replyTo, 'Done.' );
 					}
 				} else {
@@ -362,9 +362,9 @@
 			trigger: function(polarity) {
 				
 				if ( polarity )
-					setData( modData.list, [] );
+					setData( $MD.list, [] );
 				else
-					delData( modData.list );
+					delData( $MD.list );
 			}
 		}
 	];
@@ -372,7 +372,7 @@
 	
 	this.moduleApi = {
 	
-		IsBotOp:function(from) getData( modData.list ).indexOf(from) != -1
+		IsBotOp:function(from) getData( $MD.list ).indexOf(from) != -1
 	}
 })
 
