@@ -546,14 +546,14 @@
 		var count = 0, timeout;
 		var req = {}, OnData = ProcessHttpHeader;
 
-		ResetTimeout(1*SECOND); // after accepting the connection, let 1s to the client to send headers, else bye.
-
 		function ResetTimeout(time) {
 			
 			io.RemoveTimeout(timeout);
 			if ( time )
-				timeout = io.AddTimeout(time, Disconnect);
+				timeout = io.AddTimeout(time, function() connection.Disconnect() );
 		}
+
+		ResetTimeout(1*SECOND); // after accepting the connection, let 1s to the client to send headers, else bye.
 
 		connection.OnData = function() {
 			
@@ -692,7 +692,7 @@
 		var incomingConnectionRatePerPeer = new MultiRateMeter(getData($MD.incomingConnectionRatePerPeer));
 		serverConnection = new TCPServer( getData($MD.port), getData($MD.bind), getData($MD.socketBackLog) );
 		serverConnection.OnIncoming = function(connection) {
-			
+		
 			if ( totalConnectionCount <= getData($MD.maxConnections) && incomingConnectionRatePerPeer.Inc(connection.peerName, 1) )
 				ProcessHttpConnection(connection);
 			else				
