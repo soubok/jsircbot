@@ -57,14 +57,14 @@ function Cout(msg) {
 		_out.scrollTop = _out.scrollHeight;
 }
 
-function Error(msg, color) {
+function Color(msg, color) {
 
-	return '<span style="color:'+(color||'red')+'">'+msg+'</span>';
+	return '<span style="color:'+(color)+'">'+msg+'</span>';
 }
 
 function Disconnect() {
 
-	Cout(Error('Connection closed<br/>'));
+	Cout(Color('Connection closed<br/>','red'));
 	unloadMessage = undefined;
 	xhr.abort();
 	pxhr.abort();
@@ -76,14 +76,15 @@ function ProcessResponse(data, type) {
 		switch (type) {
 			case 'application/javascript':
 			case 'application/x-javascript':
+			case 'text/javascript':
 				eval(data);
-				break
+				break;
 			case 'text/html':
 			case 'text/plain':
 				Cout(data);
-				break
+				break;
 			default:
-				Cout(Error(type,'yellow')+'<br/>');
+				Cout(Color(data,'gray')+'<br/>');
 		}
 }
 
@@ -108,8 +109,10 @@ function Request(x, url, data, OnResponse) {
 
 function Send(data) {
 
+	_in.disabled = true;
 	Request(xhr, '?action=submit', data, function(status, data, type) {
 
+		_in.disabled = false;
 		if ( status )
 			ProcessResponse(data, type);
 		else
