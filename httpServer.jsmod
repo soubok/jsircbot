@@ -146,6 +146,10 @@
 			
 			return name in _headers && _headers[name].toLowerCase() == value.toLowerCase();
 		}
+		this.Remove = function(name) {
+			
+			delete _headers[name];
+		}
 		this.Serialize = function() {
 			
 			var tmp = '';
@@ -262,7 +266,8 @@
 	
     function IrcTextToWeb(text) {
         
-        var colors = { 0:'FFF', 1:'000', 2:'007', 3:'070', 4:'F00', 5:'700', 6:'909', 7:'F70', 8:'FF0', 9:'0F0', 10:'077', 11:'0FF', 12:'00F', 13:'F0F', 14:'777', 15:'DDD' };
+        var colors = { 0:'FFF', 1:'000', 2:'007', 3:'070', 4:'F00', 5:'700', 6:'909', 7:'F70', 
+                       8:'FF0', 9:'0F0', 10:'077', 11:'0FF', 12:'00F', 13:'F0F', 14:'777', 15:'DDD' };
         var lines = text.split('\x03');
         var end = '';
         for ( var i=1; i<lines.length; i++ ) {
@@ -358,7 +363,7 @@
 		console.Send('Ready.<br/>');
 		io.AddTimeout( 1000, function() {
 		
-			console.Send('123<br/>');
+			console.Send && console.Send('123<br/>');
 			io.AddTimeout( 1000, arguments.callee );
 		});
 
@@ -427,6 +432,7 @@
 			InitConsoleSession(console.user);
 			
 			var content = new File('./webConsole.html').content; // (TBD) filename from config
+			req.oHeaders.Remove('Cache-Control');
 			req.oHeaders.Set('Content-Length', content.length);
 			req.oHeaders.Set('Set-Cookie', 'sid='+sid+'; path='+req.iStatus.path); // Set-Cookie: <name>=<value>[; <name>=<value>]... [; expires=<date>][; domain=<domain_name>][; path=<some_path>][; secure][; httponly]
 			req.Respond(200)(content);
@@ -550,10 +556,10 @@
 			
 			io.RemoveTimeout(timeout);
 			if ( time )
-				timeout = io.AddTimeout(time, function() connection.Disconnect() );
+				timeout = io.AddTimeout(time, Disconnect);
 		}
 
-		ResetTimeout(1*SECOND); // after accepting the connection, let 1s to the client to send headers, else bye.
+		ResetTimeout(1*SECOND); // after accepting the connection, let 1 second to the client to send headers, else bye.
 
 		connection.OnData = function() {
 			
@@ -592,11 +598,11 @@
 			req.iHeaders = ParseHttpHeaders(input);
 			req.oHeaders = new HttpHeaders();
 			req.oHeaders.MSet({ 
-				'Date':new Date().toUTCString(), 
-				'Server':_name, 
-				'Expires':'0', 
-				'Cache-Control':'no-cache', 
-				'Pragma':'no-cache', 
+				'Date':new Date().toUTCString(),
+				'Server':_name,
+				'Expires':'0',
+				'Cache-Control':'no-cache',
+//				'Pragma':'no-cache',
 				'Content-Type':'text/html'
 			}); // beware: do not set 'Connection' or 'Content-Length'
 			req.remainingBodyLength = req.iHeaders.Get('Content-Length');
@@ -675,9 +681,10 @@
 		
 		function Disconnect() {
 
-			req.Send && req.Send( function() void connection.Disconnect() );
+			req.Send( function() void connection.Disconnect() ); // req.Send && ???
 			delete req.Respond;
 			delete req.Send;
+			delete req.End;
 			OnData = Noop;
 		}
 	}
@@ -695,8 +702,11 @@
 		
 			if ( totalConnectionCount <= getData($MD.maxConnections) && incomingConnectionRatePerPeer.Inc(connection.peerName, 1) )
 				ProcessHttpConnection(connection);
-			else				
-				connection.Close(); // hard close
+			else {
+
+//				connection.Write('HTTP/1.0 503 Service Unavailable'+CRLF+CRLF); // (TBD) return error 503
+				connection.Close(); // hard close. 
+			}
 		}
 	}
 
