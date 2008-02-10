@@ -116,6 +116,7 @@ function(data) {
 	setData(data.webServerModule.connectionKeepAliveMax, 100);
 	setData(data.webServerModule.connectionDataRate, [5*KILOBYTE, 1*SECOND]);
 	setData(data.webServerModule.consoleSessionTimeout, 15*MINUTE);
+	setData(data.webServerModule.consolePasword, '**********');
 	
 	
 }
