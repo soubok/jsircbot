@@ -4,6 +4,16 @@
 <title>console</title>
 <style type="text/css">
 
+html {
+	overflow-x: hidden;
+	overflow-y: scroll;
+	overflow: -moz-scrollbars-vertical;
+}
+
+body {
+	margin: 1px;
+}
+
 html, #in {
 	background-color: black;
 	color: #BBB;
@@ -13,11 +23,6 @@ html, #in {
 	font-size: 10pt;
 }
 
-html {
-	overflow-x: hidden;
-	overflow-y: scroll;
-	overflow: -moz-scrollbars-vertical;
-}
 
 #in {
 	border-style: none;
@@ -227,7 +232,6 @@ function Init() {
 	StartPendingRequest();
 //	window.onbeforeunload = function() { return 'This will close the current session.' };
 }
-
 </script>
 </head>
 <body onload="Init()" onclick="_in.focus()">
