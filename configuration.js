@@ -1,7 +1,7 @@
 function(data) {
 
 	setData( data.moduleList, [
-		'file:///./webServer.jsmod',
+		'file:///./httpServer.jsmod',
 /*
 		'file:///./default.jsmod',
 		'file:///./channel.jsmod',
@@ -109,14 +109,15 @@ function(data) {
 // web server
 	setData(data.webServerModule.port, 80);
 	setData(data.webServerModule.bind, '127.0.0.1');
-	setData(data.webServerModule.socketBackLog, 5); // socketBackLog is the maximum length of the queue of pending connections.
+	setData(data.webServerModule.socketBackLog, 2); // socketBackLog is the maximum length of the queue of pending connections.
 	setData(data.webServerModule.maxConnections, 10);
-	setData(data.webServerModule.incomingConnectionRatePerPeer, [2, 1*SECOND]);
-	setData(data.webServerModule.connectionKeepAliveTimeout, 10*SECOND);
+	setData(data.webServerModule.incomingConnectionRatePerPeer, [30, 3*SECOND]);
+	setData(data.webServerModule.connectionKeepAliveTimeout, 1*SECOND);
 	setData(data.webServerModule.connectionKeepAliveMax, 100);
-	setData(data.webServerModule.connectionDataRate, [5*KILOBYTE, 1*SECOND]);
+	setData(data.webServerModule.connectionDataRate, [2*KILOBYTE, 1*SECOND]);
 	setData(data.webServerModule.consoleSessionTimeout, 15*MINUTE);
 	setData(data.webServerModule.consolePasword, '**********');
+	setData(data.webServerModule.consoleHistorySize, 100); // events
 	
 	
 }
