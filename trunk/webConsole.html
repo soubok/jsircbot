@@ -3,71 +3,103 @@
 <head>
 <title>console</title>
 <style type="text/css">
-html, body {
-	padding: 0px;
-	margin: 0px;
-	height: 100%;
+
+html, #in {
 	background-color: black;
-	overflow: hidden;
-}
-#in, #out {
-	border-style: none;
-	background-color: transparent;
 	color: #BBB;
+	white-space: nowrap;
 	font-family: console, monospace;
 	font-weight: bold;
 	font-size: 10pt;
 }
+
+html {
+	overflow-x: hidden;
+	overflow-y: scroll;
+	overflow: -moz-scrollbars-vertical;
+}
+
 #in {
-	display: block;
-	position: absolute;
-	bottom: 0px;
+	border-style: none;
+	padding: 0px;
 	width: 100%;
-	border-top: 2px solid #666;
-	padding-left: 2px;
 }
-#out {
-	overflow: auto;
-}
+
 </style>
 <script type="text/javascript">
 
-if (window.ActiveXObject) {
-    var xhr = new ActiveXObject("Microsoft.XMLHTTP");
-	var pxhr = new ActiveXObject("Microsoft.XMLHTTP");
-} else {
-	var xhr = new XMLHttpRequest;
-	var pxhr = new XMLHttpRequest;
+NewXMLHttpRequest = window.ActiveXObject ? function() { return new ActiveXObject('Microsoft.XMLHTTP') } : function() { return new XMLHttpRequest() };
+AddEvent = window.attachEvent ? function( elt, ev, handler ) { elt.attachEvent( 'on'+ev, handler ) } : function( elt, ev, handler ) { elt.addEventListener( ev, handler, false ) };
+RemoveEvent = window.detachEvent ? function( elt, ev, handler ) { elt.detachEvent( 'on'+ev, handler ) } : function( elt, ev, handler ) { elt.removeEventListener( ev, handler, false ) };
+PreventDefault = function(ev) { ev.preventDefault ? ev.preventDefault() : (ev.returnValue = true) };
+StopPropagation = function(ev) { ev.stopPropagation ? ev.stopPropagation() : (ev.cancelBubble = false) };
+InsertHtmlBefore = function(elt, html) {
+	var tmp = document.createElement('div');
+	tmp.innerHTML = html;
+	while ( tmp.firstChild )
+		elt.parentNode.insertBefore( tmp.firstChild, elt );
 }
 
-var _in, _out;
-var unloadMessage = 'This will close the current session.';
 
-function recalcLayout() {
+function HttpRequest() {
 
-	_out.style.height = document.documentElement.clientHeight - _in.offsetHeight - 1 + 'px';
-	_out.scrollTop = _out.scrollHeight;
+	var _this = this;
+	var _xhr = new XMLHttpRequest();
+	this.Ready = function() {
+
+		return _xhr.readyState == 0 || _xhr.readyState == 4;
+	}
+
+	this.Abort = function() {
+
+		if ( this.Ready() )
+			return;
+		if ( _xhr.abort )
+			_xhr.abort();
+		else
+			_xhr.open( 'GET', 'about:blank', false );
+	}
+
+	this.Send = function(url, data) {
+
+		try {
+			_xhr.open( data == undefined ? 'GET' : 'POST', url, true );
+			_xhr.onreadystatechange = function() {
+
+				try {
+					if ( _xhr.readyState != 4 )
+						return;
+					if ( _xhr.status != 200 )
+						throw Error();
+					else
+						_this.OnResponse && _this.OnResponse(true, _xhr.responseText, _xhr.getResponseHeader('Content-Type'));
+				} catch(ex) {
+
+					_this.OnResponse && _this.OnResponse(false);
+				}
+			}
+			_xhr.send(data == undefined ? null : data);
+		} catch(ex) {
+
+			_this.OnResponse && _this.OnResponse(false);
+		}
+	}
 }
 
-function Cout(msg) {
+var _in;
 
-	var isAtEnd = (_out.scrollTop + _out.offsetHeight >= _out.scrollHeight );
-	_out.innerHTML += msg;
+function Cout(html) {
+
+	var htmlElt = document.documentElement;
+	var isAtEnd = (htmlElt.scrollTop + htmlElt.clientHeight >= htmlElt.scrollHeight );
+	InsertHtmlBefore(_in, html);
 	if ( isAtEnd )
-		_out.scrollTop = _out.scrollHeight;
+		htmlElt.scrollTop = htmlElt.scrollHeight;
 }
 
 function Color(msg, color) {
 
 	return '<span style="color:'+(color)+'">'+msg+'</span>';
-}
-
-function Disconnect() {
-
-	Cout(Color('Connection closed<br/>','red'));
-	unloadMessage = undefined;
-	xhr.abort();
-	pxhr.abort();
 }
 
 function ProcessResponse(data, type) {
@@ -88,58 +120,29 @@ function ProcessResponse(data, type) {
 		}
 }
 
-function Request(x, url, data, OnResponse) {
+var xhr = new HttpRequest();
+xhr.OnResponse = function(status, data, type) {
 
-	try {
-		x.open( data==null ? 'GET' : 'POST', url, true );
-		x.onreadystatechange = function() {
-
-			try {
-				if ( x.readyState != 4 )
-					return;
-				if ( x.status != 200 )
-					OnResponse(false);
-				else
-					OnResponse(true, x.responseText, x.getResponseHeader('Content-Type'));
-			} catch(ex) { OnResponse(false) }
-		}
-		x.send(data);
-	} catch(ex) { OnResponse(false) }
+	if ( status )
+		ProcessResponse(data, type);
+	else
+		Cout(Color('Connection closed<br/>','red'));
 }
 
-function Send(data) {
-
-	_in.disabled = true;
-	Request(xhr, '?action=submit', data, function(status, data, type) {
-
-		_in.disabled = false;
-		if ( status )
-			ProcessResponse(data, type);
-		else
-			Disconnect();
-	});
-}
-
+var pxhr = new HttpRequest();
 function StartPendingRequest() {
 
-	Request(pxhr, '?action=wait', null, function(status, data, type) {
+	pxhr.Send('?action=wait', null);
+}
+pxhr.OnResponse = function(status, data, type) {
 
-		if ( status ) {
-			ProcessResponse(data, type);
-			StartPendingRequest();
-		} else
-			Disconnect();
-	});
+	if ( status ) {
+		ProcessResponse(data, type);
+		StartPendingRequest();
+	} else
+		Cout(Color('Connection closed<br/>','red'));
 }
 
-function Init() {
-
-	_in = document.getElementById('in');
-	_out = document.getElementById('out');
-	StartPendingRequest();
-	recalcLayout();
-	_in.focus();
-}
 
 var stack = [''], stackp = 0;
 function OnKey(event) {
@@ -161,6 +164,8 @@ function OnKey(event) {
 			_in.value = stackp ? stack[--stackp] : stack[0];
 			break;
 		case 13:
+			if ( !xhr.Ready() )
+				return;
 			if ( event.shiftKey || event.ctrlKey || event.altKey )
 				return;
 			stackp=0;
@@ -169,7 +174,7 @@ function OnKey(event) {
 				stack[0] = '';
 			else
 				stack.unshift('');
-			Send(_in.value);
+			xhr.Send('?action=submit', _in.value);
 			_in.value = '';
 			_in.focus();
 			break;
@@ -178,38 +183,54 @@ function OnKey(event) {
 			break;
 		case 33: // pageup
 			if ( event.ctrlKey )
-				_out.scrollTop -= _out.clientHeight;
+				document.body.scrollTop -= document.body.clientHeight;
 			else
 				return;
 			break;
 		case 34: // pagedown
 			if ( event.ctrlKey )
-				_out.scrollTop += _out.clientHeight;
+				document.body.scrollTop += document.body.clientHeight;
 			else
 				return;
 			break;
 		case 35: // end
 			if ( event.ctrlKey )
-				_out.scrollTop = _out.scrollHeight;
+				document.body.scrollTop = document.body.scrollHeight;
 			else
 				return;
 			break;
 		case 36: // home
 			if ( event.ctrlKey )
-				_out.scrollTop = 0;
+				document.body.scrollTop = 0;
 			else
 				return;
 			break;
 		default:
 			return;
 	}
-	event.preventDefault ? event.preventDefault() : event.cancelBubble = true;
-	event.stopPropagation ? event.stopPropagation() : event.returnValue = false;
+	PreventDefault(event);
+	StopPropagation(event);
 }
+
+
+function Init() {
+
+	_in = document.getElementById('in');
+
+//	var x = NewXMLHttpRequest();
+//	x.open('GET','?action=history',false);
+//	x.send(null);
+//	Cout(x.responseText);
+
+	_in.focus();
+
+	StartPendingRequest();
+//	window.onbeforeunload = function() { return 'This will close the current session.' };
+}
+
 </script>
 </head>
-<body onload="Init()" onbeforeunload="return unloadMessage" onresize="recalcLayout()">
-<div id="out" onclick="_in.focus()"></div>
+<body onload="Init()" onclick="_in.focus()">
 <input type="text" id="in" onkeydown="OnKey(event)" autocomplete="off" />
 </body>
 </html>

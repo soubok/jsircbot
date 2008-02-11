@@ -357,25 +357,27 @@
 	}
 
 
-/*
+
 	function InitConsoleSession(console) {
 		
+		var i = 0;
 		console.Send('Ready.<br/>');
 		io.AddTimeout( 1000, function() {
 		
-			console.Send && console.Send('123<br/>');
+			console.Send && console.Send(i+'<br/>');
 			io.AddTimeout( 1000, arguments.callee );
+			i++;
 		});
 
 		console.OnRequest = function(data) {
 			
-			console.Send('echo:'+data+'<br/>');
+			console.Send('echo '+i+':'+data+'<br/>');
 		}
 
 		console.OnClose = function() {
 		}
 	}
-*/
+
 	
 	
 	var _consoles = {};
@@ -406,7 +408,8 @@
 			console.Send = function(data) void console.pendingMessagesQueue.push(data);
 			console.user.Send = function(data) {
 			
-				console.history = console.history.slice(-50);
+				if ( console.history.length > 100 )
+					console.history.shift();
 				console.history.push(data);
 				console.Send(data);
 			}
@@ -419,7 +422,7 @@
 				delete console.user.Send;
 				console.ResetTimeout();
 				delete _consoles[sid];
-				log.Write( LOG_CONSOLE, req.peerName, 'closed' );
+				ReportNotice( 'remoteConsole' + req.peerName + ' close' );
 			}
 
 			console.ResetTimeout = function(time) {
@@ -432,19 +435,15 @@
 			InitConsoleSession(console.user);
 			
 			var content = new File('./webConsole.html').content; // (TBD) filename from config
-			req.oHeaders.Remove('Cache-Control');
+//			req.oHeaders.Remove('Cache-Control');
+//			req.oHeaders.Remove('Expires');
 			req.oHeaders.Set('Content-Length', content.length);
 			req.oHeaders.Set('Set-Cookie', 'sid='+sid+'; path='+req.iStatus.path); // Set-Cookie: <name>=<value>[; <name>=<value>]... [; expires=<date>][; domain=<domain_name>][; path=<some_path>][; secure][; httponly]
 			req.Respond(200)(content);
 			req.End();
+			ReportNotice( 'remoteConsole' + req.peerName + ' create' );
 			return;
 		}
-
-//		if ( !action ) {
-//
-//			console.user.Send(console.history.join(''));
-//			console.history = [];
-//		}
 
 		if ( !console ) {
 
@@ -485,7 +484,23 @@
 				}
 			}
 			return;
-		} 
+		}
+
+
+		if ( action == 'history' ) { // note that the history can be managed client-side
+
+			var data = console.history.slice(0,console.history.length-console.pendingMessagesQueue.length).join(''); // remove the pending data that will be send later
+			if ( req.iHeaders.Has('Accept-Encoding') && req.iHeaders.Get('Accept-Encoding').indexOf('deflate') != -1 ) {
+
+				req.oHeaders.Set('Content-Encoding', 'deflate');
+				data = new Z(Z.DEFLATE)(data);
+			}
+			req.oHeaders.Set('Content-Length', data.length);
+			req.Respond(200)(data);
+			req.End();
+			return;
+		}
+
 
 		if ( action == 'submit' ) {
 
@@ -493,7 +508,7 @@
 			req.OnBodyData = function(buf) consData += buf;
 			req.OnEndOfBody = function() {
 
-				log.Write( LOG_CONSOLE, req.peerName, 'in', consData);
+				ReportNotice( 'remoteConsole' + req.peerName + ' data: ' + consData );
 				let prevSend = console.Send;
 				console.Send = function(data) void console.pendingMessagesQueue.push(data);
 				console.user.OnRequest && console.user.OnRequest(consData);
@@ -606,8 +621,9 @@
 				'Content-Type':'text/html'
 			}); // beware: do not set 'Connection' or 'Content-Length'
 			req.remainingBodyLength = req.iHeaders.Get('Content-Length');
-//DPrint( req.iStatus.method, req.iStatus.url, Now() );
-//DPrint( req.iHeaders.Serialize() );
+
+			ReportNotice( _name + ' incoming HTTP request: ' + req.iStatus.method + ' ' + req.iStatus.url ); // req.iHeaders.Serialize() 
+
 			req.Respond = Respond;
 			req.Send = Send;
 			req.End = function() {
