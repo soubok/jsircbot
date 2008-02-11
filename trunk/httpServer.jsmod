@@ -356,7 +356,7 @@
 		console.OnClose = Noop;
 	}
 
-
+/*
 
 	function InitConsoleSession(console) {
 		
@@ -371,14 +371,14 @@
 
 		console.OnRequest = function(data) {
 			
-			console.Send('echo '+i+':'+data+'<br/>');
+			console.Send('<br/>echo '+i+':'+data+'');
 		}
 
 		console.OnClose = function() {
 		}
 	}
 
-	
+*/	
 	
 	var _consoles = {};
 //	INSPECT.push(function() 'CONSOLES '+_consoles.length+':'+[desc.peerPort+':'+desc.peerName for each ( desc in _descriptorList )].join(' ')+' ');
