@@ -3,17 +3,14 @@
 <head>
 <title>console</title>
 <style type="text/css">
-
 html {
 	overflow-x: hidden;
 	overflow-y: scroll;
 	overflow: -moz-scrollbars-vertical;
 }
-
 body {
 	margin: 1px;
 }
-
 html, #in {
 	background-color: black;
 	color: #BBB;
@@ -22,29 +19,59 @@ html, #in {
 	font-weight: bold;
 	font-size: 10pt;
 }
-
-
 #in {
 	border-style: none;
 	padding: 0px;
 	width: 100%;
 }
-
 </style>
+<style type="text/css" title="terminal" rel="stylesheet"></style>
+<style type="text/css" title="console" rel="alternate stylesheet" disabled="disabled">
+body {
+	border-bottom: 20px solid black;
+}
+#in {
+	position: fixed;
+	bottom: 0px;
+	left: 0px;
+	border-top: 2px solid #666;
+	background-color: #111;
+}
+</style>
+<style id="sty" type="text/css" rel="stylesheet"></style>
 <script type="text/javascript">
-
 NewXMLHttpRequest = window.ActiveXObject ? function() { return new ActiveXObject('Microsoft.XMLHTTP') } : function() { return new XMLHttpRequest() };
 AddEvent = window.attachEvent ? function( elt, ev, handler ) { elt.attachEvent( 'on'+ev, handler ) } : function( elt, ev, handler ) { elt.addEventListener( ev, handler, false ) };
 RemoveEvent = window.detachEvent ? function( elt, ev, handler ) { elt.detachEvent( 'on'+ev, handler ) } : function( elt, ev, handler ) { elt.removeEventListener( ev, handler, false ) };
-PreventDefault = function(ev) { ev.preventDefault ? ev.preventDefault() : (ev.returnValue = true) };
-StopPropagation = function(ev) { ev.stopPropagation ? ev.stopPropagation() : (ev.cancelBubble = false) };
-InsertHtmlBefore = function(elt, html) {
+
+function PreventDefault(ev) {
+
+	ev.preventDefault ? ev.preventDefault() : (ev.returnValue = true);
+}
+
+function StopPropagation(ev) {
+
+	ev.stopPropagation ? ev.stopPropagation() : (ev.cancelBubble = false);
+}
+
+function InsertHtmlBefore(elt, html) {
+
 	var tmp = document.createElement('div');
 	tmp.innerHTML = html;
 	while ( tmp.firstChild )
 		elt.parentNode.insertBefore( tmp.firstChild, elt );
 }
 
+function SetStyle(style) {
+
+	var e = document.getElementById('sty');
+	if ( e.styleSheet ) {
+		e.styleSheet.cssText = style;
+	} else  {
+		for( ;e.firstChild; e.removeChild(e.firstChild));
+		e.appendChild(document.createTextNode(style)); // || firefox: e.innerHTML = style;
+	}
+}
 
 function HttpRequest() {
 
@@ -78,16 +105,10 @@ function HttpRequest() {
 						throw Error();
 					else
 						_this.OnResponse && _this.OnResponse(true, _xhr.responseText, _xhr.getResponseHeader('Content-Type'));
-				} catch(ex) {
-
-					_this.OnResponse && _this.OnResponse(false);
-				}
+				} catch(ex) { _this.OnResponse && _this.OnResponse(false) }
 			}
 			_xhr.send(data == undefined ? null : data);
-		} catch(ex) {
-
-			_this.OnResponse && _this.OnResponse(false);
-		}
+		} catch(ex) { _this.OnResponse && _this.OnResponse(false) }
 	}
 }
 
@@ -96,7 +117,7 @@ var _in;
 function Cout(html) {
 
 	var htmlElt = document.documentElement;
-	var isAtEnd = (htmlElt.scrollTop + htmlElt.clientHeight >= htmlElt.scrollHeight );
+	var isAtEnd = (htmlElt.scrollTop + htmlElt.clientHeight >= htmlElt.scrollHeight - 1); // cf. body {	margin: ...
 	InsertHtmlBefore(_in, html);
 	if ( isAtEnd )
 		htmlElt.scrollTop = htmlElt.scrollHeight;
@@ -116,9 +137,17 @@ function ProcessResponse(data, type) {
 			case 'text/javascript':
 				eval(data);
 				break;
+			case 'text/css':
+				SetStyle(data);
+				break;
 			case 'text/html':
 			case 'text/plain':
 				Cout(data);
+				break;
+			case 'text/json':
+				var itemList = eval('('+data+')');
+				for ( var i in itemList )
+					ProcessResponse(itemList[i][0], itemList[i][1])
 				break;
 			default:
 				Cout(Color(data,'gray')+'<br/>');
@@ -128,9 +157,10 @@ function ProcessResponse(data, type) {
 var xhr = new HttpRequest();
 xhr.OnResponse = function(status, data, type) {
 
-	if ( status )
+	if ( status ) {
 		ProcessResponse(data, type);
-	else
+//		document.documentElement.scrollTop = document.documentElement.scrollHeight;
+	} else
 		Cout(Color('Connection closed<br/>','red'));
 }
 
@@ -139,6 +169,7 @@ function StartPendingRequest() {
 
 	pxhr.Send('?action=wait', null);
 }
+
 pxhr.OnResponse = function(status, data, type) {
 
 	if ( status ) {
@@ -233,8 +264,5 @@ function Init() {
 //	window.onbeforeunload = function() { return 'This will close the current session.' };
 }
 </script>
-</head>
-<body onload="Init()" onclick="_in.focus()">
-<input type="text" id="in" onkeydown="OnKey(event)" autocomplete="off" />
-</body>
+</head><body onload="Init()" onclick="_in.focus()" onfocus="_in.focus()"><input type="text" id="in" onkeydown="OnKey(event)" autocomplete="off" /></body>
 </html>

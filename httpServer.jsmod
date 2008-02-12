@@ -93,7 +93,7 @@
 
 	function ParseHttpStatus(buffer) {
 		
-		var status = {};
+		var status = NewDataObj();
 		status.method = buffer.ReadUntil(SPC);
 		status.url = buffer.ReadUntil(SPC);
 		status.protoName = buffer.ReadUntil(SLASH);
@@ -119,7 +119,7 @@
 
 	function HttpHeaders() {
 
-		var _headers = {};		
+		var _headers = NewDataObj();
 		this.Parse = function(rawHeaders) {
 			
 			var res, hre = /(.*?): ?(.*?)\r?\n/g;
@@ -170,7 +170,7 @@
 	
 	function ParseQueryData(str) {
 		
-		var map = {};
+		var map = NewDataObj();
 		if ( str )
 			for each ( var p in str.split('&') )
 				let ( [key, val] = p.split('=') ) // report a "strict warning: reference to undefined property 1" because 'foo'.split('=') do not have a [1]
@@ -180,7 +180,7 @@
 	
 	function ParseCookieData(str) {
 		
-		var map = {};
+		var map = NewDataObj();
 		if ( str )
 			for each ( var p in str.split('; ') )
 				let ( [key, val] = p.split('=') )
@@ -356,7 +356,7 @@
 		console.OnClose = Noop;
 	}
 
-/*
+
 
 	function InitConsoleSession(console) {
 		
@@ -371,16 +371,20 @@
 
 		console.OnRequest = function(data) {
 			
+			if ( data == 'red' ) {
+				console.Send('#in { color: red }', 'text/css');
+			}
+			
 			console.Send('<br/>echo '+i+':'+data+'');
 		}
 
 		console.OnClose = function() {
 		}
 	}
-
+/*
 */	
 	
-	var _consoles = {};
+	var _consoles = NewDataObj();
 //	INSPECT.push(function() 'CONSOLES '+_consoles.length+':'+[desc.peerPort+':'+desc.peerName for each ( desc in _descriptorList )].join(' ')+' ');
 	
 	function CloseAllConsoles() {
@@ -405,13 +409,14 @@
 
 			console.history = [];
 			console.pendingMessagesQueue = [];
-			console.Send = function(data) void console.pendingMessagesQueue.push(data);
-			console.user.Send = function(data) {
+			console.Send = function(item) void console.pendingMessagesQueue.push(item);
 			
+			console.user.Send = function(data, type) { // user.Send is  data, type  not  [data, type]
+				type = type || 'text/html';
 				if ( console.history.length > 100 )
 					console.history.shift();
-				console.history.push(data);
-				console.Send(data);
+				console.history.push([data, type]);
+				console.Send([data, type]);
 			}
 			
 			console.user.Close = function() {
@@ -457,69 +462,74 @@
 		
 		console.ResetTimeout(getData($MD.consoleSessionTimeout));
 
-		if ( action == 'wait' ) {
+		function FormatDataBlock(queue) {
+			
+			var tmp = queue.toSource();
+			queue.splice(0);
+			return tmp;
+		}
+		
+		switch (action) {
+		
+			case 'wait':
+				if ( console.pendingMessagesQueue.length ) {
 
-			if ( console.pendingMessagesQueue.length ) {
+					var data = FormatDataBlock(console.pendingMessagesQueue);
+					req.oHeaders.Set('Content-Type', 'text/json');
+					req.oHeaders.Set('Content-Length', data.length);
+					req.Respond(200)(data);
+					req.End();
+					console.Send = function(item) console.pendingMessagesQueue.push(item);
+					return;
+				}
 
-				let data = console.pendingMessagesQueue.join('');
-				console.pendingMessagesQueue.splice(0);
-				req.oHeaders.Set('Content-Length', data.length);
-				req.Respond(200)(data);
-				req.End();
-				console.Send = function(data) console.pendingMessagesQueue.push(data);
-
-			} else {
-
-				console.Send = function(data) {
+				console.Send = function(item) {
 
 					if ( req.Respond ) {
 
+						let [data, type] = item;
+						req.oHeaders.Set('Content-Type', type);
 						req.oHeaders.Set('Content-Length', data.length);
 						req.Respond(200)(data);
 						req.End();
-					} else {
-
-						console.pendingMessagesQueue.push(data);
-					}
+						console.Send = function(item) console.pendingMessagesQueue.push(item);
+					} else
+						console.pendingMessagesQueue.push(item);
 				}
-			}
-			return;
-		}
+				return;
 
+			case 'submit':
+				req.consData = '';
+				req.OnBodyData = function(buf) req.consData += buf;
+				req.OnEndOfBody = function() {
 
-		if ( action == 'history' ) { // note that the history can be managed client-side
+					ReportNotice( 'remoteConsole' + req.peerName + ' data: ' + req.consData );
+					let prevSend = console.Send;
+					console.Send = function(item) void console.pendingMessagesQueue.push(item);
+					console.user.OnRequest && console.user.OnRequest(req.consData);
+					var data = FormatDataBlock(console.pendingMessagesQueue);
+					req.oHeaders.Set('Content-Type', 'text/json');
+					req.oHeaders.Set('Content-Length', data.length);
+					req.Respond(200)(data);
+					req.End();
+					console.Send = prevSend;
+				}
+				return;
+				
+			case 'history': // note that the history can be managed client-side
+				
+				var historyWithoutPendingItems = console.history.slice(0,console.history.length-console.pendingMessagesQueue.length); // remove the pending data that will be send later
+				var data = FormatDataBlock(historyWithoutPendingItems);
+				if ( req.iHeaders.Has('Accept-Encoding') && req.iHeaders.Get('Accept-Encoding').indexOf('deflate') != -1 ) {
 
-			var data = console.history.slice(0,console.history.length-console.pendingMessagesQueue.length).join(''); // remove the pending data that will be send later
-			if ( req.iHeaders.Has('Accept-Encoding') && req.iHeaders.Get('Accept-Encoding').indexOf('deflate') != -1 ) {
-
-				req.oHeaders.Set('Content-Encoding', 'deflate');
-				data = new Z(Z.DEFLATE)(data);
-			}
-			req.oHeaders.Set('Content-Length', data.length);
-			req.Respond(200)(data);
-			req.End();
-			return;
-		}
-
-
-		if ( action == 'submit' ) {
-
-			let consData = '';
-			req.OnBodyData = function(buf) consData += buf;
-			req.OnEndOfBody = function() {
-
-				ReportNotice( 'remoteConsole' + req.peerName + ' data: ' + consData );
-				let prevSend = console.Send;
-				console.Send = function(data) void console.pendingMessagesQueue.push(data);
-				console.user.OnRequest && console.user.OnRequest(consData);
-				let data = console.pendingMessagesQueue.join('');
-				console.pendingMessagesQueue.splice(0);
+					req.oHeaders.Set('Content-Encoding', 'deflate');
+					data = new Z(Z.DEFLATE)(data);
+				}
+				req.oHeaders.Set('Content-Type', 'text/json');
 				req.oHeaders.Set('Content-Length', data.length);
 				req.Respond(200)(data);
 				req.End();
-				console.Send = prevSend;
-			}
-			return;
+				return;
 		}
 	}
 
