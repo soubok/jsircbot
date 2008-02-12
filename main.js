@@ -16,12 +16,12 @@ LoadModule('jsstd');
 LoadModule('jsio');
 LoadModule('jsobjex');
 
-var DBG = false;
+var DBG = true;
 
-Exec('tools.js');
-Exec('dataObject.js');
-Exec('io.js');
-Exec('ident.js');
+Exec('tools.js', false);
+Exec('dataObject.js', false);
+Exec('io.js', false);
+Exec('ident.js', false);
 
 
 ///////////////////////////////////////////////// CONST /////////////////////////////////////////////
@@ -146,7 +146,7 @@ function LoadModuleList( coreApi, moduleList, retry, retryPause ) {
 
 ///////////////////////////////////////////////// CORE /////////////////////////////////////////////
 
-function Core( Configurator ) {
+function Core( Configurator, endPredicate ) {
 
 	var _modules = [];
 
@@ -261,8 +261,11 @@ function Core( Configurator ) {
 	LoadModuleList( $A.core, getData($D.moduleList), getData($D.moduleLoadRetry), getData($D.moduleLoadRetryPause) );
 
 	$S.Enter(STATE_RUNNING);
-	io.Process( function() endSignal );
+	io.Process(endPredicate);
 	$S.Leave(STATE_RUNNING);
+	
+	Sleep(500); // (TBD) try something better ... like a STATE_RUNNING response from modules
+	io.Process(True);
 	
 	for each ( mod in $A.core.ModuleList() )
 		$A.core.RemoveModule( mod );
@@ -277,13 +280,13 @@ var thisSession = 'jsircbot_'+(Now())+'.log'; // used to create ONE log file by 
 
 //log.AddFilter( MakeLogFile(function() 'jsircbot_'+DateString()+'.log', false), LOG_ALL - LOG_NET );
 log.AddFilter( MakeLogFile(function() thisSession, false), LOG_ALL );
-log.AddFilter( MakeLogScreen(), LOG_FAILURE | LOG_ERROR | LOG_WARNING );
+log.AddFilter( MakeLogScreen(), LOG_FAILURE | LOG_ERROR | LOG_WARNING | LOG_CONSOLE );
 
 ReportNotice('Start at '+(new Date()));
 
 try {
 
-	Core(Exec('configuration.js'));
+	Core(Exec('configuration.js'), function() endSignal);
 } catch( ex if ex instanceof IoError ) {
 
 	ReportFailure( 'IoError: '+ ex.text + ' (' + ex.os + ')' );
