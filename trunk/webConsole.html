@@ -86,28 +86,34 @@ function HttpRequest() {
 
 		if ( this.Ready() )
 			return;
-		if ( _xhr.abort )
+		if ( 'abort' in _xhr )
 			_xhr.abort();
 		else
 			_xhr.open( 'GET', 'about:blank', false );
 	}
 
-	this.Send = function(url, data) {
+	this.Send = function(url, data, sync) {
 
 		try {
-			_xhr.open( data == undefined ? 'GET' : 'POST', url, true );
-			_xhr.onreadystatechange = function() {
+			_xhr.open( data == undefined ? 'GET' : 'POST', url, !sync );
 
-				try {
-					if ( _xhr.readyState != 4 )
-						return;
-					if ( _xhr.status != 200 )
-						throw Error();
-					else
-						_this.OnResponse && _this.OnResponse(true, _xhr.responseText, _xhr.getResponseHeader('Content-Type'));
-				} catch(ex) { _this.OnResponse && _this.OnResponse(false) }
+			if ( !sync ) {
+				_xhr.onreadystatechange = function() {
+
+					try {
+						if ( _xhr.readyState != 4 )
+							return;
+						if ( _xhr.status != 200 )
+							throw Error();
+						else
+							_this.OnResponse && _this.OnResponse(true, _xhr.responseText, _xhr.getResponseHeader('Content-Type'));
+					} catch(ex) { _this.OnResponse && _this.OnResponse(false) }
+				}
 			}
 			_xhr.send(data == undefined ? null : data);
+			if ( sync && _xhr.status == 200 )
+				return _xhr.responseText;
+
 		} catch(ex) { _this.OnResponse && _this.OnResponse(false) }
 	}
 }
@@ -145,7 +151,10 @@ function ProcessResponse(data, type) {
 				Cout(data);
 				break;
 			case 'text/json':
-				var itemList = eval('('+data+')');
+				var itemList;
+				try {
+					itemList = eval('('+data+')');
+				} catch(ex) {}
 				for ( var i in itemList )
 					ProcessResponse(itemList[i][0], itemList[i][1])
 				break;
@@ -155,16 +164,16 @@ function ProcessResponse(data, type) {
 }
 
 var xhr = new HttpRequest();
+var pxhr = new HttpRequest();
+
 xhr.OnResponse = function(status, data, type) {
 
-	if ( status ) {
+	if ( status )
 		ProcessResponse(data, type);
-//		document.documentElement.scrollTop = document.documentElement.scrollHeight;
-	} else
+	else
 		Cout(Color('Connection closed<br/>','red'));
 }
 
-var pxhr = new HttpRequest();
 function StartPendingRequest() {
 
 	pxhr.Send('?action=wait', null);
@@ -252,17 +261,11 @@ function OnKey(event) {
 function Init() {
 
 	_in = document.getElementById('in');
-
-//	var x = NewXMLHttpRequest();
-//	x.open('GET','?action=history',false);
-//	x.send(null);
-//	Cout(x.responseText);
-
+	ProcessResponse( new HttpRequest().Send('?action=history', undefined, true) , 'text/json');
 	_in.focus();
-
 	StartPendingRequest();
 //	window.onbeforeunload = function() { return 'This will close the current session.' };
 }
 </script>
-</head><body onload="Init()" onclick="_in.focus()" onfocus="_in.focus()"><input type="text" id="in" onkeydown="OnKey(event)" autocomplete="off" /></body>
+</head><body onload="Init()" onclick="_in.focus()" onfocus="_in.focus()" onresize="with(document.documentElement) scrollTop=scrollHeight"><input type="text" id="in" onkeydown="OnKey(event)" autocomplete="off" /></body>
 </html>

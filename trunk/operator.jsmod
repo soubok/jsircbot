@@ -318,7 +318,11 @@
 							var buf = connection.Read();
 							$A.Send( buf.replace(/\r?\n?$/,'') );
 						}
-						connection.OnDisconnected = function() $A.RemoveModuleListener(spy);
+						connection.OnDisconnected = function() {
+
+							$A.RemoveModuleListener(spy);
+							connection.Close();
+						}
 					});
 				}
 			},

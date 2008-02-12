@@ -603,6 +603,7 @@
 			delete req.Send;
 			delete req.End;
 			req.OnDisconnected && req.OnDisconnected();
+			connection.Close();
 		}
 		
 		function Send(item) connection.Write(item, true);

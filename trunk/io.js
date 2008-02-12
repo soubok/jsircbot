@@ -78,11 +78,11 @@ var io = new function() {
 
 	this.Process = function( endPredicate ) {
 		
-		while ( !endPredicate() ) {
+		do {
 		
 			Poll(_descriptorList, Math.min(_timeout.Process(), 500));
 //			_descriptorList = _descriptorList.slice();  // copy to avoid memory leaks ( bz404755 )
-		}
+		} while ( !endPredicate() );
 	}
 	
 	this.Close = function() {
@@ -93,7 +93,6 @@ var io = new function() {
 	}
 	
 	INSPECT.push(function() 'DESCRIPTORS '+_descriptorList.length+':'+[desc.peerPort+':'+desc.peerName for each ( desc in _descriptorList )].join(' ')+' ');
-	
 }
 
 /////////////////////////////////////////////////////// Assync function helpers
@@ -390,6 +389,7 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 				delete _this.Write;
 				io.RemoveDescriptor(_socket); // no more read/write notifications are needed
 				_this.OnFailed && _this.OnFailed(host, port);
+				_this.Close(); // here we close the socket unlike in this.Disconnect/Disconnected
 			}
 
 			_connectionTimeout = io.AddTimeout( timeout||5*SECOND, ConnectionFailed );
@@ -425,11 +425,13 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 	this.Close = function() {
 
 		io.RemoveDescriptor(_socket); // no more read/write notifications are needed
-		_socket.Close();
+		
+		delete _this.Disconnect;
 		delete _this.Connect;
 		delete _this.Sleep;
 		delete _this.Read;
 		delete _this.Write;
+		_socket.Close();
 	}
 
 	this.Disconnect = function() {
@@ -450,7 +452,6 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 			delete _this.peerName;
 
 			_this.OnDisconnected && _this.OnDisconnected(false); // locally disconnected  // (TBD) define an enum like LOCALLY ?
-			_socket.Close();
 		}
 		_socket.readable = Disconnected;
 		shutdownTimeout = io.AddTimeout( 2*SECOND, Disconnected ); // force disconnect after the timeout
