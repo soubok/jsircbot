@@ -794,7 +794,29 @@ function UnescapeEntities(str) str.replace(/&(.+?);/g, function(str, ent) String
 
 function EscapeEntities(str) str.replace(/[^\x20-\x7E]/g, function(str) charToEntity[str] ? '&'+charToEntity[str]+';' : str );
 
+function ObjectToSource(o) {
+	var source;
+	if ( o instanceof Array ) {
 
+		source = '[';
+		for ( var i = 0; i < o.length; i++) {
+			var val = arguments.callee(o[i]);
+			source += (i?',':'')+(val==undefined?'':val);
+		}
+		return source + ']';
+	}
+	if ( typeof(o) == 'string' )
+		return '"'+o.replace(/["\\]/g, function(c) { return '\\'+c } )+'"';
+	if ( o instanceof Object ) {
+		source = '';
+		for ( var p in o )
+			source += (source?',':'')+'"'+p+'":'+arguments.callee(o[p]);
+
+		return '{'+source+'}';
+	}
+	return o;
+}
+	
 
 /////////////////////////////////////////////////////// base64
 

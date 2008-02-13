@@ -283,12 +283,12 @@
     }
 
 
-	function ConsoleIrc(console) {
+	function TermIrc(term) {
 		
 		var _currentChan;
-		console.Send('Welcome to the IRC console<br/> HELP:<br/> /j &lt;channel&gt; : join<br/> /q : quit<br/> /names : name list<br/>');
+		term.Send('Welcome to the IRC term<br/> HELP:<br/> /j &lt;channel&gt; : join<br/> /q : quit<br/> /names : name list<br/>');
 		
-		console.OnRequest = function(data) {
+		term.OnRequest = function(data) {
 			
 			if ( !data )
 				return;
@@ -299,26 +299,26 @@
 				switch (arg[0].toLowerCase()) {
 					case 'q':
 						$A.RemoveModuleListener(listener);
-						InitConsoleSession(console);
+						InitTermSession(term);
 						break;
 					case 'j':
 						_currentChan = $A.NormalizeChannelName((arg[1][0] == '#' ? '' : '#') + arg[1]);
 						$A.Join( _currentChan );
-						console.Send('* Now talking in '+_currentChan+'<br/>');
+						term.Send('* Now talking in '+_currentChan+'<br/>');
 						break;
 					case 'names':
 						var names = '';
 						for ( let name in $D.channel[_currentChan].names )
 							names += ($A.IsVoice(_currentChan, name)?'+':'') + ($A.IsOp(_currentChan, name)?'@':'') + name + '  ';
-						console.Send(names+'<br/>');
+						term.Send(names+'<br/>');
 						break;
 					default:
-						console.Send('unknown command<br/>');
+						term.Send('unknown command<br/>');
 				}
 			} else {
 				
 				_currentChan && $A.Privmsg( _currentChan, data );
-				console.Send( '<i>'+_currentChan+'</i> &lt;'+getData($D.nick)+'&gt; '+data+'<br/>' );
+				term.Send( '<i>'+_currentChan+'</i> &lt;'+getData($D.nick)+'&gt; '+data+'<br/>' );
 			}
 		}
 
@@ -327,130 +327,148 @@
 				
 				to = $A.NormalizeChannelName(to);
 				if ( _currentChan && to == _currentChan )
-					console.Send( '<i>' + to + '</i> &lt;' + StrBefore(from, '!') +'&gt; ' + IrcTextToWeb(msg) + '<br/>' );
+					term.Send( '<i>' + to + '</i> &lt;' + StrBefore(from, '!') +'&gt; ' + IrcTextToWeb(msg) + '<br/>' );
 			}
 		}};
 		$A.AddModuleListener(listener);
-		console.OnClose = function() $A.RemoveModuleListener(listener);
+		term.OnClose = function() $A.RemoveModuleListener(listener);
 	}
 
 
-	function InitConsoleSession(console) {
+	function InitTermSession(term) {
 		
-		console.Send('Login as: ');
-		console.OnRequest = function(data) {
+		term.Send('Login as: ');
+		term.OnRequest = function(data) {
 			
-			console.Send(data+'<br/>password: ');
-			console.OnRequest = function(data) {
+			term.Send(data+'<br/>password: ');
+			term.OnRequest = function(data) {
 				
-				console.Send(StringRepeat('*', data.length)+'<br/><br/>');
-				if ( data == getData($MD.consolePasword) ) {
+				term.Send(StringRepeat('*', data.length)+'<br/><br/>');
+				if ( data == getData($MD.termPasword) ) {
 					
-					ConsoleIrc(console);
+					TermIrc(term);
 				} else {
-					console.Send('<span style="color:red">Invalid password, bye.</span><br/>');
-					console.Close();
+					term.Send('<span style="color:red">Invalid password, bye.</span><br/>');
+					term.Close();
 				}
 			}
 		}
-		console.OnClose = Noop;
+		term.OnClose = Noop;
 	}
 
 
 
-	function InitConsoleSession(console) {
+	function InitTermSession(term) {
 		
 		var i = 0;
-		console.Send('Ready.<br/>');
+		term.Send('Ready.<br/>');
 		io.AddTimeout( 1000, function() {
 		
-			console.Send && console.Send(i+'<br/>');
-			io.AddTimeout( 1000, arguments.callee );
+			term.Send && term.Send(i+'<br/>');
+			io.AddTimeout( 3000, arguments.callee );
 			i++;
 		});
 
-		console.OnRequest = function(data) {
+		term.OnRequest = function(data) {
 			
 			if ( data == 'red' ) {
-				console.Send('#in { color: red }', 'text/css');
+				term.Send('#in { color: red }', 'text/css');
 			}
 			
-			console.Send('<br/>echo '+i+':'+data+'');
+			term.Send('<br/>echo '+i+':'+data+'');
 		}
 
-		console.OnClose = function() {
+		term.OnClose = function() {
 		}
 	}
 /*
 */	
 	
-	var _consoles = NewDataObj();
-//	INSPECT.push(function() 'CONSOLES '+_consoles.length+':'+[desc.peerPort+':'+desc.peerName for each ( desc in _descriptorList )].join(' ')+' ');
+	var _terms = NewDataObj();
+//	INSPECT.push(function() 'CONSOLES '+_terms.length+':'+[desc.peerPort+':'+desc.peerName for each ( desc in _descriptorList )].join(' ')+' ');
 	
-	function CloseAllConsoles() {
+	function CloseAllTerms() {
 		
-		for each ( var c in _consoles )
+		for each ( var c in _terms )
 			c.Close && c.Close();
 	}
 	
-	function ProcessConsoleAccess(req) {
+	function ProcessTermAccess(req) {
 
 		var query = ParseQueryData(req.iStatus.query);
 		var cookie = ParseCookieData(req.iHeaders.Get('Cookie'));
 		var action = query.action;
-		var console = _consoles[cookie.sid];
+		var term = _terms[cookie.sid];
 		
-		if ( !action ) { // new session ( ... && !console ??? )
-
+		if ( !action ) { // new session ( ... && !term ??? )
+			
+//			var prevHistory;
+//			if (term)
+//				prevHistory = term.history;
+			
 			let sid = RandomString(32);
 
-			_consoles[sid] = console = {};
-			console.user = {};
+			_terms[sid] = term = {};
+			term.user = {};
 
-			console.history = [];
-			console.pendingMessagesQueue = [];
-			console.Send = function(item) void console.pendingMessagesQueue.push(item);
+			term.history = [];
+			term.pendingMessagesQueue = [];
+			term.Send = function(item) void term.pendingMessagesQueue.push(item);
 			
-			console.user.Send = function(data, type) { // user.Send is  data, type  not  [data, type]
-				type = type || 'text/html';
-				if ( console.history.length > 100 )
-					console.history.shift();
-				console.history.push([data, type]);
-				console.Send([data, type]);
+			term.user.Send = function(/*...*/) { // user.Send is  data, type  not  [data, type]
+
+				if ( term.history.length > 100 )
+					term.history.shift();
+				var item = Array.slice(arguments);
+				term.history.push(item);
+				term.Send(item);
 			}
 			
-			console.user.Close = function() {
+			term.user.Close = function() {
 				
-				delete console.user.Close; // avoid Close() to be called in OnClose()
-				delete console.user.OnRequest;
-				console.user.OnClose && console.user.OnClose();
-				delete console.user.Send;
-				console.ResetTimeout();
-				delete _consoles[sid];
-				ReportNotice( 'remoteConsole' + req.peerName + ' close' );
+				delete term.user.Close; // avoid Close() to be called in OnClose()
+				delete term.user.OnRequest;
+				term.user.OnClose && term.user.OnClose();
+				delete term.user.Send;
+				term.ResetTimeout();
+				delete _terms[sid];
+				ReportNotice( 'remoteTerm' + req.peerName + ' close' );
 			}
 
-			console.ResetTimeout = function(time) {
+			term.ResetTimeout = function(time) {
 			
-				console.timeout && io.RemoveTimeout(console.timeout);
+				term.timeout && io.RemoveTimeout(term.timeout);
 				if (time)
-					console.timeout = io.AddTimeout( time, function() console.user.Close() );
+					term.timeout = io.AddTimeout( time, function() term.user.Close() );
 			}
 
-			InitConsoleSession(console.user);
 			
-			var content = new File('./webConsole.html').content; // (TBD) filename from config
+			var content = new File('./webTerm.html').content; // (TBD) filename from config
 //			req.oHeaders.Remove('Cache-Control');
 //			req.oHeaders.Remove('Expires');
 			req.oHeaders.Set('Content-Length', content.length);
 			req.oHeaders.Set('Set-Cookie', 'sid='+sid+'; path='+req.iStatus.path); // Set-Cookie: <name>=<value>[; <name>=<value>]... [; expires=<date>][; domain=<domain_name>][; path=<some_path>][; secure][; httponly]
 			req.Respond(200)(content);
 			req.End();
-			ReportNotice( 'remoteConsole' + req.peerName + ' create' );
+			ReportNotice( 'remoteTerm' + req.peerName + ' create' );
+
+			var consoleWebModule = new File('./webConsole.js').content; // (TBD) filename from config
+
+			term.user.Send( 'newModule', consoleWebModule );
+
+//			if ( prevHistory ) {
+//				
+//				for each ( let item in prevHistory )
+//					term.Send(item);
+//				delete prevHistory;
+//			}
+			
+
+			InitTermSession(term.user);
 			return;
 		}
 
-		if ( !console ) {
+		if ( !term ) {
 
 			let message = '<span style="color:red">Invalid session.</span><br/>';
 			req.oHeaders.Set('Content-Length', message.length);
@@ -460,7 +478,7 @@
 			return;
 		}
 		
-		console.ResetTimeout(getData($MD.consoleSessionTimeout));
+		term.ResetTimeout(getData($MD.termSessionTimeout));
 
 		function FormatDataBlock(queue) {
 			
@@ -472,18 +490,18 @@
 		switch (action) {
 		
 			case 'wait':
-				if ( console.pendingMessagesQueue.length ) {
+				if ( term.pendingMessagesQueue.length ) {
 
-					var data = FormatDataBlock(console.pendingMessagesQueue);
+					var data = FormatDataBlock(term.pendingMessagesQueue);
 					req.oHeaders.Set('Content-Type', 'text/json');
 					req.oHeaders.Set('Content-Length', data.length);
 					req.Respond(200)(data);
 					req.End();
-					console.Send = function(item) console.pendingMessagesQueue.push(item);
+					term.Send = function(item) term.pendingMessagesQueue.push(item);
 					return;
 				}
 
-				console.Send = function(item) {
+				term.Send = function(item) {
 
 					if ( req.Respond ) {
 
@@ -492,33 +510,33 @@
 						req.oHeaders.Set('Content-Length', data.length);
 						req.Respond(200)(data);
 						req.End();
-						console.Send = function(item) console.pendingMessagesQueue.push(item);
+						term.Send = function(item) term.pendingMessagesQueue.push(item);
 					} else
-						console.pendingMessagesQueue.push(item);
+						term.pendingMessagesQueue.push(item);
 				}
 				return;
 
 			case 'submit':
-				req.consData = '';
-				req.OnBodyData = function(buf) req.consData += buf;
+				req.termData = '';
+				req.OnBodyData = function(buf) req.termData += buf;
 				req.OnEndOfBody = function() {
 
-					ReportNotice( 'remoteConsole' + req.peerName + ' data: ' + req.consData );
-					let prevSend = console.Send;
-					console.Send = function(item) void console.pendingMessagesQueue.push(item);
-					console.user.OnRequest && console.user.OnRequest(req.consData);
-					var data = FormatDataBlock(console.pendingMessagesQueue);
+					ReportNotice( 'remoteTerm' + req.peerName + ' data: ' + req.termData );
+					let prevSend = term.Send;
+					term.Send = function(item) void term.pendingMessagesQueue.push(item);
+					term.user.OnRequest && term.user.OnRequest(req.termData);
+					var data = FormatDataBlock(term.pendingMessagesQueue);
 					req.oHeaders.Set('Content-Type', 'text/json');
 					req.oHeaders.Set('Content-Length', data.length);
 					req.Respond(200)(data);
 					req.End();
-					console.Send = prevSend;
+					term.Send = prevSend;
 				}
 				return;
 				
 			case 'history': // note that the history can be managed client-side
 				
-				var historyWithoutPendingItems = console.history.slice(0,console.history.length-console.pendingMessagesQueue.length); // remove the pending data that will be send later
+				var historyWithoutPendingItems = term.history.slice(0,term.history.length-term.pendingMessagesQueue.length); // remove the pending data that will be send later
 				var data = FormatDataBlock(historyWithoutPendingItems);
 				if ( req.iHeaders.Has('Accept-Encoding') && req.iHeaders.Get('Accept-Encoding').indexOf('deflate') != -1 ) {
 
@@ -760,11 +778,11 @@
 					
 					StartServer();
 //					$A.AddRequestHandler( /^\/dccFiles\//, ProcessFileRequest );
-					$A.AddRequestHandler( /^\/cons/, ProcessConsoleAccess );
+					$A.AddRequestHandler( /^\/cons/, ProcessTermAccess );
 				} else {
 					
 					StopServer();
-					CloseAllConsoles();
+					CloseAllTerms();
 				}
 				
 			}

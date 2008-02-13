@@ -1,0 +1,241 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+<title></title>
+<style id="style" type="text/css" rel="stylesheet"></style>
+<script type="text/javascript">
+
+var CONNECTION_ERROR = 'ce';
+var SEND_DATA = 'sd';
+var SEND_DATA_ITEM = 'sdi';
+var RECEIVE_RAW_DATA = 'rrd';
+var RECEIVE_DATA_ITEM = 'rdi';
+var INIT = 'init';
+
+var $M = {}; // modules
+var $A = {}; // public api
+
+$A.NewXMLHttpRequest = window.ActiveXObject ? function() { return new ActiveXObject('Microsoft.XMLHTTP') } : function() { return new XMLHttpRequest() };
+$A.AddEvent = window.attachEvent ? function( elt, ev, handler ) { elt.attachEvent( 'on'+ev, handler ) } : function( elt, ev, handler ) { elt.addEventListener( ev, handler, false ) };
+$A.RemoveEvent = window.detachEvent ? function( elt, ev, handler ) { elt.detachEvent( 'on'+ev, handler ) } : function( elt, ev, handler ) { elt.removeEventListener( ev, handler, false ) };
+$A.PreventDefault = function(ev) { ev.preventDefault ? ev.preventDefault() : (ev.returnValue = true) };
+$A.StopPropagation = function(ev) { ev.stopPropagation ? ev.stopPropagation() : (ev.cancelBubble = false) };
+$A.InsertHtmlBefore = function(elt, html) {
+
+	var tmp = _win.document.createElement('div');
+	tmp.innerHTML = html;
+	while ( tmp.firstChild )
+		elt.parentNode.insertBefore( tmp.firstChild, elt );
+}
+
+$A.InsertHtmlInside = function(elt, html) {
+
+	var tmp = _win.document.createElement('div');
+	tmp.innerHTML = html;
+	while ( tmp.firstChild )
+		elt.appendChild( tmp.firstChild );
+}
+
+$A.SetStyle = function(style) {
+
+	var e = _win.document.getElementById('style');
+	if ( e.styleSheet ) { // IE
+		e.styleSheet.cssText = style;
+		_win.resizeBy(0,-1); _win.resizeBy(0,1); // force GUI refresh
+	} else  {
+		for( ;e.firstChild; e.removeChild(e.firstChild)); // cleanup
+		e.appendChild(_win.document.createTextNode(style)); // || firefox: e.innerHTML = style;
+	}
+}
+
+$A.SetTitle = function(title) {
+
+	_win.document.title = title + ' - ';
+}
+
+$A.HttpRequest = function() {
+
+	var _this = this;
+	var _xhr = new XMLHttpRequest();
+	this.Ready = function() {
+
+		return _xhr.readyState == 0 || _xhr.readyState == 4;
+	}
+
+	this.Abort = function() {
+
+		if ( this.Ready() )
+			return;
+		if ( 'abort' in _xhr )
+			_xhr.abort();
+		else
+			_xhr.open( 'GET', 'about:blank', false );
+	}
+
+	this.Send = function(url, data, type, sync) {
+
+		try {
+			_xhr.open( data == undefined ? 'GET' : 'POST', url, !sync );
+
+			if ( !sync ) {
+				_xhr.onreadystatechange = function() {
+
+					try {
+						if ( _xhr.readyState != 4 )
+							return;
+						if ( _xhr.status != 200 )
+							throw Error();
+						else
+							_this.OnResponse && _this.OnResponse(true, _xhr.responseText, _xhr.getResponseHeader('Content-Type'));
+					} catch(ex) { _this.OnResponse && _this.OnResponse(false) }
+				}
+			}
+			if (type != undefined)
+				_xhr.setRequestHeader('Content-Type', type);
+			_xhr.send(data == undefined ? null : data);
+			if ( sync && _xhr.status == 200 )
+				return _xhr.responseText;
+
+		} catch(ex) { _this.OnResponse && _this.OnResponse(false) }
+	}
+}
+
+$A.AddModule = function(moduleConstructor, id) {
+
+	if ( !arguments.callee.moduleId )
+		arguments.callee.moduleId = 1;
+	id = id || arguments.callee.moduleId++;
+	$M[id] = new moduleConstructor($A);
+	return $M[id].id = id;
+}
+
+$A.RemoveModule = function(id) {
+
+	delete $M[id];
+}
+
+$A.DispatchEvent = function(eventName, data) {
+
+	for ( var moduleName in $M )
+		$M[moduleName][eventName] && $M[moduleName][eventName].apply(this, arguments);
+}
+
+function CoreModule($A) {
+
+	function ObjectToSource(o) {
+
+		var source;
+		if ( o instanceof Array ) {
+
+			source = '[';
+			for ( var i = 0; i < o.length; i++) {
+				var val = arguments.callee(o[i]);
+				source += (i?',':'')+(val==undefined?'':val);
+			}
+			return source + ']';
+		}
+		if ( typeof(o) == 'string' )
+			return '"'+o.replace(/["\\]/g, function(c) { return '\\'+c } )+'"'; //'
+		if ( o instanceof Object ) {
+			source = '';
+			for ( var p in o )
+				source += (source?',':'')+'"'+p+'":'+arguments.callee(o[p]);
+
+			return '{'+source+'}';
+		}
+		return o;
+	}
+
+	var sendingQueue = [];
+
+	var xhr = new $A.HttpRequest();
+
+	xhr.OnResponse = function(status, data, type) {
+
+		if ( status ) {
+
+			$A.DispatchEvent(RECEIVE_RAW_DATA, data);
+
+			if ( sendingQueue.length ) {
+
+				xhr.Send('?action=submit', ObjectToSource(sendingQueue), 'text/json');
+				sendingQueue.splice(0);
+			}
+		} else
+			$A.DispatchEvent(CONNECTION_ERROR);
+	}
+
+	this[SEND_DATA_ITEM] = function(eventName, item) {
+
+		if ( !xhr.Ready() ) {
+			sendingQueue.push(item);
+		} else {
+			if ( sendingQueue.length ) {
+				sendingQueue.push(item);
+				xhr.Send('?action=submit', ObjectToSource(sendingQueue), 'text/json');
+				sendingQueue.splice(0);
+			} else {
+				xhr.Send('?action=submit', ObjectToSource([item]), 'text/json');
+			}
+		}
+	}
+
+	this[SEND_DATA] = function(eventName /*, ...*/) {
+
+		var item = [];
+		for ( var i=1; i<arguments.length; i++ ) // [0] is the name of the event
+			item.push(arguments[i]);
+		$A.DispatchEvent(SEND_DATA_ITEM, item);
+	}
+
+
+	var pxhr = new $A.HttpRequest();
+
+	function StartPendingRequest() {
+
+		pxhr.Send('?action=wait', null);
+	}
+
+	pxhr.OnResponse = function(status, data, type) {
+
+		if ( status ) {
+			$A.DispatchEvent(RECEIVE_RAW_DATA, data);
+			StartPendingRequest();
+		} else
+			$A.DispatchEvent(CONNECTION_ERROR);
+	}
+
+	StartPendingRequest();
+
+	this[RECEIVE_RAW_DATA] = function(eventName, data, type) {
+
+		if ( type != 'text/json' )
+			return;
+		try {
+			var itemList = eval('('+data+')');
+		} catch(ex) {}
+		for ( var i in itemList )
+			DispatchEvent.apply(this, [RECEIVE_DATA_ITEM].concat(itemList[i]));
+	}
+
+	this[RECEIVE_DATA_ITEM] = function( _, type, data ) {
+
+		if ( type == 'newModule' )
+			$A.AddModule(data)
+	}
+}
+
+
+var _body, _html, _win;
+
+$A.AddEvent( window, 'load', function() {
+
+	_win = window;
+	_body = _win.document.body;
+	_html = _win.document.documentElement;
+	$A.AddModule(CoreModule);
+	$A.DispatchEvent(INIT);
+});
+</script>
+</head><body></body>
+</html>
