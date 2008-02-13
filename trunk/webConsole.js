@@ -1,19 +1,3 @@
-/*
-<style type="text/css" title="terminal" rel="stylesheet"></style>
-<style type="text/css" title="console" rel="alternate stylesheet" disabled="disabled">
-body {
-	border-bottom: 20px solid black;
-}
-#in {
-	position: fixed;
-	bottom: 0px;
-	left: 0px;
-	border-top: 2px solid #666;
-	background-color: #111;
-}
-</style>
-*/
-
 function Console($A) {
 
 	function StripHTML(html) { return html.replace( /<(.|\n)+?>/mg, ' ').replace( /[ \n]+/g, ' ') }
@@ -41,10 +25,9 @@ function Console($A) {
 		Cout('<span style="color:red">Connection closed</span><br/>');
 	}
 
-	this[RECEIVE_DATA_ITEM] = function(_, type, html) {
+	this.cout = function(_, html) {
 		
-		if ( type == 'console' )
-			Cout(html);
+		Cout(html);
 	}
 
 	var stack = [''], stackp = 0;
@@ -75,7 +58,7 @@ function Console($A) {
 					stack[0] = '';
 				else
 					stack.unshift('');
-				$A.DispatchEvent(SEND_DATA, 'console', _in.value);
+				$A.Send('cin', _in.value);
 				_in.value = '';
 				_in.focus();
 				break;
@@ -121,3 +104,19 @@ function Console($A) {
 //	ProcessResponse( new HttpRequest().Send('?action=history', undefined, undefined, true) , 'text/json');
 	_in.focus();
 }
+
+/*
+<style type="text/css" title="terminal" rel="stylesheet"></style>
+<style type="text/css" title="console" rel="alternate stylesheet" disabled="disabled">
+body {
+	border-bottom: 20px solid black;
+}
+#in {
+	position: fixed;
+	bottom: 0px;
+	left: 0px;
+	border-top: 2px solid #666;
+	background-color: #111;
+}
+</style>
+*/

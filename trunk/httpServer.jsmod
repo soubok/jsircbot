@@ -361,7 +361,7 @@
 	function InitTermSession(term) {
 		
 		var i = 0;
-		term.Send('Ready.<br/>');
+		term.Send('cout','Ready.<br/>');
 		io.AddTimeout( 1000, function() {
 		
 			term.Send && term.Send(i+'<br/>');
@@ -375,7 +375,7 @@
 				term.Send('#in { color: red }', 'text/css');
 			}
 			
-			term.Send('<br/>echo '+i+':'+data+'');
+			term.Send('cout','<br/>echo '+i+':'+data+'');
 		}
 
 		term.OnClose = function() {
@@ -454,7 +454,7 @@
 
 			var consoleWebModule = new File('./webConsole.js').content; // (TBD) filename from config
 
-			term.user.Send( 'newModule', consoleWebModule );
+			term.user.Send( 'AddModule', 'console', { toSource:function() consoleWebModule } );
 
 //			if ( prevHistory ) {
 //				
@@ -505,8 +505,8 @@
 
 					if ( req.Respond ) {
 
-						let [data, type] = item;
-						req.oHeaders.Set('Content-Type', type);
+						var data = FormatDataBlock(term.pendingMessagesQueue);
+						req.oHeaders.Set('Content-Type', 'text/json');
 						req.oHeaders.Set('Content-Length', data.length);
 						req.Respond(200)(data);
 						req.End();
