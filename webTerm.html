@@ -5,12 +5,7 @@
 <style id="style" type="text/css" rel="stylesheet"></style>
 <script type="text/javascript">
 
-var CONNECTION_ERROR = 'ce';
-var SEND_DATA = 'sd';
-var SEND_DATA_ITEM = 'sdi';
-var RECEIVE_RAW_DATA = 'rrd';
-var RECEIVE_DATA_ITEM = 'rdi';
-var INIT = 'init';
+var CONNECTION_ERROR = 'CONNECTION_ERROR';
 
 var $M = {}; // modules
 var $A = {}; // public api
@@ -56,45 +51,45 @@ $A.SetTitle = function(title) {
 $A.HttpRequest = function() {
 
 	var _this = this;
-	var _xhr = new XMLHttpRequest();
+	var xhr = new XMLHttpRequest();
 	this.Ready = function() {
 
-		return _xhr.readyState == 0 || _xhr.readyState == 4;
+		return xhr.readyState == 0 || xhr.readyState == 4;
 	}
 
 	this.Abort = function() {
 
 		if ( this.Ready() )
 			return;
-		if ( 'abort' in _xhr )
-			_xhr.abort();
+		if ( 'abort' in xhr )
+			xhr.abort();
 		else
-			_xhr.open( 'GET', 'about:blank', false );
+			xhr.open( 'GET', 'about:blank', false );
 	}
 
 	this.Send = function(url, data, type, sync) {
 
 		try {
-			_xhr.open( data == undefined ? 'GET' : 'POST', url, !sync );
+			xhr.open( data == undefined ? 'GET' : 'POST', url, !sync );
 
 			if ( !sync ) {
-				_xhr.onreadystatechange = function() {
+				xhr.onreadystatechange = function() {
 
 					try {
-						if ( _xhr.readyState != 4 )
+						if ( xhr.readyState != 4 )
 							return;
-						if ( _xhr.status != 200 )
+						if ( xhr.status != 200 )
 							throw Error();
 						else
-							_this.OnResponse && _this.OnResponse(true, _xhr.responseText, _xhr.getResponseHeader('Content-Type'));
+							_this.OnResponse && _this.OnResponse(true, xhr.responseText, xhr.getResponseHeader('Content-Type'));
 					} catch(ex) { _this.OnResponse && _this.OnResponse(false) }
 				}
 			}
 			if (type != undefined)
-				_xhr.setRequestHeader('Content-Type', type);
-			_xhr.send(data == undefined ? null : data);
-			if ( sync && _xhr.status == 200 )
-				return _xhr.responseText;
+				xhr.setRequestHeader('Content-Type', type);
+			xhr.send(data == undefined ? null : data);
+			if ( sync && xhr.status == 200 )
+				return xhr.responseText;
 
 		} catch(ex) { _this.OnResponse && _this.OnResponse(false) }
 	}
@@ -114,114 +109,110 @@ $A.RemoveModule = function(id) {
 	delete $M[id];
 }
 
-$A.DispatchEvent = function(eventName, data) {
+$A.Dispatch = function(name) {
 
 	for ( var moduleName in $M )
-		$M[moduleName][eventName] && $M[moduleName][eventName].apply(this, arguments);
+		$M[moduleName][name] && $M[moduleName][name].apply(this, arguments);
 }
 
 function CoreModule($A) {
 
 	function ObjectToSource(o) {
 
-		var source;
+		var source = '';
 		if ( o instanceof Array ) {
 
-			source = '[';
 			for ( var i = 0; i < o.length; i++) {
 				var val = arguments.callee(o[i]);
 				source += (i?',':'')+(val==undefined?'':val);
 			}
-			return source + ']';
+			return '['+source+']';
 		}
 		if ( typeof(o) == 'string' )
 			return '"'+o.replace(/["\\]/g, function(c) { return '\\'+c } )+'"'; //'
 		if ( o instanceof Object ) {
-			source = '';
+
 			for ( var p in o )
 				source += (source?',':'')+'"'+p+'":'+arguments.callee(o[p]);
-
 			return '{'+source+'}';
 		}
 		return o;
 	}
 
+	function SourceToObject(s) {
+
+		try {
+			return eval('('+s+')');
+		} catch(ex) {}
+	}
+
+	function DispatchResponse(data, type) {
+
+		var obj = SourceToObject(data);
+		if ( type != 'text/json' && !(obj instanceof Array) )
+			return;
+
+		for ( var i in obj )
+			$A.Dispatch.apply(this, obj[i]);
+	}
+
+
 	var sendingQueue = [];
 
-	var xhr = new $A.HttpRequest();
+	var outputHttpRequest = new $A.HttpRequest();
 
-	xhr.OnResponse = function(status, data, type) {
+	outputHttpRequest.OnResponse = function(status, data, type) {
 
 		if ( status ) {
 
-			$A.DispatchEvent(RECEIVE_RAW_DATA, data);
-
-			if ( sendingQueue.length ) {
-
-				xhr.Send('?action=submit', ObjectToSource(sendingQueue), 'text/json');
-				sendingQueue.splice(0);
-			}
+			DispatchResponse(data);
+			$A.Send();
 		} else
-			$A.DispatchEvent(CONNECTION_ERROR);
+			$A.Dispatch(CONNECTION_ERROR);
 	}
 
-	this[SEND_DATA_ITEM] = function(eventName, item) {
+	$A.Send = function(/*...*/) {
 
-		if ( !xhr.Ready() ) {
+		if ( arguments.length ) {
+
+			var item = [];
+			for ( var i=0; i<arguments.length; i++ )
+				item.push(arguments[i]);
 			sendingQueue.push(item);
-		} else {
-			if ( sendingQueue.length ) {
-				sendingQueue.push(item);
-				xhr.Send('?action=submit', ObjectToSource(sendingQueue), 'text/json');
-				sendingQueue.splice(0);
-			} else {
-				xhr.Send('?action=submit', ObjectToSource([item]), 'text/json');
-			}
+		}
+
+		if ( !outputHttpRequest.Ready() )
+			return;
+
+		if ( sendingQueue.length ) {
+
+			outputHttpRequest.Send('?action=submit', ObjectToSource(sendingQueue), 'text/json');
+			sendingQueue.splice(0);
 		}
 	}
 
-	this[SEND_DATA] = function(eventName /*, ...*/) {
-
-		var item = [];
-		for ( var i=1; i<arguments.length; i++ ) // [0] is the name of the event
-			item.push(arguments[i]);
-		$A.DispatchEvent(SEND_DATA_ITEM, item);
-	}
-
-
-	var pxhr = new $A.HttpRequest();
+	var inputHttpRequest = new $A.HttpRequest();
 
 	function StartPendingRequest() {
 
-		pxhr.Send('?action=wait', null);
+		inputHttpRequest.Send('?action=wait', null);
 	}
 
-	pxhr.OnResponse = function(status, data, type) {
+	inputHttpRequest.OnResponse = function(status, data, type) {
 
 		if ( status ) {
-			$A.DispatchEvent(RECEIVE_RAW_DATA, data);
+
+			DispatchResponse(data);
 			StartPendingRequest();
 		} else
-			$A.DispatchEvent(CONNECTION_ERROR);
+			$A.Dispatch(CONNECTION_ERROR);
 	}
 
 	StartPendingRequest();
 
-	this[RECEIVE_RAW_DATA] = function(eventName, data, type) {
+	this.AddModule = function( tmp, moduleName, module ) {
 
-		if ( type != 'text/json' )
-			return;
-		try {
-			var itemList = eval('('+data+')');
-		} catch(ex) {}
-		for ( var i in itemList )
-			DispatchEvent.apply(this, [RECEIVE_DATA_ITEM].concat(itemList[i]));
-	}
-
-	this[RECEIVE_DATA_ITEM] = function( _, type, data ) {
-
-		if ( type == 'newModule' )
-			$A.AddModule(data)
+		$A.AddModule(module, moduleName);
 	}
 }
 
@@ -234,7 +225,6 @@ $A.AddEvent( window, 'load', function() {
 	_body = _win.document.body;
 	_html = _win.document.documentElement;
 	$A.AddModule(CoreModule);
-	$A.DispatchEvent(INIT);
 });
 </script>
 </head><body></body>
