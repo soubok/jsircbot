@@ -63,7 +63,7 @@ var io = new function() {
 			return _min - now;
 		}
 		
-		INSPECT.push(function() let ( now=IntervalNow() ) 'TIMEOUT '+[(date-now)+':'+fct.name for ( [date,fct] in Iterator(_tlist) )].join(' ')+' MIN='+(_min-now)+'');
+		INSPECT.push(function() let ( now=IntervalNow() ) 'TIMEOUT '+_tlist.__count__+': '+[(date-now)+':'+fct.name for ( [date,fct] in Iterator(_tlist) )].join(' ')+' MIN='+(_min-now)+'');
 	}
 
 	var _descriptorList = [];
@@ -85,14 +85,16 @@ var io = new function() {
 		} while ( !endPredicate() );
 	}
 	
+	this.GetDescriptorCount = function() _descriptorList.length;
+	
 	this.Close = function() {
-		
+
 		for each ( let d in _descriptorList )
 			d.Close();
-		return _descriptorList.splice(0).length; // empty the descriptor list and returns the count of remaining open descriptor
+		_descriptorList.splice(0);
 	}
-	
-	INSPECT.push(function() 'DESCRIPTORS '+_descriptorList.length+':'+[desc.peerPort+':'+desc.peerName for each ( desc in _descriptorList )].join(' ')+' ');
+
+	INSPECT.push(function() 'DESCRIPTORS '+_descriptorList.length+': '+[desc.sockName+':'+desc.sockPort+'-'+desc.peerPort+':'+desc.peerName for each ( desc in _descriptorList )].join('  ')+' ');
 }
 
 /////////////////////////////////////////////////////// Assync function helpers
@@ -374,7 +376,7 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 		
 		this.Connect = function( timeout ) {
 		
-			DBG && ReportNotice( 'TCP CONNECTING TO: '+host+':'+port );
+			ReportNotice( 'TCP CONNECTING TO: '+host+':'+port );
 
 			delete _this.Connect;
 
@@ -411,7 +413,7 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 	
 	this.Sleep = function(time) {
 		
-		// (TBD) use  io.RemoveDescriptor(_socket); / io.AddDescriptor instead  but beware Close and Disconnect !
+		// (TBD) use  io.RemoveDescriptor(_socket); / io.AddDescriptor instead ???  but beware Close and Disconnect 
 		var prev = [ arguments.callee, _socket.readable, _socket.writable ];
 		delete _this.Sleep;
 		delete _socket.readable;
@@ -550,9 +552,22 @@ function TCPServer( portRange, ip, backlog ) {
 	_socket.readable = function(s) {
 		
 		var incomingConnection = s.Accept();
-		DBG && ReportNotice( 'TCP CONNECTION REQUEST on '+incomingConnection.sockPort+' from '+incomingConnection.peerName );
+		ReportNotice( 'TCP CONNECTION REQUEST on '+incomingConnection.sockPort+' from '+incomingConnection.peerName );
 		_this.OnIncoming(new TCPConnection(incomingConnection));
 	}
+
+	this.Sleep = function(time) {
+
+		// (TBD) use  io.RemoveDescriptor(_socket); / io.AddDescriptor instead ??? but beware Close and Disconnect !
+		var prev = [ arguments.callee, _socket.readable ];
+		delete _this.Sleep;
+		delete _socket.readable;
+		io.AddTimeout( time, function() {
+			
+			[ _this.Sleep, _socket.readable ] = prev;
+		});
+	}
+
 	this.Close = function() {
 
 		io.RemoveDescriptor(_socket);

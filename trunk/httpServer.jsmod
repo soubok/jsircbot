@@ -208,44 +208,45 @@
 	}
 
 
-	function ProcessFileRequest( iStatus, iHeaders, oHeaders, Respond ) {
+	function ProcessFileRequest(req) {
 
 		var root='./';
 		var data = '';
 		
-		var fileName = root + NormalizePath(iStatus.path);
+		var fileName = root + NormalizePath(req.iStatus.path);
 		var file = new File( fileName );
 		if ( !file.exist || file.info.type != File.FILE_FILE ) {
 
 			var message = 'file '+fileName+' not found';
-			oHeaders.Set('Content-Length', message.length);
-			oHeaders.Set('Content-Type', 'text/plain');
-			Respond(404)(message);
+			req.oHeaders.Set('Content-Length', message.length);
+			req.oHeaders.Set('Content-Type', 'text/plain');
+			req.Respond(404)(message);
 			return;
 		}
 		
-		this.OnBodyData = function(buf) data += buf;
+		req.OnBodyData = function(buf) data += buf;
 
-		this.OnEndOfBody = function() {
+		req.OnEndOfBody = function() {
 
-			oHeaders.Set('Content-Type', MimeTypeByFileName(fileName));
+			req.oHeaders.Set('Content-Type', MimeTypeByFileName(fileName));
 
 			var useChunksEncoding = false;
-			if (iStatus.protoVersion >= 1.1) {
+			if (req.iStatus.protoVersion >= 1.1) {
 			
 				useChunksEncoding = true;				
-				oHeaders.Set('Transfer-Encoding', 'chunked');
+				req.oHeaders.Set('Transfer-Encoding', 'chunked');
 			}
 
 			var ContentEncoding = Identity;
-			if ( iHeaders.Has('Accept-Encoding') && iHeaders.Get('Accept-Encoding').indexOf('deflate') != -1 ) {
+			if ( req.iHeaders.Has('Accept-Encoding') && req.iHeaders.Get('Accept-Encoding').indexOf('deflate') != -1 ) {
 
-				oHeaders.Set('Content-Encoding', 'deflate');
+				req.oHeaders.Set('Content-Encoding', 'deflate');
 				ContentEncoding = new Z(Z.DEFLATE);
 			}
 
 			file.Open( File.RDONLY );
-			Respond(200)( function() {
+			req.Respond(200);
+			req.Send( function() {
 
 				var data = file.Read(Z.idealInputLength);
 				if ( data.length ) {
@@ -256,13 +257,22 @@
 					else
 						return [ data ];
 				}
+				data = ContentEncoding();
+				if ( useChunksEncoding )
+					return [ data.length.toString(16) + CRLF, data, CRLF ];
+				else
+					return [ data ];
+					
 				file.Close();
 				return false;
-			} );
+			}, true );
 			if ( useChunksEncoding )
-				res( '0' + CRLF + CRLF );
+				req.Send( '0' + CRLF + CRLF, true );
 		}
 	}
+
+
+
 	
     function IrcTextToWeb(text) {
         
@@ -360,22 +370,26 @@
 
 	function InitTermSession(term) {
 		
-		var i = 0;
+		var i = 0, j = 0;
 		term.Send('cout','Ready.<br/>');
 		io.AddTimeout( 1000, function() {
 		
-			term.Send && term.Send(i+'<br/>');
+			term.Send && term.Send('cout', i+'<br/>');
 			io.AddTimeout( 3000, arguments.callee );
 			i++;
 		});
 
-		term.OnRequest = function(data) {
+		term.OnRequest = function(name, data) {
 			
+			if ( name != 'cin' )
+				return;
+			
+			j++;
 			if ( data == 'red' ) {
 				term.Send('#in { color: red }', 'text/css');
 			}
 			
-			term.Send('cout','<br/>echo '+i+':'+data+'');
+			term.Send('cout','echo '+j+':'+data+'<br/>');
 		}
 
 		term.OnClose = function() {
@@ -383,14 +397,18 @@
 	}
 /*
 */	
+
+
+
+
 	
 	var _terms = NewDataObj();
 //	INSPECT.push(function() 'CONSOLES '+_terms.length+':'+[desc.peerPort+':'+desc.peerName for each ( desc in _descriptorList )].join(' ')+' ');
 	
 	function CloseAllTerms() {
-		
+
 		for each ( var c in _terms )
-			c.Close && c.Close();
+			c.pub.Close && c.pub.Close();
 	}
 	
 	function ProcessTermAccess(req) {
@@ -407,29 +425,24 @@
 //				prevHistory = term.history;
 			
 			let sid = RandomString(32);
+			_terms[sid] = term = { pub:{}, history:[], pendingMessagesQueue:[] };
 
-			_terms[sid] = term = {};
-			term.user = {};
-
-			term.history = [];
-			term.pendingMessagesQueue = [];
-			term.Send = function(item) void term.pendingMessagesQueue.push(item);
-			
-			term.user.Send = function(/*...*/) { // user.Send is  data, type  not  [data, type]
+			term.pub.Send = function(/*...*/) { // pub.Send is  data, type  not  [data, type]
 
 				if ( term.history.length > 100 )
 					term.history.shift();
 				var item = Array.slice(arguments);
 				term.history.push(item);
-				term.Send(item);
+				term.pendingMessagesQueue.push(item);
+				term.Send && term.Send();
 			}
 			
-			term.user.Close = function() {
+			term.pub.Close = function() {
 				
-				delete term.user.Close; // avoid Close() to be called in OnClose()
-				delete term.user.OnRequest;
-				term.user.OnClose && term.user.OnClose();
-				delete term.user.Send;
+				delete term.pub.Close; // avoid Close() to be called in OnClose()
+				delete term.pub.OnRequest;
+				term.pub.OnClose && term.pub.OnClose();
+				delete term.pub.Send;
 				term.ResetTimeout();
 				delete _terms[sid];
 				ReportNotice( 'remoteTerm' + req.peerName + ' close' );
@@ -439,13 +452,11 @@
 			
 				term.timeout && io.RemoveTimeout(term.timeout);
 				if (time)
-					term.timeout = io.AddTimeout( time, function() term.user.Close() );
+					term.timeout = io.AddTimeout( time, function() term.pub.Close() );
 			}
-
 			
 			var content = new File('./webTerm.html').content; // (TBD) filename from config
-//			req.oHeaders.Remove('Cache-Control');
-//			req.oHeaders.Remove('Expires');
+			req.oHeaders.Set('cache-control', 'no-store'); // cf. http://developer.mozilla.org/en/docs/Using_Firefox_1.5_caching
 			req.oHeaders.Set('Content-Length', content.length);
 			req.oHeaders.Set('Set-Cookie', 'sid='+sid+'; path='+req.iStatus.path); // Set-Cookie: <name>=<value>[; <name>=<value>]... [; expires=<date>][; domain=<domain_name>][; path=<some_path>][; secure][; httponly]
 			req.Respond(200)(content);
@@ -454,7 +465,7 @@
 
 			var consoleWebModule = new File('./webConsole.js').content; // (TBD) filename from config
 
-			term.user.Send( 'AddModule', 'console', { toSource:function() consoleWebModule } );
+			term.pub.Send( 'AddModule', consoleWebModule );
 
 //			if ( prevHistory ) {
 //				
@@ -462,14 +473,12 @@
 //					term.Send(item);
 //				delete prevHistory;
 //			}
-			
-
-			InitTermSession(term.user);
+			InitTermSession(term.pub);
 			return;
 		}
 
 		if ( !term ) {
-
+			
 			let message = '<span style="color:red">Invalid session.</span><br/>';
 			req.oHeaders.Set('Content-Length', message.length);
 			req.oHeaders.Set('Connection', 'close'); // needed to ignore request body !! else, we need to read it !
@@ -480,76 +489,62 @@
 		
 		term.ResetTimeout(getData($MD.termSessionTimeout));
 
-		function FormatDataBlock(queue) {
-			
-			var tmp = queue.toSource();
-			queue.splice(0);
-			return tmp;
+		function SendItemList(req, itemList) {
+
+			var data = EncodeArray([ EncodeArray(item) for each (item in itemList) ]);
+			itemList.splice(0);
+			if ( data.length >= 128 && req.iHeaders.Has('Accept-Encoding') && req.iHeaders.Get('Accept-Encoding').indexOf('deflate') != -1 ) {
+
+				req.oHeaders.Set('Content-Encoding', 'deflate');
+				data = new Z(Z.DEFLATE)(data, true);
+			}
+			req.oHeaders.Set('Content-Type', 'application/x-www-form-urlencoded');
+			req.oHeaders.Set('Content-Length', data.length);
+			req.Respond(200)(data);
+			req.End();
 		}
 		
 		switch (action) {
 		
 			case 'wait':
 				if ( term.pendingMessagesQueue.length ) {
-
-					var data = FormatDataBlock(term.pendingMessagesQueue);
-					req.oHeaders.Set('Content-Type', 'text/json');
-					req.oHeaders.Set('Content-Length', data.length);
-					req.Respond(200)(data);
-					req.End();
-					term.Send = function(item) term.pendingMessagesQueue.push(item);
+					
+					SendItemList(req, term.pendingMessagesQueue);
+					delete term.Send;
 					return;
 				}
-
 				term.Send = function(item) {
 
-					if ( req.Respond ) {
-
-						var data = FormatDataBlock(term.pendingMessagesQueue);
-						req.oHeaders.Set('Content-Type', 'text/json');
-						req.oHeaders.Set('Content-Length', data.length);
-						req.Respond(200)(data);
-						req.End();
-						term.Send = function(item) term.pendingMessagesQueue.push(item);
-					} else
-						term.pendingMessagesQueue.push(item);
+					req.Respond && SendItemList(req, term.pendingMessagesQueue);
+					delete term.Send;
 				}
 				return;
 
 			case 'submit':
-				req.termData = '';
-				req.OnBodyData = function(buf) req.termData += buf;
+				req._termData = '';
+				req.OnBodyData = function(buf) req._termData += buf;
 				req.OnEndOfBody = function() {
 
-					ReportNotice( 'remoteTerm' + req.peerName + ' data: ' + req.termData );
-					let prevSend = term.Send;
-					term.Send = function(item) void term.pendingMessagesQueue.push(item);
-					term.user.OnRequest && term.user.OnRequest(req.termData);
-					var data = FormatDataBlock(term.pendingMessagesQueue);
-					req.oHeaders.Set('Content-Type', 'text/json');
-					req.oHeaders.Set('Content-Length', data.length);
-					req.Respond(200)(data);
-					req.End();
+					ReportNotice( 'remoteTerm' + req.peerName + ' data: ' + req._termData );
+					let prevSend = term.Send||undefined; // save the previous Send method because it may be a pending wait
+					delete term.Send;
+					for each ( let item in DecodeArray(req._termData) )
+						term.pub.OnRequest && term.pub.OnRequest.apply(term.pub, DecodeArray(item));
+					delete req._termData; // _termData is tmp.
+					SendItemList(req, term.pendingMessagesQueue);
 					term.Send = prevSend;
 				}
 				return;
 				
 			case 'history': // note that the history can be managed client-side
-				
 				var historyWithoutPendingItems = term.history.slice(0,term.history.length-term.pendingMessagesQueue.length); // remove the pending data that will be send later
-				var data = FormatDataBlock(historyWithoutPendingItems);
-				if ( req.iHeaders.Has('Accept-Encoding') && req.iHeaders.Get('Accept-Encoding').indexOf('deflate') != -1 ) {
-
-					req.oHeaders.Set('Content-Encoding', 'deflate');
-					data = new Z(Z.DEFLATE)(data);
-				}
-				req.oHeaders.Set('Content-Type', 'text/json');
-				req.oHeaders.Set('Content-Length', data.length);
-				req.Respond(200)(data);
-				req.End();
+				SendItemList(req, historyWithoutPendingItems);
 				return;
 		}
 	}
+
+
+
 
 
 
@@ -629,8 +624,19 @@
 		function ProcessHttpHeader() {
 			
 			OnData = arguments.callee;
+
+			if ( input.length > 8*KILOBYTE ) { // invalid headers size
+				
+				ResetTimeout();
+				connection.Close();
+				ReportWarning( _name + ' incoming HTTP request header too long ('+input.length+')' )
+//				connection.Disconnect(); // (TBD) should be less gentle
+				return;
+			}	
+
 			if ( input.IndexOf(CRLF+CRLF) == -1 )
 				return;
+
 			ResetTimeout(getData($MD.connectionKeepAliveTimeout));
 			delete req.Respond; // the previous request is dead, references on it are legal but useless
 			delete req.Send;
@@ -745,12 +751,19 @@
 		serverConnection = new TCPServer( getData($MD.port), getData($MD.bind), getData($MD.socketBackLog) );
 		serverConnection.OnIncoming = function(connection) {
 		
-			if ( totalConnectionCount <= getData($MD.maxConnections) && incomingConnectionRatePerPeer.Inc(connection.peerName, 1) )
+			if ( totalConnectionCount <= getData($MD.maxConnections) && incomingConnectionRatePerPeer.Inc(connection.peerName, 1) ) {
+			
 				ProcessHttpConnection(connection);
-			else {
-
-//				connection.Write('HTTP/1.0 503 Service Unavailable'+CRLF+CRLF); // (TBD) return error 503
-				connection.Close(); // hard close. 
+			} else {
+			
+				if ( incomingConnectionRatePerPeer.Ratio(connection.peerName) < 2 ) {
+	
+					connection.Write('HTTP/1.1 503 Service Unavailable'+CRLF+'Retry-After: 2'+CRLF+'Connection: close'+CRLF+CRLF, true); // warning
+					connection.Write(function() connection.Disconnect());
+					return;
+				}
+				connection.Close(); // hard close.
+				serverConnection.Sleep(500); // ignore incomming connections for a while
 			}
 		}
 	}
@@ -777,11 +790,14 @@
 				if (polarity) {
 					
 					StartServer();
-//					$A.AddRequestHandler( /^\/dccFiles\//, ProcessFileRequest );
+//					$A.AddRequestHandler( /^\/doc\//, ProcessFileRequest );
 					$A.AddRequestHandler( /^\/cons/, ProcessTermAccess );
 				} else {
 					
 					StopServer();
+
+					//CloseHttpConnections(); // (TBD)
+
 					CloseAllTerms();
 				}
 				
