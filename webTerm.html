@@ -7,17 +7,18 @@
 
 var CONNECTION_ERROR = 'CONNECTION_ERROR';
 
+var _body, _html, _doc, _win;
 var $M = {}; // modules
 var $A = {}; // public api
 
-$A.NewXMLHttpRequest = window.ActiveXObject ? function() { return new ActiveXObject('Microsoft.XMLHTTP') } : function() { return new XMLHttpRequest() };
+$A.NewXMLHttpRequest = window.ActiveXObject ? function() { return new _win.ActiveXObject('Microsoft.XMLHTTP') } : function() { return new _win.XMLHttpRequest() };
 $A.AddEvent = window.attachEvent ? function( elt, ev, handler ) { elt.attachEvent( 'on'+ev, handler ) } : function( elt, ev, handler ) { elt.addEventListener( ev, handler, false ) };
 $A.RemoveEvent = window.detachEvent ? function( elt, ev, handler ) { elt.detachEvent( 'on'+ev, handler ) } : function( elt, ev, handler ) { elt.removeEventListener( ev, handler, false ) };
 $A.PreventDefault = function(ev) { ev.preventDefault ? ev.preventDefault() : (ev.returnValue = true) };
 $A.StopPropagation = function(ev) { ev.stopPropagation ? ev.stopPropagation() : (ev.cancelBubble = false) };
 $A.InsertHtmlBefore = function(elt, html) {
 
-	var tmp = _win.document.createElement('div');
+	var tmp = _doc.createElement('div');
 	tmp.innerHTML = html;
 	while ( tmp.firstChild )
 		elt.parentNode.insertBefore( tmp.firstChild, elt );
@@ -25,7 +26,7 @@ $A.InsertHtmlBefore = function(elt, html) {
 
 $A.InsertHtmlInside = function(elt, html) {
 
-	var tmp = _win.document.createElement('div');
+	var tmp = _doc.createElement('div');
 	tmp.innerHTML = html;
 	while ( tmp.firstChild )
 		elt.appendChild( tmp.firstChild );
@@ -33,19 +34,19 @@ $A.InsertHtmlInside = function(elt, html) {
 
 $A.SetStyle = function(style) {
 
-	var e = _win.document.getElementById('style');
+	var e = _doc.getElementById('style');
 	if ( e.styleSheet ) { // IE
 		e.styleSheet.cssText = style;
 		_win.resizeBy(0,-1); _win.resizeBy(0,1); // force GUI refresh
 	} else  {
 		for( ;e.firstChild; e.removeChild(e.firstChild)); // cleanup
-		e.appendChild(_win.document.createTextNode(style)); // || firefox: e.innerHTML = style;
+		e.appendChild(_doc.createTextNode(style)); // || firefox: e.innerHTML = style;
 	}
 }
 
 $A.SetTitle = function(title) {
 
-	_win.document.title = title + ' - ';
+	_doc.title = title + ' - ';
 }
 
 $A.HttpRequest = function() {
@@ -95,65 +96,52 @@ $A.HttpRequest = function() {
 	}
 }
 
-$A.AddModule = function(moduleConstructor, id) {
+$A.AddModule = function(moduleConstructor) {
 
-	if ( !arguments.callee.moduleId )
-		arguments.callee.moduleId = 1;
-	id = id || arguments.callee.moduleId++;
-	$M[id] = new moduleConstructor($A);
-	return $M[id].id = id;
+	var module = new moduleConstructor($A);
+	$M[module.name] = module;
+	module.OnAdd && module.OnAdd();
 }
 
-$A.RemoveModule = function(id) {
+$A.RemoveModule = function(name) {
 
-	delete $M[id];
+	$M[name].OnRemove && $M[name].OnRemove();
+	delete $M[name];
 }
 
-$A.Dispatch = function(name) {
+$A.Dispatch = function(call /*, ...*/) {
 
 	for ( var moduleName in $M )
-		$M[moduleName][name] && $M[moduleName][name].apply(this, arguments);
+		$M[moduleName][call] && $M[moduleName][call].apply($M[moduleName], arguments);
 }
 
-function CoreModule($A) {
+function CoreModule() {
 
-	function ObjectToSource(o) {
+	this.name = 'core';
 
-		var source = '';
-		if ( o instanceof Array ) {
+	function EncodeArray(arr) {
 
-			for ( var i = 0; i < o.length; i++) {
-				var val = arguments.callee(o[i]);
-				source += (i?',':'')+(val==undefined?'':val);
-			}
-			return '['+source+']';
-		}
-		if ( typeof(o) == 'string' )
-			return '"'+o.replace(/["\\]/g, function(c) { return '\\'+c } )+'"'; //'
-		if ( o instanceof Object ) {
-
-			for ( var p in o )
-				source += (source?',':'')+'"'+p+'":'+arguments.callee(o[p]);
-			return '{'+source+'}';
-		}
-		return o;
+		var str = '';
+		for (var i=0; i < arr.length; i++)
+			str += (i ? '&' : '') + (arr[i] ? encodeURIComponent(arr[i]) : '');
+		return str;
 	}
 
-	function SourceToObject(s) {
+	function DecodeArray(str) {
 
-		try {
-			return eval('('+s+')');
-		} catch(ex) {}
+		var arr = str.split('&');
+		for (var i in arr)
+			arr[i] = decodeURIComponent(arr[i]);
+		return arr;
 	}
 
 	function DispatchResponse(data, type) {
 
-		var obj = SourceToObject(data);
-		if ( type != 'text/json' && !(obj instanceof Array) )
+		if ( type != 'application/x-www-form-urlencoded' )
 			return;
-
-		for ( var i in obj )
-			$A.Dispatch.apply(this, obj[i]);
+		var tmp = DecodeArray(data);
+		for ( var i in tmp )
+			$A.Dispatch.apply(this, DecodeArray(tmp[i]));
 	}
 
 
@@ -165,13 +153,13 @@ function CoreModule($A) {
 
 		if ( status ) {
 
-			DispatchResponse(data);
-			$A.Send();
+			DispatchResponse(data, type);
+			$A.Send(); // send pending data if any
 		} else
 			$A.Dispatch(CONNECTION_ERROR);
 	}
 
-	$A.Send = function(/*...*/) {
+	$A.Send = function(/*...*/) { // (TBD) use Dispatch('Send',...) instead ???
 
 		if ( arguments.length ) {
 
@@ -186,8 +174,11 @@ function CoreModule($A) {
 
 		if ( sendingQueue.length ) {
 
-			outputHttpRequest.Send('?action=submit', ObjectToSource(sendingQueue), 'text/json');
-			sendingQueue.splice(0);
+			var tmp = [];
+			for ( var i in sendingQueue )
+				tmp.push(EncodeArray(sendingQueue[i]));
+			outputHttpRequest.Send('?action=submit', EncodeArray(tmp), 'application/x-www-form-urlencoded');
+			sendingQueue.splice(0,sendingQueue.length);
 		}
 	}
 
@@ -202,7 +193,7 @@ function CoreModule($A) {
 
 		if ( status ) {
 
-			DispatchResponse(data);
+			DispatchResponse(data, type);
 			StartPendingRequest();
 		} else
 			$A.Dispatch(CONNECTION_ERROR);
@@ -210,20 +201,18 @@ function CoreModule($A) {
 
 	StartPendingRequest();
 
-	this.AddModule = function( tmp, moduleName, module ) {
+	this.AddModule = function( _, moduleSrc ) {
 
-		$A.AddModule(module, moduleName);
+		$A.AddModule(Function(moduleSrc));
 	}
 }
-
-
-var _body, _html, _win;
 
 $A.AddEvent( window, 'load', function() {
 
 	_win = window;
-	_body = _win.document.body;
-	_html = _win.document.documentElement;
+	_doc = _win.document;
+	_html = _doc.documentElement;
+	_body = _doc.body;
 	$A.AddModule(CoreModule);
 });
 </script>

@@ -577,19 +577,33 @@ function RateMeter() {
 //   if ( !foo.Inc('127.0.0.1', 1) ) Print('Sorry, your connection rate is too high');
 function MultiRateMeter([max,monitorPeriod]) {
 
-    var _keyList = {};
-    this.Inc = function(key, amount) {
+	var _keyList = {};
+	this.Inc = function(key, amount) {
 
-    	var now = Now();
-    	for ( var k in Iterator(_keyList, true) ) // clean the list
+		var now = Now();
+		for ( var k in Iterator(_keyList, true) ) // clean the list
 			if ( now - _keyList[k].time > monitorPeriod )
-				delete _keyList[k];
-        var data = _keyList[key] || (_keyList[key] = { time:0, amount:0 });
-   		var interval = now - data.time;
-   		data.amount = data.amount * (interval < monitorPeriod ? 1 - interval / monitorPeriod : 0) + amount;
-   		data.time = now;
+		delete _keyList[k];
+		var data = _keyList[key] || (_keyList[key] = { time:0, amount:0 });
+		var interval = now - data.time;
+		data.amount = data.amount * (interval < monitorPeriod ? 1 - interval / monitorPeriod : 0) + amount;
+		data.time = now;
 		return data.amount <= max;
-    }
+	}
+	
+	this.Check = function(key) this.Inc(key, 0); // check if we are under the limit
+	
+	this.Rate = function(key) {
+
+		this.Inc(key, 0);
+		return _keyList[key].amount / monitorPeriod;
+	}
+
+	this.Ratio = function(key) {
+
+		this.Inc(key, 0);
+		return _keyList[key].amount / max;
+	}
 }
 
 
@@ -644,6 +658,7 @@ function StringPad( str, count, chr ) {
 	return str;
 }
 
+function AddSlashes(str) { return str.replace(/['"\\]/g, function(c) { return '\\'+c }) }
 
 function StripHTML(html) html.replace( /<(.|\n)+?>/mg, ' ').replace( /[ \n]+/g, ' ');
 
@@ -816,7 +831,24 @@ function ObjectToSource(o) {
 	}
 	return o;
 }
-	
+
+
+function EncodeArray(arr) {
+
+    var str = '';
+    for (var i = 0; i < arr.length; i++)
+        str += (i ? '&' : '') + (arr[i] ? encodeURIComponent(arr[i]) : '');
+    return str;
+}
+
+
+function DecodeArray(str) {
+
+    var arr = str.split('&');
+    for (var i in arr)
+        arr[i] = decodeURIComponent(arr[i]);
+    return arr;
+}	
 
 /////////////////////////////////////////////////////// base64
 
@@ -938,7 +970,7 @@ function GetExitValue() _exitValue;
 /////////////////////////////////////////////////////// Debug inspect
 
 var INSPECT = [];
-function Inspect() '$'+[fct() for each (fct in INSPECT)].join(LF);
+function Inspect() [fct() for each (fct in INSPECT)].join(LF);
 
 
 

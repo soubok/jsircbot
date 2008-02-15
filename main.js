@@ -263,10 +263,9 @@ function Core( Configurator, endPredicate ) {
 	$S.Enter(STATE_RUNNING);
 	io.Process(endPredicate);
 	$S.Leave(STATE_RUNNING);
-	
-	Sleep(500); // (TBD) try something better ... like a STATE_RUNNING response from modules
-	io.Process(True);
-	
+	var now = Now();
+	endPredicate = false;
+	io.Process(function() Now()-now > 1*SECOND || io.GetDescriptorCount() == 0); // wait 3 seconds all descriptors are closed
 	for each ( mod in $A.core.ModuleList() )
 		$A.core.RemoveModule( mod );
 }
@@ -294,8 +293,6 @@ try {
 
 ReportNotice('**************************** Gracefully end.');
 log.Close();
-
-var remainingOpenDescriptors = io.Close(); // this must be done at the very end
-Print( 'remaining open descriptors: '+remainingOpenDescriptors );
-
+Print(Inspect());
+io.Close(); // this must be done at the very end
 GetExitValue(); // this must be the last evaluated expression
