@@ -118,6 +118,8 @@ function(data) {
 	setData(data.webServerModule.consoleSessionTimeout, 15*MINUTE);
 	setData(data.webServerModule.consolePasword, '**********');
 	setData(data.webServerModule.consoleHistorySize, 100); // events
+	setData(data.webServerModule.maxConsoles, 2);
+//	setData(data.webServerModule.maxConsolesPerPeer, 3); // (TBD)
 	
 	
 }

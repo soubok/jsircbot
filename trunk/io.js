@@ -144,7 +144,7 @@ function UDPGet( host, port, data, timeout, OnResponse ) { // OnResponse( status
 	try {
 	
 		socket.Connect( host, port );
-	} catch(ex) {
+	} catch (ex if ex instanceof IoError) {
 	
 		OnResponse && OnResponse.call(OnResponse, UNREACHABLE); // UDP, never UNREACHABLE ?
 		return;
@@ -206,7 +206,7 @@ function TCPGet( host, port, data, timeout, OnResponse ) {
 	try {
 	
 		socket.Connect( host, port );
-	} catch(ex) {
+	} catch (ex if ex instanceof IoError) {
 	
 		OnResponse && OnResponse.call(OnResponse, UNREACHABLE);
 		return;
@@ -352,6 +352,7 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 			} else {
 
 				delete s.readable;
+				delete s.writable;
 				delete _this.sockPort;
 				delete _this.sockName;
 				delete _this.peerPort;
@@ -362,6 +363,7 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 				delete _this.Write;
 				io.RemoveDescriptor(_socket); // no more read/write notifications are needed
 				_this.OnDisconnected && _this.OnDisconnected(true); // (TBD) define an enum like REMOTELY ?
+				MaybeCollectGarbage();
 			}
 		}
 
@@ -454,6 +456,7 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 			delete _this.peerName;
 
 			_this.OnDisconnected && _this.OnDisconnected(false); // locally disconnected  // (TBD) define an enum like LOCALLY ?
+			MaybeCollectGarbage();
 		}
 		_socket.readable = Disconnected;
 		shutdownTimeout = io.AddTimeout( 2*SECOND, Disconnected ); // force disconnect after the timeout
@@ -463,55 +466,50 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 		delete _this.Write;
 	}
 
-	var _out = [];
-	
 	this.Read = function() _socket.Read();
 	
-	this.Write = function(item, async) { // string|function|generator, use_asynchronous_writing // (TBD) add a timeout
+	var _out = new DataExpander();
+	
+	function Sender(s) {
 
-		function SendNext(s) {
+		var data = _out.Read();
+		if (!data) {
 
-			while (_out.length) {
-
-				var item = _out.shift();
-				if (!item)
-					continue;
-				if (item instanceof Array)
-					_out = Array.concat(item, _out);
-				if (item instanceof Function) {
-
-					let chunk = item();
-					chunk && _out.unshift(chunk, item);
-					continue;
-				}
-				if (item.__iterator__) {
-
-					try {
-					
-						_out.unshift(item.next(), item);
-					} catch (ex if ex == StopIteration) {}
-					continue;
-				}
-				item = s.Write(item);
-				item && _out.unshift(item);
-				DBG && item && ReportWarning('Unable to write the whole data on the socket, split was needed ('+s.peerName+':'+s.peerPort+')');
-				return true;
-			}
-			return false;
+			delete s.writable;
+			return;
 		}
 
-		_out.push(item);
+		try {
+			data = s.Write(data);
+		} catch (ex if ex instanceof IoError) {
+			if ( ex.code == -5961 ) { // Connection reset by peer.
+				
+				delete _out;
+				delete s.writable;
+				return;
+			}
+		}
 
+		if (data) {
+
+			_out.UnRead(data);
+			DBG && ReportWarning('Unable to write the whole data on the socket, split was needed ('+_socket.peerName+':'+_socket.peerPort+')');
+		}
+	}
+
+	this.Write = function(item, async) { // string|array|function|generator, use_asynchronous_writing // (TBD) add a timeout
+		
+		_out.Write(item);
 		if (async) {
 			
-			_socket.writable = function(s) {
-				
-				SendNext(s) || delete s.writable;
-			}
+			_socket.writable = Sender;
 		} else {
 			
 			delete _socket.writable;
-			while ( SendNext(_socket) );
+
+			try {
+				_socket.Write(_out.ReadAll());
+			} catch (ex if ex instanceof IoError) {}
 		}
 	}
 }

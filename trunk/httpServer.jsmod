@@ -31,7 +31,7 @@
 		svg:'image/svg+xml'
 	};
 
-	const reasonPhrase = {
+	const httpReasonPhrase = {
 		100: 'Continue',
 		101: 'Switching Protocols',
 		
@@ -163,7 +163,7 @@
 
 	function CreateHttpHeaders( statusCode, protoVersion, headers ) {
 
-		var buf = 'HTTP/' + protoVersion + SPC + statusCode + SPC + reasonPhrase[statusCode] + CRLF;
+		var buf = 'HTTP/' + protoVersion + SPC + statusCode + SPC + httpReasonPhrase[statusCode] + CRLF;
 		return buf + headers.Serialize() + CRLF;
 	}
 
@@ -238,17 +238,17 @@
 			}
 
 			var ContentEncoding = Identity;
-			if ( req.iHeaders.Has('Accept-Encoding') && req.iHeaders.Get('Accept-Encoding').indexOf('deflate') != -1 ) {
-
-				req.oHeaders.Set('Content-Encoding', 'deflate');
-				ContentEncoding = new Z(Z.DEFLATE);
-			}
+//			if ( req.iHeaders.Has('Accept-Encoding') && req.iHeaders.Get('Accept-Encoding').indexOf('deflate') != -1 ) {
+//
+//				req.oHeaders.Set('Content-Encoding', 'deflate');
+//				ContentEncoding = new Z(Z.DEFLATE);
+//			}
 
 			file.Open( File.RDONLY );
 			req.Respond(200);
 			req.Send( function() {
 
-				var data = file.Read(Z.idealInputLength);
+				var data = file.Read(Z.idealInputLength) || '';
 				if ( data.length ) {
 
 					data = ContentEncoding(data);
@@ -257,7 +257,7 @@
 					else
 						return [ data ];
 				}
-				data = ContentEncoding();
+				data = ContentEncoding(data);
 				if ( useChunksEncoding )
 					return [ data.length.toString(16) + CRLF, data, CRLF ];
 				else
@@ -401,13 +401,13 @@
 
 
 
-	
-	var _terms = NewDataObj();
-//	INSPECT.push(function() 'CONSOLES '+_terms.length+':'+[desc.peerPort+':'+desc.peerName for each ( desc in _descriptorList )].join(' ')+' ');
+	var _termCount = 0;
+	var _termList = NewDataObj();
+//	INSPECT.push(function() 'CONSOLES '+__termList.length+':'+[desc.peerPort+':'+desc.peerName for each ( desc in _descriptorList )].join(' ')+' ');
 	
 	function CloseAllTerms() {
 
-		for each ( var c in _terms )
+		for each ( var c in _termList )
 			c.pub.Close && c.pub.Close();
 	}
 	
@@ -416,7 +416,7 @@
 		var query = ParseQueryData(req.iStatus.query);
 		var cookie = ParseCookieData(req.iHeaders.Get('Cookie'));
 		var action = query.action;
-		var term = _terms[cookie.sid];
+		var term = _termList[cookie.sid];
 		
 		if ( !action ) { // new session ( ... && !term ??? )
 			
@@ -424,8 +424,18 @@
 //			if (term)
 //				prevHistory = term.history;
 			
+			if ( _termCount >= getData($MD.maxConsoles)) {
+
+//				req.oHeaders.Set('Content-Length', message.length);
+				req.oHeaders.Set('Connection', 'close');
+				req.Respond(503)('<h1>'+httpReasonPhrase[503]+'</h1><p>No more terminal available, please retry later</p>');
+				req.End();
+				return;
+			}
+			
 			let sid = RandomString(32);
-			_terms[sid] = term = { pub:{}, history:[], pendingMessagesQueue:[] };
+			_termList[sid] = term = { pub:{}, history:[], pendingMessagesQueue:[] };
+			_termCount++;
 
 			term.pub.Send = function(/*...*/) { // pub.Send is  data, type  not  [data, type]
 
@@ -444,7 +454,8 @@
 				term.pub.OnClose && term.pub.OnClose();
 				delete term.pub.Send;
 				term.ResetTimeout();
-				delete _terms[sid];
+				delete _termList[sid];
+				_termCount--;
 				ReportNotice( 'remoteTerm' + req.peerName + ' close' );
 			}
 
@@ -474,6 +485,7 @@
 //				delete prevHistory;
 //			}
 			InitTermSession(term.pub);
+			term.ResetTimeout(getData($MD.termSessionTimeout));
 			return;
 		}
 
@@ -493,11 +505,11 @@
 
 			var data = EncodeArray([ EncodeArray(item) for each (item in itemList) ]);
 			itemList.splice(0);
-			if ( data.length >= 128 && req.iHeaders.Has('Accept-Encoding') && req.iHeaders.Get('Accept-Encoding').indexOf('deflate') != -1 ) {
-
-				req.oHeaders.Set('Content-Encoding', 'deflate');
-				data = new Z(Z.DEFLATE)(data, true);
-			}
+//			if ( data.length >= 128 && req.iHeaders.Has('Accept-Encoding') && req.iHeaders.Get('Accept-Encoding').indexOf('deflate') != -1 ) {
+//
+//				req.oHeaders.Set('Content-Encoding', 'deflate');
+//				data = new Z(Z.DEFLATE)(data, true); // send all at once
+//			}
 			req.oHeaders.Set('Content-Type', 'application/x-www-form-urlencoded');
 			req.oHeaders.Set('Content-Length', data.length);
 			req.Respond(200)(data);
@@ -598,6 +610,7 @@
 		}
 
 		ResetTimeout(1*SECOND); // after accepting the connection, let 1 second to the client to send headers, else bye.
+//		ResetTimeout(getData($MD.connectionKeepAliveTimeout));		
 
 		connection.OnData = function() {
 			
@@ -616,7 +629,7 @@
 			delete req.Send;
 			delete req.End;
 			req.OnDisconnected && req.OnDisconnected();
-			connection.Close();
+			connection.Close(); // hard close
 		}
 		
 		function Send(item) connection.Write(item, true);
@@ -628,7 +641,7 @@
 			if ( input.length > 8*KILOBYTE ) { // invalid headers size
 				
 				ResetTimeout();
-				connection.Close();
+				connection.Close(); // hard close
 				ReportWarning( _name + ' incoming HTTP request header too long ('+input.length+')' )
 //				connection.Disconnect(); // (TBD) should be less gentle
 				return;
@@ -790,7 +803,7 @@
 				if (polarity) {
 					
 					StartServer();
-//					$A.AddRequestHandler( /^\/doc\//, ProcessFileRequest );
+					$A.AddRequestHandler( /^\/doc\//, ProcessFileRequest );
 					$A.AddRequestHandler( /^\/cons/, ProcessTermAccess );
 				} else {
 					

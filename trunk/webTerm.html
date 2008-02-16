@@ -7,11 +7,11 @@
 
 var CONNECTION_ERROR = 'CONNECTION_ERROR';
 
-var _body, _html, _doc, _win;
+var _body, _html, _doc, _win = window;
 var $M = {}; // modules
 var $A = {}; // public api
 
-$A.NewXMLHttpRequest = window.ActiveXObject ? function() { return new _win.ActiveXObject('Microsoft.XMLHTTP') } : function() { return new _win.XMLHttpRequest() };
+$A.NewXMLHttpRequest = _win.ActiveXObject ? function() { return new ActiveXObject('Microsoft.XMLHTTP') } : function() { return new _win.XMLHttpRequest() };
 $A.AddEvent = window.attachEvent ? function( elt, ev, handler ) { elt.attachEvent( 'on'+ev, handler ) } : function( elt, ev, handler ) { elt.addEventListener( ev, handler, false ) };
 $A.RemoveEvent = window.detachEvent ? function( elt, ev, handler ) { elt.detachEvent( 'on'+ev, handler ) } : function( elt, ev, handler ) { elt.removeEventListener( ev, handler, false ) };
 $A.PreventDefault = function(ev) { ev.preventDefault ? ev.preventDefault() : (ev.returnValue = true) };
@@ -52,7 +52,7 @@ $A.SetTitle = function(title) {
 $A.HttpRequest = function() {
 
 	var _this = this;
-	var xhr = new XMLHttpRequest();
+	var xhr = $A.NewXMLHttpRequest();
 	this.Ready = function() {
 
 		return xhr.readyState == 0 || xhr.readyState == 4;
@@ -209,7 +209,6 @@ function CoreModule() {
 
 $A.AddEvent( window, 'load', function() {
 
-	_win = window;
 	_doc = _win.document;
 	_html = _doc.documentElement;
 	_body = _doc.body;
