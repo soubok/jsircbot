@@ -264,8 +264,8 @@ function Core( Configurator, endPredicate ) {
 	io.Process(endPredicate);
 	$S.Leave(STATE_RUNNING);
 	var now = Now();
-	endPredicate = false;
-	io.Process(function() Now()-now > 1*SECOND || io.GetDescriptorCount() == 0); // wait 3 seconds all descriptors are closed
+	endSignal = false;
+	io.Process(function() Now()-now > 1*SECOND || io.GetDescriptorCount() == 0 || endSignal); // wait 3 seconds all descriptors are closed
 	for each ( mod in $A.core.ModuleList() )
 		$A.core.RemoveModule( mod );
 }
@@ -285,10 +285,10 @@ ReportNotice('Start at '+(new Date()));
 
 try {
 
-	Core(Exec('configuration.js'), function() endSignal);
+	Core(Exec(arguments[1]||'configuration.js'), function() endSignal);
 } catch( ex if ex instanceof IoError ) {
 
-	ReportFailure( 'IoError: '+ ex.text + ' (' + ex.os + ')' );
+	ReportFailure( 'IoError: nspr code: '+ex.code+', os code: '+ex.os+', os reason: '+ex.text );
 }
 
 ReportNotice('**************************** Gracefully end.');

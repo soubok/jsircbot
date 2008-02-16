@@ -315,6 +315,59 @@ function CallScheduler() {
 
 
 
+/////////////////////////////////////////////////////// Data Expander class
+
+function DataExpander() {
+	
+	var _itemQueue = [];
+	
+	this.Write = function(item) _itemQueue.push(item); // item is string|function|generator|array
+	
+	this.Read = function() { // rename to ReadOne ???
+
+		while (_itemQueue.length) {
+
+			var item = _itemQueue.shift();
+			if (!item) // '', null, undefined, false, 0
+				continue;
+			if (typeof item == 'string')
+				return item;
+			if (item instanceof Array) {
+			
+				_itemQueue = Array.concat(item, _itemQueue);
+				continue;
+			}
+			if (item instanceof Function) {
+
+				let chunk = item();
+				chunk && _itemQueue.unshift(chunk, item);
+				continue;
+			}
+			if (item.__iterator__) {
+
+				try {
+
+					_itemQueue.unshift(item.next(), item);
+				} catch (ex if ex == StopIteration) {}
+				continue;
+			}
+		}
+		return ''; // no more data for the moment
+	}
+	
+	this.ReadAll = function() {
+	
+		var data, buffer = '';
+		while ((data = this.Read()))
+			buffer += data;
+		return buffer;		
+	}
+
+	this.UnRead = function(item) _itemQueue.unshift(item); // item is string|function|generator|array
+}
+
+
+
 /////////////////////////////////////////////////////// LOG system
 
 var bit = 1;
