@@ -63,7 +63,7 @@ var io = new function() {
 			return _min - now;
 		}
 		
-		INSPECT.push(function() let ( now=IntervalNow() ) 'TIMEOUT '+_tlist.__count__+': '+[(date-now)+':'+fct.name for ( [date,fct] in Iterator(_tlist) )].join(' ')+' MIN='+(_min-now)+'');
+		INSPECT.push(function() let ( now=IntervalNow() ) 'TIMEOUT '+ObjPropertyCount(_tlist)+': '+[(date-now)+':'+fct.name for ( [date,fct] in Iterator(_tlist) )].join(' ')+' MIN='+(_min-now)+'');
 	}
 
 	var _descriptorList = [];
@@ -331,6 +331,9 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 	var _socket, _connectionTimeout;
 	
 	function Connecting() {
+		
+		_socket.recvBufferSize = 16*KILOBYTE;
+		_socket.sendBufferSize = 16*KILOBYTE;
 
 		_socket.writable = function(s) {
 			
@@ -436,6 +439,7 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 		delete _this.Read;
 		delete _this.Write;
 		_socket.Close();
+		Clear(this);
 	}
 
 	this.Disconnect = function() {
@@ -481,19 +485,19 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 
 		try {
 			data = s.Write(data);
-		} catch (ex if ex instanceof IoError) {
-			if ( ex.code == -5961 ) { // Connection reset by peer.
-				
-				delete _out;
-				delete s.writable;
-				return;
-			}
+		} catch (ex if ex instanceof IoError) { 
+			//if ( ex.code == -5961 || ex.code == -5928 ) { // Connection reset by peer | Connection aborted
+			// (TBD) check if the diconnection is always detected
+			ReportError('@TCPConnection::Sender - IoError:'+ex.code+' '+ex.text);
+			delete _out;
+			delete s.writable;
+			return;
 		}
 
 		if (data) {
 
 			_out.UnRead(data);
-			DBG && ReportWarning('Unable to write the whole data on the socket, split was needed ('+_socket.peerName+':'+_socket.peerPort+')');
+			DBG && ReportWarning('@TCPConnection::Sender - missed write ('+_socket.peerName+':'+_socket.peerPort+')');
 		}
 	}
 
@@ -506,10 +510,11 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 		} else {
 			
 			delete _socket.writable;
-
 			try {
 				_socket.Write(_out.ReadAll());
-			} catch (ex if ex instanceof IoError) {}
+			} catch (ex if ex instanceof IoError) {
+				// (TBD) check if the diconnection is always detected
+			}
 		}
 	}
 }
@@ -578,6 +583,10 @@ function TCPServer( portRange, ip, backlog ) {
 
 
 /*
+WSAECONNABORTED 10053 Connection aborted ( PR_CONNECT_ABORTED_ERROR (-5928L) )
+	A connection abort was caused internal to your host machine. 
+	The software caused a connection abort because there is no space on the socket's queue and the socket cannot receive further connections.
+
 WSAECONNRESET 10054 Connection reset by peer.
 
     An existing connection was forcibly closed by the remote host. 
