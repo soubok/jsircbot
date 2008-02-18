@@ -383,28 +383,25 @@
 			_term.Send && _term.Send(message);
 		}
 
-		io.AddTimeout( 1000, function() {
-		
-			Send(['cout', i+'<br/>']);
-			io.AddTimeout( 3000, arguments.callee );
-			i++;
-		});
-		
 		_term.OnShow = function(persisted) {
 
 			var consoleWebModule = new File('./webConsole.js').content; // (TBD) filename from config
-
 			_term.Send(['AddModule', consoleWebModule]);
 			
 			if (persisted) {
 
-//				_term.Flush();  ???????????????????????????
 				for each ( var message in _history )
 					_term.Send(message);
 			} else {
 			
 				Send(['cout','Ready.<br/>']);
-			}			
+				io.AddTimeout( 1000, function() {
+
+					Send(['cout', i+'<br/>']);
+					io.AddTimeout( 10000, arguments.callee );
+					i++;
+				});
+			}				
 		}
 
 		_term.OnRequest = function([name, data]) {
@@ -468,11 +465,6 @@
 					term.messageCount++;
 				}
 
-				term.pub.Flush = function() { // empty the sending queue
-
-					term.pendingMessagesQueue.splice(0);
-				}
-
 				term.pub.Close = function() {
 
 					delete term.pub.Close; // avoid Close() to be called in OnClose()
@@ -495,8 +487,12 @@
 				req.oHeaders.Set('Set-Cookie', 'sid='+sid+'; path='+req.iStatus.path); // Set-Cookie: <name>=<value>[; <name>=<value>]... [; expires=<date>][; domain=<domain_name>][; path=<some_path>][; secure][; httponly]
 
 				ReportNotice( _name+' @ProcessTermAccess - create by ' + req.peerName );
-			}
+			} else {
 
+				ReportNotice( _name+' @ProcessTermAccess - restored by ' + req.peerName );
+			}
+			
+			term.pendingMessagesQueue.splice(0); // it is up to an 'histoy system' to restore previous things.
 			var content = new File('./webTerm.html').content; // (TBD) filename from config
 			req.oHeaders.Set('cache-control', 'no-store'); // cf. http://developer.mozilla.org/en/docs/Using_Firefox_1.5_caching
 			req.oHeaders.Set('Content-Length', content.length);
@@ -524,11 +520,13 @@
 
 			var data = EncodeArray([ EncodeArray(item) for each (item in itemList) ]);
 			itemList.splice(0);
-//			if ( data.length >= 128 && req.iHeaders.Has('Accept-Encoding') && req.iHeaders.Get('Accept-Encoding').indexOf('deflate') != -1 ) {
-//
+			if ( data.length >= 128 && req.iHeaders.Has('Accept-Encoding') && req.iHeaders.Get('Accept-Encoding').indexOf('deflate') != -1 ) {
+
+// (TBD) make IE* leave this scope
+
 //				req.oHeaders.Set('Content-Encoding', 'deflate');
 //				data = new Z(Z.DEFLATE)(data, true); // send all at once
-//			}
+			}
 			req.oHeaders.Set('Content-Type', 'application/x-www-form-urlencoded');
 			req.oHeaders.Set('Content-Length', data.length);
 			req.Respond(200)(data);

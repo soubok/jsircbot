@@ -293,6 +293,6 @@ try {
 
 ReportNotice('**************************** Gracefully end.');
 log.Close();
-Print(Inspect());
+Print(Inspect()+CRLF);
 io.Close(); // this must be done at the very end
 GetExitValue(); // this must be the last evaluated expression
