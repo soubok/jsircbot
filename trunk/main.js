@@ -278,8 +278,8 @@ function DateString() let ( d = new Date ) d.getFullYear() + StringPad(d.getMont
 var thisSession = 'jsircbot_'+(Now())+'.log'; // used to create ONE log file by session
 
 //log.AddFilter( MakeLogFile(function() 'jsircbot_'+DateString()+'.log', false), LOG_ALL - LOG_NET );
-log.AddFilter( MakeLogFile(function() thisSession, false), LOG_ALL );
-log.AddFilter( MakeLogScreen(), LOG_FAILURE | LOG_ERROR | LOG_WARNING | LOG_CONSOLE );
+//log.AddFilter( MakeLogFile(function() thisSession, false), LOG_ALL );
+log.AddFilter( MakeLogScreen(), LOG_FAILURE | LOG_ERROR | LOG_WARNING | LOG_CONSOLE ); // LOG_NOTICE | 
 
 ReportNotice('Start at '+(new Date()));
 
