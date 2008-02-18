@@ -91,7 +91,7 @@
 			var serverStatus = NewDataObj();
 			try {
 
-				CHK( lines.shift() == tremQueryPrefix+'statusResponse' ); // remove header
+				CHK( lines.shift() == tremQueryPrefix + 'statusResponse' ); // remove header
 				serverStatus.info = CHK(ParseStatus(lines.shift()));
 				lines.pop(); // last line is empty
 				serverStatus.playerList = [ CHK(ParsePlayer(line))[2] for each ( line in lines ) ];
