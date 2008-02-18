@@ -12,8 +12,8 @@ var $M = {}; // modules
 var $A = {}; // public api
 
 $A.NewXMLHttpRequest = _win.ActiveXObject ? function() { return new ActiveXObject('Microsoft.XMLHTTP') } : function() { return new _win.XMLHttpRequest() };
-$A.AddEvent = window.attachEvent ? function( elt, ev, handler ) { elt.attachEvent( 'on'+ev, handler ) } : function( elt, ev, handler ) { elt.addEventListener( ev, handler, false ) };
-$A.RemoveEvent = window.detachEvent ? function( elt, ev, handler ) { elt.detachEvent( 'on'+ev, handler ) } : function( elt, ev, handler ) { elt.removeEventListener( ev, handler, false ) };
+$A.AddEvent = _win.attachEvent ? function( elt, ev, handler ) { elt.attachEvent( 'on'+ev, handler ) } : function( elt, ev, handler ) { elt.addEventListener( ev, handler, false ) };
+$A.RemoveEvent = _win.detachEvent ? function( elt, ev, handler ) { elt.detachEvent( 'on'+ev, handler ) } : function( elt, ev, handler ) { elt.removeEventListener( ev, handler, false ) };
 $A.PreventDefault = function(ev) { ev.preventDefault ? ev.preventDefault() : (ev.returnValue = true) };
 $A.StopPropagation = function(ev) { ev.stopPropagation ? ev.stopPropagation() : (ev.cancelBubble = false) };
 $A.InsertHtmlBefore = function(elt, html) {
@@ -151,7 +151,7 @@ function CoreModule() {
 
 	outputHttpRequest.OnResponse = function(status, data, type) {
 
-		if ( status ) {
+		if ( status && data != '' ) {
 
 			DispatchResponse(data, type);
 			$A.Send(); // send pending data if any
@@ -191,7 +191,7 @@ function CoreModule() {
 
 	inputHttpRequest.OnResponse = function(status, data, type) {
 
-		if ( status ) {
+		if ( status && data != '' ) {
 
 			DispatchResponse(data, type);
 			StartPendingRequest();
