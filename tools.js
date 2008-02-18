@@ -25,7 +25,7 @@ function InitModule(mod) {
 
 function ENUM(enumMap) {
 
-	for ( let [name, value] in Iterator(enumMap) )
+	for ( var [name, value] in Iterator(enumMap) )
 		let (n = name, v = value)
 			this[name] = { toString:function() n, valueOf:function() v };
 }
@@ -119,7 +119,7 @@ function StateKeeper( catchCallback ) {
 		
 		try {
 		
-			for each ( let item in _predicateList ) { // item = [0:setPredicate, 1:resetPredicate, 2:callback, 3:<the state of stateName>]
+			for each ( var item in _predicateList ) { // item = [0:setPredicate, 1:resetPredicate, 2:callback, 3:<the state of stateName>]
 				var callback = item[2];
 				if ( !item[3] )
 					item[0](_stateList, stateName) && callback.call(callback, (item[3] = true), _predicateList); // 'this' will be the function itself
@@ -176,7 +176,7 @@ function Listener( catchCallback ) {
 	
 		try {
 
-			for each ( let set in _list.slice() ) {
+			for each ( var set in _list.slice() ) {
 				
 				var n = set;
 				for ( var it = 0; typeof(n) == 'object' && it in arguments && arguments[it] in n; n = n[arguments[it++]] ); // var is faster than let
@@ -339,7 +339,7 @@ function DataExpander() {
 			}
 			if (item instanceof Function) {
 
-				let chunk = item();
+				var chunk = item();
 				chunk && _itemQueue.unshift(chunk, item);
 				continue;
 			}
@@ -356,7 +356,9 @@ function DataExpander() {
 	}
 	
 	this.ReadAll = function() {
-	
+		
+		if ( _itemQueue.length == 0 )
+			return '';
 		var data, buffer = '';
 		while ((data = this.Read()))
 			buffer += data;
@@ -452,7 +454,7 @@ var log = new function(data) {
 
 	this.RemoveFilter = function( outputToRemove ) {
 	
-		for each ( let [i, [output]] in Iterator(_outputList) )
+		for each ( var [i, [output]] in Iterator(_outputList) )
 			if ( output == outputToRemove ) {
 				
 				output(LOG_CLOSE_FILTER);
@@ -463,7 +465,7 @@ var log = new function(data) {
 	
 	this.Close = function() {
 
-		for each ( let [output] in _outputList )
+		for each ( var [output] in _outputList )
 			output(LOG_CLOSE_FILTER); // if filter do not support closing, an empty string is used instead ( see LOG_CLOSE_FILTER )
 		_outputList.splice(0);
 	}
@@ -472,7 +474,7 @@ var log = new function(data) {
 
 // (TBD) fix LOG_ERROR <TypeError: can't convert Array.slice(arguments, 1).join to string (tools.js:414)>
 		var data = FormatedTime()+' '+String(type)+' <'+Array.slice(arguments,1).join('> <')+'>'; // ('+gcByte+') 
-		for each ( let [output, typeList] in _outputList )
+		for each ( var [output, typeList] in _outputList )
 			typeList & type && void output(data);
 	}
 }
@@ -513,7 +515,7 @@ ParseUri.options = {
 function MakeHeaders( list ) {
 
 	var headers = '';
-	for ( let k in list )
+	for ( var k in list )
 		headers += k + ': ' + list[k] + CRLF;
 	return headers;
 }
@@ -522,7 +524,7 @@ function MakeHeaders( list ) {
 function FormURLEncode( list ) {
 
 	var data = '';
-	for ( let k in list )
+	for ( var k in list )
 		data += '&' + encodeURIComponent(k) + '=' + encodeURIComponent(list[k]);
 	return data.substr(1);
 }
@@ -532,6 +534,37 @@ function MakeStatusLine( method, path, version ) {
 	return method + SPC + path + SPC + (version||'HTTP/1.0');
 }
 
+/*
+function HttpHeaders() { this.hList = {} }
+
+HttpHeaders.prototype = {
+
+  get Connection() { return Number(this.hList['Connection']).toLowerCase() },
+  set Connection(val) { this.hList['Connection'] = val },
+
+  get keepAlive() { return Number(this.hList['Keep-Alive']).toLowerCase() },
+  set keepAlive(val) { this.hList['Keep-Alive'] = val },
+
+
+  get contentLength() { return Number(this.hList['Content-Length']) },
+  set contentLength(val) { this.hList['Content-Length'] = String(val) },
+
+  get contentType() { return this.hList['Content-Type'] },
+  set contentType(val) { this.hList['Content-Type'] = val },
+
+  get transferEncoding() { return this.hList['Transfer-Encoding'] },
+  set transferEncoding(val) { this.hList['Transfer-Encoding'] = val },
+
+  get acceptEncoding() { return ArrayToObj(this.hList['Accept-Encoding'].split(',')) },
+  set acceptEncoding(val) { this.hList['Accept-Encoding'] = val },
+
+  get contentEncoding() { return this.hList['Content-Encoding'].toLowerCase() },
+  set contentEncoding(val) { this.hList['Content-Encoding'] = val },
+
+  get cookie() { return this.hList['Cookie'] },
+  set cookie(val) { this.hList['Cookie'] = val },
+}
+*/
 
 
 /////////////////////////////////////////////////////// Misc tools
@@ -558,10 +591,11 @@ function ObjPropertyCount(obj) {
 	return count;
 }
 
+
 function IntegerToIp(number) (number>>24 & 255)+'.'+(number>>16 & 255)+'.'+(number>>8 & 255)+'.'+(number & 255);
 
 
-function IpToInt(ip) {
+function IpToInteger(ip) {
 	
 	var res = 0;
 	ip.split('.',4).forEach(function(v, i) res |= v << (3-i) * 8 );
@@ -580,12 +614,13 @@ function RandomNumber(length) {
 }
 
 
-function RandomString(length) {
+function RandomString(length) { // [0-9A-Za-z]
     
     var str = '';
     for ( ; str.length < length; str += Math.random().toString(36).substr(2) );
     return str.substr(0, length);
 }
+
 
 function RandomRange( min, max )	min + Math.random() * (max - min);
 
@@ -594,8 +629,26 @@ function MakeObj( tpl, arr ) { // { num:1, level:2, hostmask:3, time:4 } , [1, 1
 	
 	var obj = NewDataObj();
 	if ( arr )
-		for ( let p in tpl ) obj[p] = arr[tpl[p]];
+		for ( var p in tpl ) obj[p] = arr[tpl[p]];
 	return obj;
+}
+
+
+function ArrayToObject(arr) { // [5,'foo', '', 0] -> { '5':true, 'foo':true }
+
+	var obj = {};
+	for ( var val in arr )
+		obj[val] = true;
+	return obj;
+}
+
+
+function ObjectToArray(obj) { // { '5':true, 'foo':true, 7:false } -> [5,'foo']
+
+	var arr = [];
+	for ( var p in obj )
+		obj[p] && arr.push(p);
+	return arr;
 }
 
 
@@ -739,11 +792,11 @@ function Match(v) Array.indexOf(arguments,v,1) - 1;
 
 function ExpandStringRanges(rangesStr) {
 
-    for each (let range in rangesStr.split(',')) {
+    for each (var range in rangesStr.split(',')) {
 
         var minmax = range.split('-', 2);
         if (minmax.length == 2)
-            for (let i = parseInt(minmax[0]); i <= parseInt(minmax[1]); i++)
+            for (var i = parseInt(minmax[0]); i <= parseInt(minmax[1]); i++)
                 yield i;
         else
             yield parseInt(minmax[0]);
@@ -753,7 +806,7 @@ function ExpandStringRanges(rangesStr) {
 
 function ValueInStringRanges(rangesStr, value) {
 
-	for each (let range in rangesStr.split(',')) {
+	for each (var range in rangesStr.split(',')) {
 
 		var minmax = range.split('-', 2);
 		if (minmax.length == 2) {
@@ -787,7 +840,7 @@ function FileExtension(filename) {
 function ParseArguments(str) {
 
 	var args = [], reg = /"((?:\\?.)*?)"|[^ ]+/g;
-	for (let res; res = reg(str); args.push(res[1] != null ? res[1] : res[0] ));
+	for (var res; res = reg(str); args.push(res[1] != null ? res[1] : res[0] ));
 	return args;
 }
 
@@ -1032,7 +1085,7 @@ function Inspect() [fct() for each (fct in INSPECT)].join(LF);
 function DPrint() {
 	
 	Print(LF);
-	for ( let i = 0; i < arguments.length; i++ )
+	for ( var i = 0; i < arguments.length; i++ )
 		Print( '{'+arguments[i]+'} ' );
 	Print(LF);
 }
