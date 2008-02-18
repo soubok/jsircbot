@@ -24,6 +24,7 @@
 		htm:'text/html',
 		html:'text/html',
 		xml:'text/xml',
+		png:'image/png',
 		gif:'image/gif',
 		jpeg:'image/jpeg',
 		jpg:'image/jpeg',
@@ -117,6 +118,7 @@
 		return headers;
 	}
 
+
 	function HttpHeaders() {
 
 		var _headers = NewDataObj();
@@ -160,7 +162,6 @@
 	}
 
 
-
 	function CreateHttpHeaders( statusCode, protoVersion, headers ) {
 
 		var buf = 'HTTP/' + protoVersion + SPC + statusCode + SPC + httpReasonPhrase[statusCode] + CRLF;
@@ -177,7 +178,8 @@
 					map[key] = val;
 		return map;
 	}
-	
+
+
 	function ParseCookieData(str) {
 		
 		var map = NewDataObj();
@@ -224,50 +226,44 @@
 			return;
 		}
 		
+		file.Open( File.RDONLY );
+		
 		req.OnBodyData = function(buf) data += buf;
 
 		req.OnEndOfBody = function() {
 
 			req.oHeaders.Set('Content-Type', MimeTypeByFileName(fileName));
 
-			var useChunksEncoding = false;
+			var TransferEncodingFilter = Identity;
 			if (req.iStatus.protoVersion >= 1.1) {
 			
-				useChunksEncoding = true;				
 				req.oHeaders.Set('Transfer-Encoding', 'chunked');
+				TransferEncodingFilter = function(data) [ data.length.toString(16) + CRLF, data, CRLF ];
 			}
 
-			var ContentEncoding = Identity;
-//			if ( req.iHeaders.Has('Accept-Encoding') && req.iHeaders.Get('Accept-Encoding').indexOf('deflate') != -1 ) {
-//
-//				req.oHeaders.Set('Content-Encoding', 'deflate');
-//				ContentEncoding = new Z(Z.DEFLATE);
-//			}
+			var ContentEncodingFilter = Identity;
+			if ( req.iHeaders.Has('Accept-Encoding') && req.iHeaders.Get('Accept-Encoding').indexOf('deflate') != -1 ) {
 
-			file.Open( File.RDONLY );
+				req.oHeaders.Set('Content-Encoding', 'deflate');
+				ContentEncodingFilter = new Z(Z.DEFLATE,0);
+			}
+			
 			req.Respond(200);
+			
 			req.Send( function() {
 
-				var data = file.Read(Z.idealInputLength) || '';
-				if ( data.length ) {
-
-					data = ContentEncoding(data);
-					if ( useChunksEncoding )
-						return [ data.length.toString(16) + CRLF, data, CRLF ];
-					else
-						return [ data ];
+				var data = file.Read(4096); // Z.idealInputLength
+				data = ContentEncodingFilter(data);
+				if ( !data ) {
+				
+					file.Close();
+					req.Send(TransferEncodingFilter(''));
+					req.End();
+					return;
 				}
-				data = ContentEncoding(data);
-				if ( useChunksEncoding )
-					return [ data.length.toString(16) + CRLF, data, CRLF ];
-				else
-					return [ data ];
-					
-				file.Close();
-				return false;
+				return TransferEncodingFilter(data);
 			}, true );
-			if ( useChunksEncoding )
-				req.Send( '0' + CRLF + CRLF, true );
+			
 		}
 	}
 
@@ -294,6 +290,9 @@
 
 
 	function TermIrc(term) {
+
+		var consoleWebModule = new File('./webConsole.js').content; // (TBD) filename from config
+		term.Send( 'AddModule', consoleWebModule );
 		
 		var _currentChan;
 		term.Send('Welcome to the IRC term<br/> HELP:<br/> /j &lt;channel&gt; : join<br/> /q : quit<br/> /names : name list<br/>');
@@ -347,18 +346,18 @@
 
 	function InitTermSession(term) {
 		
-		term.Send('Login as: ');
+		term.Send(['cout', 'Login as: ']);
 		term.OnRequest = function(data) {
 			
-			term.Send(data+'<br/>password: ');
+			term.Send(['cout', data+'<br/>password: ']);
 			term.OnRequest = function(data) {
 				
-				term.Send(StringRepeat('*', data.length)+'<br/><br/>');
+				term.Send(['cout', StringRepeat('*', data.length)+'<br/><br/>']);
 				if ( data == getData($MD.termPasword) ) {
 					
 					TermIrc(term);
 				} else {
-					term.Send('<span style="color:red">Invalid password, bye.</span><br/>');
+					term.Send(['cout', '<span style="color:red">Invalid password, bye.</span><br/>']);
 					term.Close();
 				}
 			}
@@ -367,43 +366,69 @@
 	}
 
 
+////
 
-	function InitTermSession(term) {
+
+	function TermSession() {
 		
+		var _term = this;
+		var _history = [];
 		var i = 0, j = 0;
-		term.Send('cout','Ready.<br/>');
+		
+		function Send(message) {
+		
+			_history.push(message);
+			if ( _history.length > 100 )
+				_history.shift();
+			_term.Send && _term.Send(message);
+		}
+
 		io.AddTimeout( 1000, function() {
 		
-			term.Send && term.Send('cout', i+'<br/>');
+			Send(['cout', i+'<br/>']);
 			io.AddTimeout( 3000, arguments.callee );
 			i++;
 		});
+		
+		_term.OnShow = function(persisted) {
 
-		term.OnRequest = function(name, data) {
+			var consoleWebModule = new File('./webConsole.js').content; // (TBD) filename from config
+
+			_term.Send(['AddModule', consoleWebModule]);
+			
+			if (persisted) {
+
+//				_term.Flush();  ???????????????????????????
+				for each ( var message in _history )
+					_term.Send(message);
+			} else {
+			
+				Send(['cout','Ready.<br/>']);
+			}			
+		}
+
+		_term.OnRequest = function([name, data]) {
 			
 			if ( name != 'cin' )
 				return;
-			
 			j++;
-			if ( data == 'red' ) {
-				term.Send('#in { color: red }', 'text/css');
-			}
-			
-			term.Send('cout','echo '+j+':'+data+'<br/>');
+			Send(['cout','echo '+j+':'+data+'<br/>']);
 		}
 
-		term.OnClose = function() {
+		_term.OnClose = function() {
 		}
 	}
 /*
 */	
 
-
-
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//
+//  Terminal Manager
+//
 
 	var _termCount = 0;
 	var _termList = NewDataObj();
-//	INSPECT.push(function() 'CONSOLES '+__termList.length+':'+[desc.peerPort+':'+desc.peerName for each ( desc in _descriptorList )].join(' ')+' ');
 	
 	function CloseAllTerms() {
 
@@ -418,82 +443,76 @@
 		var action = query.action;
 		var term = _termList[cookie.sid];
 		
-		if ( !action ) { // new session ( ... && !term ??? )
+		if ( !action ) {
 			
-//			var prevHistory;
-//			if (term)
-//				prevHistory = term.history;
-			
-			if ( _termCount >= getData($MD.maxConsoles)) {
+			if ( !term ) {
 
-//				req.oHeaders.Set('Content-Length', message.length);
-				req.oHeaders.Set('Connection', 'close');
-				req.Respond(503)('<h1>'+httpReasonPhrase[503]+'</h1><p>No more terminal available, please retry later</p>');
-				req.End();
-				return;
-			}
-			
-			let sid = RandomString(32);
-			_termList[sid] = term = { pub:{}, history:[], pendingMessagesQueue:[] };
-			_termCount++;
+				if ( _termCount >= getData($MD.maxTerminal) ) {
 
-			term.pub.Send = function(/*...*/) { // pub.Send is  data, type  not  [data, type]
-
-				if ( term.history.length > 100 )
-					term.history.shift();
-				var item = Array.slice(arguments);
-				term.history.push(item);
-				term.pendingMessagesQueue.push(item);
-				term.Send && term.Send();
-			}
-			
-			term.pub.Close = function() {
+					req.oHeaders.Set('Connection', 'close');
+					req.Respond(503)('<h1>'+httpReasonPhrase[503]+'</h1><p>No more terminal available, please retry later</p>');
+					req.End();
+					return;
+				}
 				
-				delete term.pub.Close; // avoid Close() to be called in OnClose()
-				delete term.pub.OnRequest;
-				term.pub.OnClose && term.pub.OnClose();
-				delete term.pub.Send;
-				term.ResetTimeout();
-				delete _termList[sid];
-				_termCount--;
-				ReportNotice( 'remoteTerm' + req.peerName + ' close' );
+				let sid = RandomString(32);
+				_termList[sid] = term = { pendingMessagesQueue:[], messageCount:0 };
+				_termCount++;
+
+				term.pub = new TermSession();
+				
+				term.pub.Send = function(message) { // message is [arg1, arg2, ...]
+
+					term.pendingMessagesQueue.push(message);
+					term.Send && term.Send();
+					term.messageCount++;
+				}
+
+				term.pub.Flush = function() { // empty the sending queue
+
+					term.pendingMessagesQueue.splice(0);
+				}
+
+				term.pub.Close = function() {
+
+					delete term.pub.Close; // avoid Close() to be called in OnClose()
+					delete term.pub.OnRequest;
+					term.pub.OnClose && term.pub.OnClose();
+					delete term.pub.Send;
+					term.ResetTimeout();
+					delete _termList[sid];
+					_termCount--;
+					ReportNotice( _name+' @ProcessTermAccess - close by ' + req.peerName );
+				}
+
+				term.ResetTimeout = function(time) {
+
+					term.timeout && io.RemoveTimeout(term.timeout);
+					if (time)
+						term.timeout = io.AddTimeout( time, function() term.pub.Close() );
+				}				
+
+				req.oHeaders.Set('Set-Cookie', 'sid='+sid+'; path='+req.iStatus.path); // Set-Cookie: <name>=<value>[; <name>=<value>]... [; expires=<date>][; domain=<domain_name>][; path=<some_path>][; secure][; httponly]
+
+				ReportNotice( _name+' @ProcessTermAccess - create by ' + req.peerName );
 			}
 
-			term.ResetTimeout = function(time) {
-			
-				term.timeout && io.RemoveTimeout(term.timeout);
-				if (time)
-					term.timeout = io.AddTimeout( time, function() term.pub.Close() );
-			}
-			
 			var content = new File('./webTerm.html').content; // (TBD) filename from config
 			req.oHeaders.Set('cache-control', 'no-store'); // cf. http://developer.mozilla.org/en/docs/Using_Firefox_1.5_caching
 			req.oHeaders.Set('Content-Length', content.length);
-			req.oHeaders.Set('Set-Cookie', 'sid='+sid+'; path='+req.iStatus.path); // Set-Cookie: <name>=<value>[; <name>=<value>]... [; expires=<date>][; domain=<domain_name>][; path=<some_path>][; secure][; httponly]
 			req.Respond(200)(content);
 			req.End();
-			ReportNotice( 'remoteTerm' + req.peerName + ' create' );
-
-			var consoleWebModule = new File('./webConsole.js').content; // (TBD) filename from config
-
-			term.pub.Send( 'AddModule', consoleWebModule );
-
-//			if ( prevHistory ) {
-//				
-//				for each ( let item in prevHistory )
-//					term.Send(item);
-//				delete prevHistory;
-//			}
-			InitTermSession(term.pub);
+			
+			term.pub.OnShow && term.pub.OnShow(term.messageCount > 0); // false on the initial load.
 			term.ResetTimeout(getData($MD.termSessionTimeout));
 			return;
 		}
 
-		if ( !term ) {
+
+		if ( !term ) { // a 'sid' is given but no matching session is found.
 			
-			let message = '<span style="color:red">Invalid session.</span><br/>';
+			let message = '<h1>Invalid session</h1><p>The required terminal session is closed</p>';
 			req.oHeaders.Set('Content-Length', message.length);
-			req.oHeaders.Set('Connection', 'close'); // needed to ignore request body !! else, we need to read it !
 			req.Respond(404)(message);
 			req.End();
 			return;
@@ -537,36 +556,39 @@
 				req.OnBodyData = function(buf) req._termData += buf;
 				req.OnEndOfBody = function() {
 
-					ReportNotice( 'remoteTerm' + req.peerName + ' data: ' + req._termData );
+					ReportNotice( _name+' @ProcessTermAccess - data from ' + req.peerName + ': ' + req._termData );
 					let prevSend = term.Send||undefined; // save the previous Send method because it may be a pending wait
 					delete term.Send;
 					for each ( let item in DecodeArray(req._termData) )
-						term.pub.OnRequest && term.pub.OnRequest.apply(term.pub, DecodeArray(item));
+						term.pub.OnRequest && term.pub.OnRequest.call(term.pub, DecodeArray(item));
 					delete req._termData; // _termData is tmp.
 					SendItemList(req, term.pendingMessagesQueue);
 					term.Send = prevSend;
 				}
 				return;
-				
-			case 'history': // note that the history can be managed client-side
-				var historyWithoutPendingItems = term.history.slice(0,term.history.length-term.pendingMessagesQueue.length); // remove the pending data that will be send later
-				SendItemList(req, historyWithoutPendingItems);
-				return;
 		}
 	}
 
+//	INSPECT.push(function() 'CONSOLES '+__termList.length+':'+[desc.peerPort+':'+desc.peerName for each ( desc in _descriptorList )].join(' ')+' ');
 
 
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//
+//  HTTP Server
+//
 
 
-
-	var totalConnectionCount = 0;
-	var requestHandlerList = {};
+	var _serverConnection;
+	var _requestHandlerList = {};
+	var _httpConnectionsIndex = 0;
+	var _httpConnectionList = {};
+	var _totalConnectionCount = 0;
 	
 	function FindRequestHandler(path) {
 		
-		for each ( var [match, requestHandler] in requestHandlerList )
+		for each ( var [match, requestHandler] in _requestHandlerList )
 			if ( match(path) )
 				return requestHandler;
 		return undefined;
@@ -578,11 +600,15 @@
 		delete this.Respond; // we can respond only once
 		protoVersion = protoVersion || this.iStatus.protoVersion;
 		var connectionKeepAliveMax = getData($MD.connectionKeepAliveMax);
+
 		if ( this.iStatus.protoVersion >= 1.1 && this.iHeaders.Is('Connection', 'keep-alive') && !this.oHeaders.Is('Connection', 'close') && this.count <= connectionKeepAliveMax && (this.oHeaders.Has('Content-Length') || this.oHeaders.Is('Transfer-Encoding', 'chunked')) ) {
 
 			this.oHeaders.Set('Connection', 'keep-klive' );
 			this.oHeaders.Set('Keep-Alive', 'timeout='+(getData($MD.connectionKeepAliveTimeout)/SECOND).toFixed()+', max='+(connectionKeepAliveMax-this.count) );
 		} else {
+		
+			if ( this.oHeaders.Is('Transfer-Encoding', 'chunked') )
+				this.oHeaders.Remove('Transfer-Encoding'); // not HTTP/1.1
 			this.oHeaders.Set('Connection', 'close');
 		}
 		this.Send( CreateHttpHeaders( statusCode, protoVersion, this.oHeaders ) );
@@ -591,13 +617,17 @@
 			
 	
 	function ProcessHttpConnection(connection) {
-
-		totalConnectionCount++;
 		
-//DPrint( 'NEW CONNECTION, count:', totalConnectionCount, Now() );
+		var currentConnectionIndex = _httpConnectionsIndex++;
+		_httpConnectionList[currentConnectionIndex] = connection;
+
+		_totalConnectionCount++;
+		
+//DPrint( 'NEW CONNECTION, count:', _totalConnectionCount, Now() );
 
 		var input = new Buffer();
 		var connectionDataRate = new SingleRateMeter(getData($MD.connectionDataRate));
+		var incomingRequestRate = new SingleRateMeter(getData($MD.maxRequestRate));
 
 		var count = 0, timeout;
 		var req = {}, OnData = ProcessHttpHeader;
@@ -624,12 +654,13 @@
 		connection.OnDisconnected = function() {
 
 			ResetTimeout();
-			totalConnectionCount--;
+			delete _httpConnectionList[currentConnectionIndex];
+			_totalConnectionCount--;
 			delete req.Respond;
 			delete req.Send;
 			delete req.End;
 			req.OnDisconnected && req.OnDisconnected();
-			connection.Close(); // hard close
+			connection.Close(); // hard close / close the socket handler
 		}
 		
 		function Send(item) connection.Write(item, true);
@@ -642,7 +673,7 @@
 				
 				ResetTimeout();
 				connection.Close(); // hard close
-				ReportWarning( _name + ' incoming HTTP request header too long ('+input.length+')' )
+				ReportWarning( _name + ' @ProcessHttpHeader - incoming HTTP request header too long ('+input.length+') from '+_socket.peerName+':'+_socket.peerPort )
 //				connection.Disconnect(); // (TBD) should be less gentle
 				return;
 			}	
@@ -665,12 +696,11 @@
 				'Server':_name,
 				'Expires':'0',
 				'Cache-Control':'no-cache',
-//				'Pragma':'no-cache',
 				'Content-Type':'text/html'
 			}); // beware: do not set 'Connection' or 'Content-Length'
 			req.remainingBodyLength = req.iHeaders.Get('Content-Length');
 
-			ReportNotice( _name + ' incoming HTTP request: ' + req.iStatus.method + ' ' + req.iStatus.url ); // req.iHeaders.Serialize() 
+			ReportNotice( _name + ' @ProcessHttpHeader - incoming HTTP request: ' + req.iStatus.method + ' ' + req.iStatus.url ); // req.iHeaders.Serialize() 
 
 			req.Respond = Respond;
 			req.Send = Send;
@@ -684,7 +714,7 @@
 			if ( !requestHandler ) {
 
 				var message = 'Unable to handle ' + req.iStatus.path;
-				req.oHeaders.MSet({'Content-Length':message.length, 'Content-Type':'text/plain' /*, 'Connection':'close'*/});
+				req.oHeaders.MSet({'Content-Length':message.length, 'Content-Type':'text/plain'});
 				req.Respond(404)(message);
 				req.End();
 				return;
@@ -721,6 +751,9 @@
 		
 		
 		function ProcessEndOfRequest() {
+
+			if ( !incomingRequestRate.Inc(1) )
+				connection.Sleep( incomingRequestRate.RestTime() );
 			
 			OnData = Noop;
 
@@ -753,44 +786,44 @@
 		}
 	}
 
-
-
-
-	var serverConnection;
-
 	function StartServer() {
 
 		var incomingConnectionRatePerPeer = new MultiRateMeter(getData($MD.incomingConnectionRatePerPeer));
-		serverConnection = new TCPServer( getData($MD.port), getData($MD.bind), getData($MD.socketBackLog) );
-		serverConnection.OnIncoming = function(connection) {
-		
-			if ( totalConnectionCount <= getData($MD.maxConnections) && incomingConnectionRatePerPeer.Inc(connection.peerName, 1) ) {
+		_serverConnection = new TCPServer( getData($MD.port), getData($MD.bind), getData($MD.socketBackLog) );
+		_serverConnection.OnIncoming = function(connection) {
+
+			if ( _totalConnectionCount <= getData($MD.maxConnections) && incomingConnectionRatePerPeer.Inc(connection.peerName, 1) ) {
 			
 				ProcessHttpConnection(connection);
 			} else {
 			
 				if ( incomingConnectionRatePerPeer.Ratio(connection.peerName) < 2 ) {
 	
-					connection.Write('HTTP/1.1 503 Service Unavailable'+CRLF+'Retry-After: 2'+CRLF+'Connection: close'+CRLF+CRLF, true); // warning
-					connection.Write(function() connection.Disconnect());
+					connection.Write('HTTP/1.1 503 Service Unavailable'+CRLF+'Retry-After: 2'+CRLF+'Connection: close'+CRLF+CRLF, true);
+					connection.Write(function() connection.Disconnect(), true);
 					return;
 				}
 				connection.Close(); // hard close.
-				serverConnection.Sleep(500); // ignore incomming connections for a while
+				_serverConnection.Sleep(500); // ignore incomming connections for a while
 			}
 		}
 	}
 
 	function StopServer() {
 		
-		serverConnection.Close();
+		_serverConnection.Close();
+		for each ( var connection in _httpConnectionList ) {
+			
+			connection.Close();
+		}
+		Clear(_httpConnectionList);
 	}
 
 
 	this.moduleApi = {
 		
-		AddRequestHandler: function( pathRegExpr, requestHandlerConstructor ) requestHandlerList[String(pathRegExpr)] = [pathRegExpr, requestHandlerConstructor],
-		RemoveRequestListener: function( pathRegExpr ) delete requestHandlerList[String(pathRegExpr)]
+		AddRequestHandler: function( pathRegExpr, requestHandlerConstructor ) _requestHandlerList[String(pathRegExpr)] = [pathRegExpr, requestHandlerConstructor],
+		RemoveRequestListener: function( pathRegExpr ) delete _requestHandlerList[String(pathRegExpr)]
 	};
 
 
@@ -802,20 +835,16 @@
 			
 				if (polarity) {
 					
-					StartServer();
 					$A.AddRequestHandler( /^\/doc\//, ProcessFileRequest );
 					$A.AddRequestHandler( /^\/cons/, ProcessTermAccess );
+
+					StartServer();
 				} else {
 					
 					StopServer();
-
-					//CloseHttpConnections(); // (TBD)
-
 					CloseAllTerms();
 				}
-				
 			}
 		}
 	];	
-
 })
