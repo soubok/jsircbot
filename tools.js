@@ -670,7 +670,7 @@ function RateMeter() {
     	for ( var k in Iterator(_keyList, true) ) // clean the list
 			if ( now - _keyList[k].time > monitorPeriod )
 				delete _keyList[k];
-        var data = _keyList[key] || (_keyList[key] = { time:0, amount:0 });
+			var data = _keyList[key] || (_keyList[key] = { time:0, amount:0 });
    		var interval = now - data.time;
    		data.amount = data.amount * (interval < monitorPeriod ? 1 - interval / monitorPeriod : 0) + amount;
    		data.time = now;
@@ -745,6 +745,37 @@ function SingleRateMeter([max,monitorPeriod]) {
 	}
 }
 
+
+function MultiCounter(max) {
+
+	var _keyList = {};
+	this.Add = function(key, count) {
+		
+		if ( key in _keyList ) {
+
+			_keyList[key] += count;
+			_keyList[key] || delete _keyList[key];
+		} else {
+			
+			_keyList[key] = 1;
+		}
+		return this.Check(key);
+	}
+
+	this.Check = function(key) {
+
+		return key in _keyList ? _keyList[key] <= max : true;
+
+	}
+	
+	this.Count = function(key) {
+		
+		if ( key in _keyList )
+			return _keyList[key];
+		else
+			return 0;
+	}
+}
 
 /////////////////////////////////////////////////////// String functions
 
