@@ -148,6 +148,10 @@
 			
 			return name in _headers && _headers[name].toLowerCase() == value.toLowerCase();
 		}
+		this.Contain = function(name, value) {
+			
+			return name in _headers && _headers[name].toLowerCase().indexOf(value.toLowerCase()) != -1;
+		}
 		this.Remove = function(name) {
 			
 			delete _headers[name];
@@ -184,7 +188,7 @@
 		
 		var map = NewDataObj();
 		if ( str )
-			for each ( var p in str.split('; ') )
+			for each ( var p in str.split('; ') ) // (TBD) enhance this
 				let ( [key, val] = p.split('=') )
 					map[key] = val;
 		return map;
@@ -228,9 +232,9 @@
 		
 		file.Open( File.RDONLY );
 		
-		req.OnBodyData = function(buf) data += buf;
+		req.OnBodyData = function(req, buf) data += buf;
 
-		req.OnEndOfBody = function() {
+		req.OnEndOfBody = function(req) {
 
 			req.oHeaders.Set('Content-Type', MimeTypeByFileName(fileName));
 
@@ -242,7 +246,7 @@
 			}
 
 			var ContentEncodingFilter = Identity;
-			if ( req.iHeaders.Has('Accept-Encoding') && req.iHeaders.Get('Accept-Encoding').indexOf('deflate') != -1 ) {
+			if ( req.iHeaders.Has('Accept-Encoding') && req.iHeaders.Contain('Accept-Encoding', 'deflate') ) {
 
 				req.oHeaders.Set('Content-Encoding', 'deflate');
 				ContentEncodingFilter = new Z(Z.DEFLATE,0);
@@ -395,10 +399,10 @@
 			} else {
 			
 				Send(['cout','Ready.<br/>']);
-				io.AddTimeout( 1000, function() {
+				io.AddTimeout( 2000, function() {
 
 					Send(['cout', i+'<br/>']);
-					io.AddTimeout( 10000, arguments.callee );
+					io.AddTimeout( 50, arguments.callee );
 					i++;
 				});
 			}				
@@ -409,14 +413,13 @@
 			if ( name != 'cin' )
 				return;
 			j++;
-			Send(['cout','echo '+j+':'+data+'<br/>']);
+			Send(['cout', 'echo '+j+':'+data+'<br/>']);
 		}
 
-		_term.OnClose = function() {
-		}
+		_term.OnClose = function() {}
 	}
-/*
-*/	
+
+
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -426,19 +429,31 @@
 
 	var _termCount = 0;
 	var _termList = NewDataObj();
-	
-	function CloseAllTerms() {
 
-		for each ( var c in _termList )
-			c.pub.Close && c.pub.Close();
+	function SendItemList(req, itemList) {
+		
+		if ( !req.Respond )
+			return;
+		var data = EncodeArray([ EncodeArray(item) for each (item in itemList) ]);
+		itemList.splice(0);
+		if ( data.length >= 512 && req.iHeaders.Has('Accept-Encoding') && req.iHeaders.Contain('Accept-Encoding', 'deflate') ) {
+			
+			if ( !req.iHeaders.Contain('User-Agent', 'MSIE') ) {
+
+				req.oHeaders.Set('Content-Encoding', 'deflate');
+				data = new Z(Z.DEFLATE)(data, true); // send all at once
+			}
+		}
+		req.oHeaders.Set('Content-Type', 'application/x-www-form-urlencoded');
+		req.oHeaders.Set('Content-Length', data.length);
+		req.Respond(200)(data);
+		req.End();
 	}
 	
 	function ProcessTermAccess(req) {
 
-		var query = ParseQueryData(req.iStatus.query);
-		var cookie = ParseCookieData(req.iHeaders.Get('Cookie'));
-		var action = query.action;
-		var term = _termList[cookie.sid];
+		var action = ParseQueryData(req.iStatus.query||'').action;
+		var term = _termList[ParseCookieData(req.iHeaders.Get('Cookie')||'').sid];
 		
 		if ( !action ) {
 			
@@ -504,71 +519,60 @@
 			return;
 		}
 
-
 		if ( !term ) { // a 'sid' is given but no matching session is found.
-			
+
 			let message = '<h1>Invalid session</h1><p>The required terminal session is closed</p>';
 			req.oHeaders.Set('Content-Length', message.length);
 			req.Respond(404)(message);
 			req.End();
 			return;
 		}
+
 		
 		term.ResetTimeout(getData($MD.termSessionTimeout));
 
-		function SendItemList(req, itemList) {
+		req._termData = '';
+		req.OnBodyData = function(req, buf) req._termData += buf;
+		req.OnEndOfBody = function(req) {
 
-			var data = EncodeArray([ EncodeArray(item) for each (item in itemList) ]);
-			itemList.splice(0);
-			if ( data.length >= 128 && req.iHeaders.Has('Accept-Encoding') && req.iHeaders.Get('Accept-Encoding').indexOf('deflate') != -1 ) {
-
-// (TBD) make IE* leave this scope
-
-//				req.oHeaders.Set('Content-Encoding', 'deflate');
-//				data = new Z(Z.DEFLATE)(data, true); // send all at once
+			if ( req.iStatus.method == 'POST' ) {
+				
+				var tmp = term.pub.Send; // don't waste the pending request
+				for each ( let item in DecodeArray(req._termData) )
+					term.pub.OnRequest && term.pub.OnRequest.call(term.pub, DecodeArray(item));
+				delete req._termData;
+				term.pub.Send = tmp;
 			}
-			req.oHeaders.Set('Content-Type', 'application/x-www-form-urlencoded');
-			req.oHeaders.Set('Content-Length', data.length);
-			req.Respond(200)(data);
-			req.End();
-		}
-		
-		switch (action) {
-		
-			case 'wait':
-				if ( term.pendingMessagesQueue.length ) {
-					
-					SendItemList(req, term.pendingMessagesQueue);
-					delete term.Send;
-					return;
-				}
-				term.Send = function(item) {
 
-					req.Respond && SendItemList(req, term.pendingMessagesQueue);
-					delete term.Send;
-				}
+			if ( term.pendingMessagesQueue.length ) {
+
+				SendItemList(req, term.pendingMessagesQueue);
 				return;
+			}
+			
+			if ( term.Send ) { // we need only one pending request, else end the current request (very unusual case)
 
-			case 'submit':
-				req._termData = '';
-				req.OnBodyData = function(buf) req._termData += buf;
-				req.OnEndOfBody = function() {
-
-					ReportNotice( _name+' @ProcessTermAccess - data from ' + req.peerName + ': ' + req._termData );
-					let prevSend = term.Send||undefined; // save the previous Send method because it may be a pending wait
-					delete term.Send;
-					for each ( let item in DecodeArray(req._termData) )
-						term.pub.OnRequest && term.pub.OnRequest.call(term.pub, DecodeArray(item));
-					delete req._termData; // _termData is tmp.
-					SendItemList(req, term.pendingMessagesQueue);
-					term.Send = prevSend;
-				}
+				req.Respond(200);
+				req.End(); // nothing else to do with this request
 				return;
+			}
+
+			term.Send = function(item) {
+
+				SendItemList(req, term.pendingMessagesQueue);
+				delete term.Send;
+			}
+
 		}
 	}
 
-//	INSPECT.push(function() 'CONSOLES '+__termList.length+':'+[desc.peerPort+':'+desc.peerName for each ( desc in _descriptorList )].join(' ')+' ');
+	function CloseAllTerms() {
 
+		for each ( var c in _termList )
+			c.pub.Close && c.pub.Close();
+	}
+
+	INSPECT.push(function() 'TERMINAL '+ObjPropertyCount(_termList));
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -583,6 +587,7 @@
 	var _httpConnectionsIndex = 0;
 	var _httpConnectionList = {};
 	var _totalConnectionCount = 0;
+//	var _maxConnectionsPerPeer;
 	
 	function FindRequestHandler(path) {
 		
@@ -599,7 +604,11 @@
 		protoVersion = protoVersion || this.iStatus.protoVersion;
 		var connectionKeepAliveMax = getData($MD.connectionKeepAliveMax);
 
-		if ( this.iStatus.protoVersion >= 1.1 && this.iHeaders.Is('Connection', 'keep-alive') && !this.oHeaders.Is('Connection', 'close') && this.count <= connectionKeepAliveMax && (this.oHeaders.Has('Content-Length') || this.oHeaders.Is('Transfer-Encoding', 'chunked')) ) {
+		if ( this.iStatus.protoVersion >= 1.1 
+			  && this.iHeaders.Is('Connection', 'keep-alive')
+			  && !this.oHeaders.Is('Connection', 'close')
+			  && this.count <= connectionKeepAliveMax 
+		     && (this.oHeaders.Has('Content-Length') || this.oHeaders.Is('Transfer-Encoding', 'chunked')) ) {
 
 			this.oHeaders.Set('Connection', 'keep-klive' );
 			this.oHeaders.Set('Keep-Alive', 'timeout='+(getData($MD.connectionKeepAliveTimeout)/SECOND).toFixed()+', max='+(connectionKeepAliveMax-this.count) );
@@ -657,7 +666,7 @@
 			delete req.Respond;
 			delete req.Send;
 			delete req.End;
-			req.OnDisconnected && req.OnDisconnected();
+			// req.OnDisconnected && req.OnDisconnected(req); we MUST notify ALL requests not only the last !!!
 			connection.Close(); // hard close / close the socket handler
 		}
 		
@@ -735,12 +744,12 @@
 			
 			if ( input.length >= req.remainingBodyLength ) {
 
-				req.OnBodyData && req.OnBodyData(input.Read(req.remainingBodyLength)); // ***
+				req.OnBodyData && req.OnBodyData(req, input.Read(req.remainingBodyLength)); // ***
 				req.remainingBodyLength = 0;
 			} else {
 			
 				req.remainingBodyLength -= input.length;
-				req.OnBodyData && req.OnBodyData(input.Read()); // ***
+				req.OnBodyData && req.OnBodyData(req, input.Read()); // ***
 			}
 
 			if ( req.remainingBodyLength == 0 )
@@ -770,7 +779,7 @@
 					ProcessHttpHeader();
 			}
 
-			req.OnEndOfBody && req.OnEndOfBody(); // ***
+			req.OnEndOfBody && req.OnEndOfBody(req); // ***
 		}
 		
 		
@@ -816,6 +825,9 @@
 		}
 		Clear(_httpConnectionList);
 	}
+
+
+	INSPECT.push(function() 'HTTP CONNECTION '+ObjPropertyCount(_httpConnectionList));
 
 
 	this.moduleApi = {

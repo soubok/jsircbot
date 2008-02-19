@@ -741,7 +741,7 @@ function SingleRateMeter([max,monitorPeriod]) {
 		this.Inc(0);
 		if ( total < max )
 			return 0;
-		return monitorPeriod * (total - max) / max;
+		return Math.floor(monitorPeriod * (total - max) / max);
 	}
 }
 

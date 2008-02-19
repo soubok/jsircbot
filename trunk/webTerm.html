@@ -49,7 +49,7 @@ $A.SetTitle = function(title) {
 	_doc.title = title + ' - ';
 }
 
-$A.HttpRequest = function() {
+$A.HttpRequest = function(OnResponse) {
 
 	var _this = this;
 	var xhr = $A.NewXMLHttpRequest();
@@ -76,14 +76,16 @@ $A.HttpRequest = function() {
 			if ( !sync ) {
 				xhr.onreadystatechange = function() {
 
+					var status;
 					try {
 						if ( xhr.readyState != 4 )
 							return;
-						if ( xhr.status != 200 )
-							throw Error();
+						status = xhr.status;
+						if ( status != 200 )
+							throw 0;
 						else
-							_this.OnResponse && _this.OnResponse(true, xhr.responseText, xhr.getResponseHeader('Content-Type'));
-					} catch(ex) { _this.OnResponse && _this.OnResponse(false) }
+							OnResponse && OnResponse(_this, true, xhr.responseText, xhr.getResponseHeader('Content-Type'));
+					} catch(ex) { OnResponse && OnResponse(_this, false, status ) }
 				}
 			}
 			if (type != undefined)
@@ -92,7 +94,7 @@ $A.HttpRequest = function() {
 			if ( sync && xhr.status == 200 )
 				return xhr.responseText;
 
-		} catch(ex) { _this.OnResponse && _this.OnResponse(false) }
+		} catch(ex) { OnResponse && OnResponse(_this, false) }
 	}
 }
 
@@ -144,62 +146,41 @@ function CoreModule() {
 			$A.Dispatch.apply(this, DecodeArray(tmp[i]));
 	}
 
-
 	var sendingQueue = [];
+	var xhrPool = [ new $A.HttpRequest(OnResponse), new $A.HttpRequest(OnResponse) ];
 
-	var outputHttpRequest = new $A.HttpRequest();
-
-	outputHttpRequest.OnResponse = function(status, data, type) {
+	function OnResponse(xhr, status, data, type) {
 
 		if ( status && data != '' ) {
 
+			xhrPool.push(xhr);
 			DispatchResponse(data, type);
-			$A.Send(); // send pending data if any
+			if ( sendingQueue.length || xhrPool.length == 2 )
+				$A.Send();
 		} else
 			$A.Dispatch(CONNECTION_ERROR);
 	}
 
-	$A.Send = function(/*...*/) { // (TBD) use Dispatch('Send',...) instead ???
+	$A.Send = function(message) {
 
-		if ( arguments.length ) {
+		message && sendingQueue.push(message);
 
-			var item = [];
-			for ( var i=0; i<arguments.length; i++ )
-				item.push(arguments[i]);
-			sendingQueue.push(item);
-		}
+		if ( xhrPool.length ) {
 
-		if ( !outputHttpRequest.Ready() )
-			return;
+			var data;
+			if (sendingQueue.length) {
 
-		if ( sendingQueue.length ) {
-
-			var tmp = [];
-			for ( var i in sendingQueue )
-				tmp.push(EncodeArray(sendingQueue[i]));
-			outputHttpRequest.Send('?action=submit', EncodeArray(tmp), 'application/x-www-form-urlencoded');
-			sendingQueue.splice(0,sendingQueue.length);
+				data = [];
+				for ( var i in sendingQueue )
+					data.push(EncodeArray(sendingQueue[i]));
+				data = EncodeArray(data);
+				sendingQueue.splice(0,sendingQueue.length);
+			}
+			xhrPool.shift().Send('?action=submit', data, 'application/x-www-form-urlencoded');
 		}
 	}
 
-	var inputHttpRequest = new $A.HttpRequest();
-
-	function StartPendingRequest() {
-
-		inputHttpRequest.Send('?action=wait', null);
-	}
-
-	inputHttpRequest.OnResponse = function(status, data, type) {
-
-		if ( status && data != '' ) {
-
-			DispatchResponse(data, type);
-			StartPendingRequest();
-		} else
-			$A.Dispatch(CONNECTION_ERROR);
-	}
-
-	StartPendingRequest();
+	$A.Send(); // pending request
 
 	this.AddModule = function( _, moduleSrc ) {
 

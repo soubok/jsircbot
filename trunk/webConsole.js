@@ -58,7 +58,7 @@ function OnKey(event) {
 				stack[0] = '';
 			else
 				stack.unshift('');
-			$A.Send('cin', _in.value);
+			$A.Send(['cin', _in.value]);
 			_in.value = '';
 			_in.focus();
 			break;
