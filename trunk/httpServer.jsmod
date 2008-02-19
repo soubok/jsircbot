@@ -402,7 +402,7 @@
 				io.AddTimeout( 2000, function() {
 
 					Send(['cout', i+'<br/>']);
-					io.AddTimeout( 50, arguments.callee );
+					io.AddTimeout( 500, arguments.callee );
 					i++;
 				});
 			}				
@@ -587,7 +587,9 @@
 	var _httpConnectionsIndex = 0;
 	var _httpConnectionList = {};
 	var _totalConnectionCount = 0;
-//	var _maxConnectionsPerPeer;
+	var _connectionCountByHost = new MultiCounter(getData($MD.maxConnectionsPerPeer));
+	var _incomingConnectionRatePerPeer = new MultiRateMeter(getData($MD.incomingConnectionRatePerPeer));
+
 	
 	function FindRequestHandler(path) {
 		
@@ -624,14 +626,15 @@
 			
 	
 	function ProcessHttpConnection(connection) {
-		
+	
+		_incomingConnectionRatePerPeer.Inc(connection.peerName, 1);
+		_connectionCountByHost.Add(connection.peerName, 1);
+				
 		var currentConnectionIndex = _httpConnectionsIndex++;
 		_httpConnectionList[currentConnectionIndex] = connection;
 
 		_totalConnectionCount++;
 		
-//DPrint( 'NEW CONNECTION, count:', _totalConnectionCount, Now() );
-
 		var input = new Buffer();
 		var connectionDataRate = new SingleRateMeter(getData($MD.connectionDataRate));
 		var incomingRequestRate = new SingleRateMeter(getData($MD.maxRequestRate));
@@ -663,6 +666,7 @@
 			ResetTimeout();
 			delete _httpConnectionList[currentConnectionIndex];
 			_totalConnectionCount--;
+			_connectionCountByHost.Add(connection.peerName, -1);
 			delete req.Respond;
 			delete req.Send;
 			delete req.End;
@@ -795,16 +799,20 @@
 
 	function StartServer() {
 
-		var incomingConnectionRatePerPeer = new MultiRateMeter(getData($MD.incomingConnectionRatePerPeer));
 		_serverConnection = new TCPServer( getData($MD.port), getData($MD.bind), getData($MD.socketBackLog) );
 		_serverConnection.OnIncoming = function(connection) {
 
-			if ( _totalConnectionCount <= getData($MD.maxConnections) && incomingConnectionRatePerPeer.Inc(connection.peerName, 1) ) {
-			
+			if ( _incomingConnectionRatePerPeer.Check(connection.peerName)
+				  && _totalConnectionCount <= getData($MD.maxConnections) 
+				  && _connectionCountByHost.Check(connection.peerName) 
+			) {
+
+DPrint( _connectionCountByHost.Count(connection.peerName) ); <----- fix
+
 				ProcessHttpConnection(connection);
 			} else {
 			
-				if ( incomingConnectionRatePerPeer.Ratio(connection.peerName) < 2 ) {
+				if ( _incomingConnectionRatePerPeer.Ratio(connection.peerName) < 2 ) { // try to detect spam
 	
 					connection.Write('HTTP/1.1 503 Service Unavailable'+CRLF+'Retry-After: 2'+CRLF+'Connection: close'+CRLF+CRLF, true);
 					connection.Write(function() connection.Disconnect(), true);

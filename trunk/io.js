@@ -336,17 +336,19 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 	
 	function Connecting() {
 		
-		_socket.recvBufferSize = 16*KILOBYTE;
-		_socket.sendBufferSize = 16*KILOBYTE;
+//		_socket.recvBufferSize = 16*KILOBYTE;
+//		_socket.sendBufferSize = 16*KILOBYTE;
+
+		_this.sockName = _socket.sockName;
+		_this.peerName = _socket.peerName;
 
 		_socket.writable = function(s) {
+
+			_this.peerPort = _socket.peerPort; // (TBD) check the place of these two lines
+			_this.sockPort = _socket.sockPort;
 			
 			delete s.writable;
 			_connectionTimeout && io.RemoveTimeout(_connectionTimeout);
-			_this.sockPort = s.sockPort;
-			_this.sockName = s.sockName;
-			_this.peerPort = s.peerPort;
-			_this.peerName = s.peerName;
 			delete _this.Connect;
 			_this.OnConnected && _this.OnConnected();
 		}
@@ -360,10 +362,10 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 
 				delete s.readable;
 				delete s.writable;
-				delete _this.sockPort;
-				delete _this.sockName;
-				delete _this.peerPort;
-				delete _this.peerName;
+//				delete _this.sockPort;
+//				delete _this.sockName;
+//				delete _this.peerPort;
+//				delete _this.peerName;
 				delete _this.Connect;
 				delete _this.Sleep;
 				delete _this.Read;
@@ -457,10 +459,10 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 			io.RemoveTimeout(shutdownTimeout); // cancel the timeout
 			io.RemoveDescriptor(_socket); // no more read/write notifications are needed
 
-			delete _this.sockPort;
-			delete _this.sockName;
-			delete _this.peerPort;
-			delete _this.peerName;
+//			delete _this.sockPort;
+//			delete _this.sockName;
+//			delete _this.peerPort;
+//			delete _this.peerName;
 
 			_this.OnDisconnected && _this.OnDisconnected(false); // locally disconnected  // (TBD) define an enum like LOCALLY ?
 			MaybeCollectGarbage();
@@ -549,6 +551,7 @@ function TCPServer( portRange, ip, backlog ) {
 	this.OnIncoming = Noop;
 	var _socket = new Socket(Socket.TCP);
 	_socket.nonblocking = true;
+	_socket.noDelay = true;
 	_socket.reuseAddr = true;
 	if ( !TryBindSocket( _socket, portRange, ip ) )
 		DBG && ReportError('Unable to create the TCPServer, cannot bind to '+ip+':'+portRange );

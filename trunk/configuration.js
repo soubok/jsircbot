@@ -111,7 +111,7 @@ function(data) {
 	setData(data.webServerModule.bind, '127.0.0.1');
 	setData(data.webServerModule.socketBackLog, 2); // socketBackLog is the maximum length of the queue of pending connections.
 	setData(data.webServerModule.maxConnections, 10);
-//	setData(data.webServerModule.maxConnectionsPerPeer, 3); // (TBD)
+	setData(data.webServerModule.maxConnectionsPerPeer, 3);
 	setData(data.webServerModule.incomingConnectionRatePerPeer, [10, 3*SECOND]);
 	setData(data.webServerModule.connectionKeepAliveTimeout, 100*SECOND);
 	setData(data.webServerModule.connectionKeepAliveMax, 1000);
