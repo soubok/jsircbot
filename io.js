@@ -30,15 +30,17 @@ var io = new function() {
 			_tlist[date] = func;
 			if ( date < _min )
 				_min = date;
-				
+
 			return date; // timer id
 		}
 
-		this.Remove = function(date) {
+		this.Remove = function(date, execOnRemove) {
 			
+			var func = _tlist[date];
 			delete _tlist[date];
 			if ( date == _min )
 				_min = -Infinity;
+			execOnRemove && func && func.call(func); // 'this' will be the function itself
 		}
 
 		this.Process = function() {
@@ -74,12 +76,14 @@ var io = new function() {
 
 	this.AddDescriptor = function(d) _descriptorList.push(d);
 
+	this.HasDescriptor = function(d) _descriptorList.some( function(item) item == d );
+
 	this.RemoveDescriptor = function(d) _descriptorList.some( function(item, index) item == d && _descriptorList.splice(index, 1) );
 
 	this.Process = function( endPredicate ) {
 		
 		do {
-		
+
 			Poll(_descriptorList, Math.min(_timeout.Process(), 500));
 //			_descriptorList = _descriptorList.slice();  // copy to avoid memory leaks ( bz404755 )
 		} while ( !endPredicate() );
@@ -416,21 +420,19 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 		}
 	}
 	
+	var _sleepTimeout;
+	
 	this.Sleep = function(time) {
 		
-		// (TBD) use  io.RemoveDescriptor(_socket); / io.AddDescriptor instead ???  but beware Close and Disconnect 
-		var prev = [ arguments.callee, _socket.readable, _socket.writable ];
+		var _thisFunction = arguments.callee;
 		delete _this.Sleep;
-		delete _socket.readable;
-		delete _socket.writable;
-		io.AddTimeout( time, function() {
-			
-			[ _this.Sleep, _socket.readable, _socket.writable ] = prev;
-		});
+		io.RemoveDescriptor(_socket);
+		_sleepTimeout = io.AddTimeout( time, function() { io.AddDescriptor(_socket); _this.Sleep = _thisFunction });
 	}
 	
 	this.Close = function() {
 
+		io.RemoveTimeout(_sleepTimeout, true);
 		io.RemoveDescriptor(_socket); // no more read/write notifications are needed
 		
 		delete _this.Disconnect;
@@ -444,6 +446,7 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 
 	this.Disconnect = function() {
 		
+		io.RemoveTimeout(_sleepTimeout, true);
 		_socket.linger = 2000;
 		delete _socket.writable;
 		_socket.Shutdown(); // both
@@ -559,20 +562,19 @@ function TCPServer( portRange, ip, backlog ) {
 		_this.OnIncoming(new TCPConnection(incomingConnection));
 	}
 
+	var _sleepTimeout;
+
 	this.Sleep = function(time) {
-
-		// (TBD) use  io.RemoveDescriptor(_socket); / io.AddDescriptor instead ??? but beware Close and Disconnect !
-		var prev = [ arguments.callee, _socket.readable ];
+		
+		var _thisFunction = arguments.callee;
 		delete _this.Sleep;
-		delete _socket.readable;
-		io.AddTimeout( time, function() {
-			
-			[ _this.Sleep, _socket.readable ] = prev;
-		});
+		io.RemoveDescriptor(_socket);
+		_sleepTimeout = io.AddTimeout( time, function() { io.AddDescriptor(_socket); _this.Sleep = _thisFunction });
 	}
-
+	
 	this.Close = function() {
-
+		
+		io.RemoveTimeout(_sleepTimeout, true);
 		io.RemoveDescriptor(_socket);
 		_socket.Close();
 	}

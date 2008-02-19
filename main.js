@@ -283,13 +283,13 @@ log.AddFilter( MakeLogScreen(), LOG_FAILURE | LOG_ERROR | LOG_WARNING | LOG_CONS
 
 ReportNotice('Start at '+(new Date()));
 
-try {
+//try {
 
 	Core(Exec(arguments[1]||'configuration.js'), function() endSignal);
-} catch( ex if ex instanceof IoError ) {
-
-	ReportFailure( 'IoError: nspr code: '+ex.code+', os code: '+ex.os+', os reason: '+ex.text );
-}
+//} catch( ex if ex instanceof IoError ) {
+//
+//	ReportFailure( 'IoError: nspr code: '+ex.code+', os code: '+ex.os+', os reason: '+ex.text );
+//}
 
 ReportNotice('**************************** Gracefully end.');
 log.Close();
