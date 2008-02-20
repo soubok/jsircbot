@@ -338,41 +338,40 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 		
 //		_socket.recvBufferSize = 16*KILOBYTE;
 //		_socket.sendBufferSize = 16*KILOBYTE;
-
-		_this.sockName = _socket.sockName;
-		_this.sockPort = _socket.sockPort;
-		_this.peerName = _socket.peerName;
-		_this.peerPort = _socket.peerPort;
-
-		_socket.writable = function(s) {
+	
+		// callback order is: error, exception, readable, writable
+		_socket.writable = function(s) { // connected
 
 			delete s.writable;
+
+			_this.sockName = s.sockName;
+			_this.sockPort = s.sockPort;
+			_this.peerName = s.peerName; // only available once connected
+			_this.peerPort = s.peerPort; // only available once connected
+
 			_connectionTimeout && io.RemoveTimeout(_connectionTimeout);
-			delete _this.Connect;
-			_this.OnConnected && _this.OnConnected();
-		}
-	
-		_socket.readable = function(s) { // (TBD) link _socket.readable to _this.OnData
-
-			if ( s.available ) {
+			delete _this.Connect; // cannot connect twice
 			
-				_this.OnData && _this.OnData(_this);
-			} else { // disconnected case
+			_this.OnConnected && _this.OnConnected();
 
-				delete s.readable;
-				delete s.writable;
-				delete _this.Connect;
-				delete _this.Sleep;
-				delete _this.Read;
-				delete _this.Write;
-				io.RemoveDescriptor(_socket); // no more read/write notifications are needed
-				_this.OnDisconnected && _this.OnDisconnected(true); // (TBD) define an enum like REMOTELY ?
-				delete _this.sockPort;
-				delete _this.sockName;
-				delete _this.peerPort;
-				delete _this.peerName;
-				MaybeCollectGarbage();
+			_socket.readable = function(s) { // (TBD) link _socket.readable to _this.OnData ?
+
+				if ( s.available ) {
+
+					_this.OnData && _this.OnData(_this);
+				} else { // disconnected case
+
+					delete s.readable;
+					delete s.writable;
+					delete _this.Sleep;
+					delete _this.Read;
+					delete _this.Write;
+					io.RemoveDescriptor(_socket); // no more read/write notifications are needed
+					_this.OnDisconnected && _this.OnDisconnected(true); // (TBD) define an enum like REMOTELY ?
+					MaybeCollectGarbage();
+				}
 			}
+			
 		}
 
 		io.AddDescriptor(_socket);
