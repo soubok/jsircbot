@@ -629,10 +629,10 @@
 	
 		_incomingConnectionRatePerPeer.Inc(connection.peerName, 1);
 		_connectionCountByHost.Add(connection.peerName, 1);
-				
+		
 		var currentConnectionIndex = _httpConnectionsIndex++;
 		_httpConnectionList[currentConnectionIndex] = connection;
-
+		
 		_totalConnectionCount++;
 		
 		var input = new Buffer();
@@ -650,7 +650,6 @@
 		}
 
 		ResetTimeout(1*SECOND); // after accepting the connection, let 1 second to the client to send headers, else bye.
-//		ResetTimeout(getData($MD.connectionKeepAliveTimeout));		
 
 		connection.OnData = function() {
 			
@@ -660,8 +659,8 @@
 			if ( !connectionDataRate.Inc(data.length) )
 				connection.Sleep( connectionDataRate.RestTime() );
 		}
-
-		connection.OnDisconnected = function() {
+		
+		function CloseConnection() {
 
 			ResetTimeout();
 			delete _httpConnectionList[currentConnectionIndex];
@@ -670,10 +669,11 @@
 			delete req.Respond;
 			delete req.Send;
 			delete req.End;
-			// req.OnDisconnected && req.OnDisconnected(req); we MUST notify ALL requests not only the last !!!
 			connection.Close(); // hard close / close the socket handler
 		}
-		
+
+		connection.OnDisconnected = CloseConnection;
+
 		function Send(item) connection.Write(item, true);
 		
 		function ProcessHttpHeader() {
@@ -681,11 +681,9 @@
 			OnData = arguments.callee;
 
 			if ( input.length > 8*KILOBYTE ) { // invalid headers size
-				
-				ResetTimeout();
-				connection.Close(); // hard close
+
+				CloseConnection(); // connection.Disconnect(); is too gentle for this case
 				ReportWarning( _name + ' @ProcessHttpHeader - incoming HTTP request header too long ('+input.length+') from '+_socket.peerName+':'+_socket.peerPort )
-//				connection.Disconnect(); // (TBD) should be less gentle
 				return;
 			}	
 
@@ -710,9 +708,7 @@
 				'Content-Type':'text/html'
 			}); // beware: do not set 'Connection' or 'Content-Length'
 			req.remainingBodyLength = req.iHeaders.Get('Content-Length');
-
 			ReportNotice( _name + ' @ProcessHttpHeader - incoming HTTP request: ' + req.iStatus.method + ' ' + req.iStatus.url ); // req.iHeaders.Serialize() 
-
 			req.Respond = Respond;
 			req.Send = Send;
 			req.End = function() {
@@ -731,7 +727,7 @@
 				return;
 			}
 
-			requestHandler(req); // ***
+			requestHandler(req);
 
 			if ( req.remainingBodyLength > 0 ) // (string > number) is valid
 				ProcessHttpBody();
@@ -739,34 +735,30 @@
 				ProcessEndOfRequest();
 		}
 
-
 		function ProcessHttpBody() {
 
 			OnData = arguments.callee;
 			if ( !input.length )
 				return;
-			
 			if ( input.length >= req.remainingBodyLength ) {
 
-				req.OnBodyData && req.OnBodyData(req, input.Read(req.remainingBodyLength)); // ***
+				req.OnBodyData && req.OnBodyData(req, input.Read(req.remainingBodyLength));
 				req.remainingBodyLength = 0;
 			} else {
 			
 				req.remainingBodyLength -= input.length;
-				req.OnBodyData && req.OnBodyData(req, input.Read()); // ***
+				req.OnBodyData && req.OnBodyData(req, input.Read());
 			}
-
 			if ( req.remainingBodyLength == 0 )
 				ProcessEndOfRequest();
 		}
 		
-		
 		function ProcessEndOfRequest() {
+
+			OnData = Noop;
 
 			if ( !incomingRequestRate.Inc(1) )
 				connection.Sleep( incomingRequestRate.RestTime() );
-			
-			OnData = Noop;
 
 			if ( !req.End ) {
 
@@ -783,19 +775,19 @@
 					ProcessHttpHeader();
 			}
 
-			req.OnEndOfBody && req.OnEndOfBody(req); // ***
+			req.OnEndOfBody && req.OnEndOfBody(req);
 		}
-		
 		
 		function Disconnect() {
 
-			req.Send( function() void connection.Disconnect() ); // req.Send && ???
+			req.Send( function() void connection.Disconnect() );
 			delete req.Respond;
 			delete req.Send;
 			delete req.End;
 			OnData = Noop;
 		}
 	}
+
 
 	function StartServer() {
 
@@ -806,8 +798,6 @@
 				  && _totalConnectionCount <= getData($MD.maxConnections) 
 				  && _connectionCountByHost.Check(connection.peerName) 
 			) {
-
-DPrint( _connectionCountByHost.Count(connection.peerName) ); <----- fix
 
 				ProcessHttpConnection(connection);
 			} else {

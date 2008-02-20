@@ -74,7 +74,7 @@ var io = new function() {
 
 	this.RemoveTimeout = _timeout.Remove;
 
-	this.AddDescriptor = function(d) _descriptorList.push(d);
+	this.AddDescriptor = function(d) _descriptorList.push(d); // (TBD) do a poll after the new descriptor has been added ?
 
 	this.HasDescriptor = function(d) _descriptorList.some( function(item) item == d );
 
@@ -340,13 +340,12 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 //		_socket.sendBufferSize = 16*KILOBYTE;
 
 		_this.sockName = _socket.sockName;
+		_this.sockPort = _socket.sockPort;
 		_this.peerName = _socket.peerName;
+		_this.peerPort = _socket.peerPort;
 
 		_socket.writable = function(s) {
 
-			_this.peerPort = _socket.peerPort; // (TBD) check the place of these two lines
-			_this.sockPort = _socket.sockPort;
-			
 			delete s.writable;
 			_connectionTimeout && io.RemoveTimeout(_connectionTimeout);
 			delete _this.Connect;
@@ -358,20 +357,20 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 			if ( s.available ) {
 			
 				_this.OnData && _this.OnData(_this);
-			} else {
+			} else { // disconnected case
 
 				delete s.readable;
 				delete s.writable;
-//				delete _this.sockPort;
-//				delete _this.sockName;
-//				delete _this.peerPort;
-//				delete _this.peerName;
 				delete _this.Connect;
 				delete _this.Sleep;
 				delete _this.Read;
 				delete _this.Write;
 				io.RemoveDescriptor(_socket); // no more read/write notifications are needed
 				_this.OnDisconnected && _this.OnDisconnected(true); // (TBD) define an enum like REMOTELY ?
+				delete _this.sockPort;
+				delete _this.sockName;
+				delete _this.peerPort;
+				delete _this.peerName;
 				MaybeCollectGarbage();
 			}
 		}
@@ -382,13 +381,12 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 	if ( host instanceof Socket ) {
 		
 		_socket = host;
-		Connecting();
+		Connecting(); // the incoming socket is already connected
 	} else {
 		
 		this.Connect = function( timeout ) {
 		
 			ReportNotice( 'TCP CONNECTING TO: '+host+':'+port );
-
 			delete _this.Connect;
 
 			function ConnectionFailed() {
@@ -402,6 +400,7 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 				delete _this.Write;
 				io.RemoveDescriptor(_socket); // no more read/write notifications are needed
 				_this.OnFailed && _this.OnFailed(host, port);
+				ReportNotice( 'TCP FAILED TO CONNECT TO: '+host+':'+port );
 				_this.Close(); // here we close the socket unlike in this.Disconnect/Disconnected
 			}
 
@@ -458,13 +457,11 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 			delete _socket.readable;
 			io.RemoveTimeout(shutdownTimeout); // cancel the timeout
 			io.RemoveDescriptor(_socket); // no more read/write notifications are needed
-
-//			delete _this.sockPort;
-//			delete _this.sockName;
-//			delete _this.peerPort;
-//			delete _this.peerName;
-
 			_this.OnDisconnected && _this.OnDisconnected(false); // locally disconnected  // (TBD) define an enum like LOCALLY ?
+			delete _this.sockPort;
+			delete _this.sockName;
+			delete _this.peerPort;
+			delete _this.peerName;
 			MaybeCollectGarbage();
 		}
 		_socket.readable = Disconnected;

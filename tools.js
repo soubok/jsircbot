@@ -762,19 +762,9 @@ function MultiCounter(max) {
 		return this.Check(key);
 	}
 
-	this.Check = function(key) {
+	this.Check = function(key) key in _keyList ? _keyList[key] <= max : true;
 
-		return key in _keyList ? _keyList[key] <= max : true;
-
-	}
-	
-	this.Count = function(key) {
-		
-		if ( key in _keyList )
-			return _keyList[key];
-		else
-			return 0;
-	}
+	this.Count = function(key) key in _keyList ? _keyList[key] : 0;
 }
 
 /////////////////////////////////////////////////////// String functions
