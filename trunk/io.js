@@ -342,16 +342,15 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 		// callback order is: error, exception, readable, writable
 		_socket.writable = function(s) { // wait for connected
 
+			delete s.error;
+			delete s.exception;
 			delete s.writable;
-
 			_this.sockName = s.sockName;
 			_this.sockPort = s.sockPort;
 			_this.peerName = s.peerName; // only available once connected
 			_this.peerPort = s.peerPort; // only available once connected
-
 			_connectionTimeout && io.RemoveTimeout(_connectionTimeout);
 			delete _this.Connect; // cannot connect twice
-			
 			_this.OnConnected && _this.OnConnected();
 
 			_socket.readable = function(s) { // (TBD) link _socket.readable to _this.OnData ?
@@ -366,7 +365,7 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 					delete _this.Sleep;
 					delete _this.Read;
 					delete _this.Write;
-					io.RemoveDescriptor(_socket); // no more read/write notifications are needed
+					io.RemoveDescriptor(s); // no more read/write notifications are needed
 					_this.OnDisconnected && _this.OnDisconnected(true); // (TBD) define an enum like REMOTELY ?
 					MaybeCollectGarbage();
 				}
@@ -384,34 +383,38 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 		
 		this.Connect = function( timeout ) {
 		
-			ReportNotice( 'TCP CONNECTING TO: '+host+':'+port );
+			ReportNotice( 'TCPConnection to: '+host+':'+port );
 			delete _this.Connect;
 
 			function ConnectionFailed() {
 
+				delete _socket.error;
+				delete _socket.exception;
 				delete _socket.writable;
 				delete _socket.readable;
 				io.RemoveTimeout(_connectionTimeout);
-				_socket.Close();
 				delete _this.Sleep;
 				delete _this.Read;
 				delete _this.Write;
 				io.RemoveDescriptor(_socket); // no more read/write notifications are needed
+				ReportWarning( 'TCP FAILED TO CONNECT TO: ' );
 				_this.OnFailed && _this.OnFailed(host, port);
-				ReportNotice( 'TCP FAILED TO CONNECT TO: '+host+':'+port );
 				_this.Close(); // here we close the socket unlike in this.Disconnect/Disconnected
 			}
 
-			_connectionTimeout = io.AddTimeout( timeout||5*SECOND, ConnectionFailed );
 			_socket = new Socket(Socket.TCP);
 			_socket.nonblocking = true;
 			_socket.noDelay = true;
-
+			_socket.error = ConnectionFailed;
+			_socket.exception = ConnectionFailed; // called if cannot connect
+			_socket.readable = function(s) s.available || ConnectionFailed();
+			_connectionTimeout = io.AddTimeout( timeout || 5*SECOND, ConnectionFailed );
 			try {
 
 				_socket.Connect(host, port);
 			} catch( ex if ex instanceof IoError ) {
 
+				ReportWarning( 'TCPConnection to '+host+':'+port+' failed ('+ex.code+'; os:'+ex.os+', '+ex.text+')' );
 				ConnectionFailed();
 				return;
 			}
@@ -433,14 +436,8 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 
 		io.RemoveTimeout(_sleepTimeout, true);
 		io.RemoveDescriptor(_socket); // no more read/write notifications are needed
-		
-		delete _this.Disconnect;
-		delete _this.Connect;
-		delete _this.Sleep;
-		delete _this.Read;
-		delete _this.Write;
 		_socket.Close();
-		Clear(this);
+		Clear(_this);
 	}
 
 	this.Disconnect = function() {
