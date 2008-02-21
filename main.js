@@ -146,12 +146,9 @@ function LoadModuleList( coreApi, moduleList, retry, retryPause ) {
 
 ///////////////////////////////////////////////// CORE /////////////////////////////////////////////
 
-function Core( Configurator, endPredicate ) {
+function Core( $D, endPredicate ) {
 
 	var _modules = [];
-
-	var $D = newDataNode();
-	Configurator($D);
 
 	var $A = {}; // or new SetOnceObject(); or NewDataObj(); see. AddModule !
 	$A.__noSuchMethod__ = function(methodName) {
@@ -169,7 +166,7 @@ function Core( Configurator, endPredicate ) {
 	$A.ToggleModuleListener = _moduleListener.Toggle;
 	$A.FireModuleListener = _moduleListener.Fire;
 
-	$A.core = {
+	$A.core = { // core API
 	
 		AddModule: function( moduleConstructor, creationFunction, source ) {
 
@@ -274,24 +271,23 @@ function Core( Configurator, endPredicate ) {
 
 ///////////////////////////////////////////////// MAIN /////////////////////////////////////////////
 
-function DateString() let ( d = new Date ) d.getFullYear() + StringPad(d.getMonth()+1,2,'0') + StringPad(d.getDate(),2,'0');
-var thisSession = 'jsircbot_'+(Now())+'.log'; // used to create ONE log file by session
+var $D = newDataNode();
+Exec(arguments[1] || 'configuration.js', false)($D);
 
-//log.AddFilter( MakeLogFile(function() 'jsircbot_'+DateString()+'.log', false), LOG_ALL - LOG_NET );
-//log.AddFilter( MakeLogFile(function() thisSession, false), LOG_ALL );
-log.AddFilter( MakeLogScreen(), LOG_FAILURE | LOG_ERROR | LOG_WARNING | LOG_CONSOLE ); // LOG_NOTICE | 
+for each ( let [ logFilter, whatToLog ] in getData($D.logFilter) )
+	log.AddFilter( logFilter, whatToLog );
 
-ReportNotice('Start at '+(new Date()));
+ReportNotice(' ********** '+'Start at '+(new Date())+' ********** ');
 
-//try {
+try {
 
-	Core(Exec(arguments[1]||'configuration.js'), function() endSignal);
-//} catch( ex if ex instanceof IoError ) {
-//
-//	ReportFailure( 'IoError: nspr code: '+ex.code+', os code: '+ex.os+', os reason: '+ex.text );
-//}
+	Core($D, function() endSignal);
+} catch( ex if ex instanceof IoError ) {
 
-ReportNotice('**************************** Gracefully end.');
+	ReportFailure( 'IoError: nspr code: '+ex.code+', os code: '+ex.os+', os reason: '+ex.text );
+}
+
+ReportNotice(' ********** '+'Gracefully end at '+(new Date())+' ********** ');
 log.Close();
 Print(Inspect()+CRLF);
 io.Close(); // this must be done at the very end
