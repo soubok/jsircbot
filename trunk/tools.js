@@ -74,6 +74,7 @@ const WEEK = 7*DAY;
 const YEAR = 365*DAY + 5*HOUR + 48*MINUTE + 45*SECOND;
 
 const KILOBYTE = 1024;
+const MEGABYTE = KILOBYTE*KILOBYTE;
 
 
 /////////////////////////////////////////////////////// Errors

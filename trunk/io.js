@@ -340,7 +340,7 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 //		_socket.sendBufferSize = 16*KILOBYTE;
 	
 		// callback order is: error, exception, readable, writable
-		_socket.writable = function(s) { // connected
+		_socket.writable = function(s) { // wait for connected
 
 			delete s.writable;
 
@@ -371,7 +371,6 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 					MaybeCollectGarbage();
 				}
 			}
-			
 		}
 
 		io.AddDescriptor(_socket);
