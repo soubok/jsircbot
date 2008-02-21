@@ -1,4 +1,15 @@
 function(data) {
+	
+	//function DateString() let ( d = new Date ) d.getFullYear() + StringPad(d.getMonth()+1,2,'0') + StringPad(d.getDate(),2,'0');
+	//var thisSession = 'jsircbot_'+(Now())+'.log'; // used to create ONE log file by session
+
+	var sessionLogFileName = './jsircbot_'+(new Date).toLocaleFormat('%Y-%m-%d,%H.%M.%S')+'.log';
+
+	setData( data.logFilter, [
+		[ MakeLogFile(function() sessionLogFileName, false), LOG_ALL - LOG_NET ],
+		[ MakeLogScreen(), LOG_FAILURE | LOG_ERROR | LOG_WARNING ]
+	]);
+	
 
 	setData( data.moduleList, [
 		'file:///./httpServer.jsmod',
@@ -111,7 +122,7 @@ function(data) {
 	setData(data.webServerModule.bind, '127.0.0.1');
 	setData(data.webServerModule.socketBackLog, 2); // socketBackLog is the maximum length of the queue of pending connections.
 	setData(data.webServerModule.maxConnections, 10);
-	setData(data.webServerModule.maxConnectionsPerPeer, 3);
+	setData(data.webServerModule.maxConnectionsPerPeer, 2);
 	setData(data.webServerModule.incomingConnectionRatePerPeer, [10, 3*SECOND]);
 	setData(data.webServerModule.connectionKeepAliveTimeout, 100*SECOND);
 	setData(data.webServerModule.connectionKeepAliveMax, 1000);
@@ -123,6 +134,5 @@ function(data) {
 
 	setData(data.webServerModule.consoleSessionTimeout, 15*MINUTE);
 	setData(data.webServerModule.consolePasword, '**********');
-	
-	
+
 }
