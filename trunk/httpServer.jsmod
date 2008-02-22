@@ -625,7 +625,7 @@
 	}
 			
 	
-	function ProcessHttpConnection(connection) {
+	function ProcessHttpConnection(connection) { // Entry point of a new incoming HTTP connection
 	
 		_incomingConnectionRatePerPeer.Inc(connection.peerName, 1);
 		_connectionCountByHost.Add(connection.peerName, 1);
@@ -705,6 +705,8 @@
 				'Server':_name,
 				'Expires':'0',
 				'Cache-Control':'no-cache',
+//				'Cache-Control':'no-store, no-cache, must-revalidate',
+//				'Pragma':'no-cache',
 				'Content-Type':'text/html'
 			}); // beware: do not set 'Connection' or 'Content-Length'
 			req.remainingBodyLength = req.iHeaders.Get('Content-Length');
