@@ -11,68 +11,53 @@
  * for the specific language governing rights and limitations under the
  * License.
  * ***** END LICENSE BLOCK ***** */
-
+ 
 var io = new function() {
 
-/* need to be fix*/
-	var _timeout = new function() {
+	var _descriptorList = [], _tlist = {}, _min = Infinity;
 
-		var _tlist = {};
-		var _min = Infinity;
-		
-		this.Add = function(time, func) {
-			
-			DBG && isNaN(time) && Failed('the timeout is not a number ('+time+')');
-			
-			var date = IntervalNow() + time;
-			while ( date in _tlist )
-				date++; // avoid same time because we use the time as timer id
-			_tlist[date] = func;
-			if ( date < _min )
-				_min = date;
+	this.AddTimeout = function(time, func) {
 
-			return date; // timer id
-		}
-
-		this.Remove = function(date, execOnRemove) {
-			
-			var func = _tlist[date];
-			delete _tlist[date];
-			if ( date == _min )
-				_min = -Infinity;
-			execOnRemove && func && func.call(func); // 'this' will be the function itself
-		}
-
-		this.Process = function() {
-			
-			var now = IntervalNow();
-			if ( _min <= now ) {
-
-				var date, expiredList = {};
-				for ( date in _tlist )
-					if ( date <= now )
-						expiredList[date] = _tlist[date];
-				for ( date in expiredList ) {
-				
-					delete _tlist[date];
-					void expiredList[date].call(expiredList[date]); // 'this' will be the function itself
-				}
-				_min = Infinity;
-				for ( let date in Iterator(_tlist, true) )
-					if ( date < _min )
-						_min = date;
-			}
-			return _min - now;
-		}
-		
-		INSPECT.push(function() let ( now=IntervalNow() ) 'TIMEOUT '+ObjPropertyCount(_tlist)+': '+[(date-now)+':'+fct.name for ( [date,fct] in Iterator(_tlist) )].join(' ')+' MIN='+(_min-now)+'');
+		DBG && isNaN(time) && Failed('the timeout is not a number ('+time+')');
+		var date = IntervalNow() + time;
+		while ( date in _tlist )
+			date++; // avoid same time because we use the time as timer id
+		_tlist[date] = func;
+		if ( date < _min )
+			_min = date;
+		return date; // timer id
 	}
 
-	var _descriptorList = [];
-	
-	this.AddTimeout = _timeout.Add;
+	this.RemoveTimeout = function(date, execOnRemove) {
 
-	this.RemoveTimeout = _timeout.Remove;
+		var func = _tlist[date];
+		delete _tlist[date];
+		if ( date == _min )
+			_min = -Infinity;
+		execOnRemove && func && func.call(func); // 'this' will be the function itself
+	}
+
+	function ProcessTimeout() {
+
+		var now = IntervalNow();
+		if ( _min <= now ) {
+
+			var date, expiredList = {};
+			for ( date in _tlist )
+				if ( date <= now )
+					expiredList[date] = _tlist[date];
+			for ( date in expiredList ) {
+
+				delete _tlist[date];
+				void expiredList[date].call(expiredList[date]); // 'this' will be the function itself
+			}
+			_min = Infinity;
+			for ( let date in Iterator(_tlist, true) )
+				if ( date < _min )
+					_min = date;
+		}
+		return _min - now;
+	}
 
 	this.AddDescriptor = function(d) _descriptorList.push(d); // (TBD) do a poll after the new descriptor has been added ?
 
@@ -80,17 +65,8 @@ var io = new function() {
 
 	this.RemoveDescriptor = function(d) _descriptorList.some( function(item, index) item == d && _descriptorList.splice(index, 1) );
 
-	this.Process = function( endPredicate ) {
-		
-		do {
-
-			Poll(_descriptorList, Math.min(_timeout.Process(), 500));
-//			_descriptorList = _descriptorList.slice();  // copy to avoid memory leaks ( bz404755 )
-		} while ( !endPredicate() );
-	}
-	
 	this.GetDescriptorCount = function() _descriptorList.length;
-	
+
 	this.Close = function() {
 
 		for each ( let d in _descriptorList )
@@ -98,6 +74,15 @@ var io = new function() {
 		_descriptorList.splice(0);
 	}
 
+	this.Process = function( endPredicate ) {
+		
+		do {
+
+			Poll(_descriptorList, Math.min(ProcessTimeout(), 500)); // _descriptorList = _descriptorList.slice();  // copy to avoid memory leaks ( bz404755 )
+		} while ( !endPredicate() );
+	}
+
+	INSPECT.push(function() let ( now=IntervalNow() ) 'TIMEOUT '+ObjPropertyCount(_tlist)+': '+[(date-now)+':'+fct.name for ( [date,fct] in Iterator(_tlist) )].join(' ')+' MIN='+(_min-now)+'');
 	INSPECT.push(function() 'DESCRIPTORS '+_descriptorList.length+': '+[desc.sockName+':'+desc.sockPort+'-'+desc.peerPort+':'+desc.peerName for each ( desc in _descriptorList )].join('  ')+' ');
 }
 
@@ -334,51 +319,45 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 	var _this = this;
 	var _socket, _connectionTimeout;
 	
-	function Connecting() {
+	function Connected() {
 		
 //		_socket.recvBufferSize = 16*KILOBYTE;
 //		_socket.sendBufferSize = 16*KILOBYTE;
-	
-		// callback order is: error, exception, readable, writable
-		_socket.writable = function(s) { // wait for connected
+		delete _socket.error;
+		delete _socket.exception;
+		delete _socket.writable;
+		_this.sockName = _socket.sockName;
+		_this.sockPort = _socket.sockPort;
+		_this.peerName = _socket.peerName; // only available once connected
+		_this.peerPort = _socket.peerPort; // only available once connected
+		_connectionTimeout && io.RemoveTimeout(_connectionTimeout);
+		delete _this.Connect; // cannot connect twice
+		
+		_this.OnConnected && _this.OnConnected();
 
-			delete s.error;
-			delete s.exception;
-			delete s.writable;
-			_this.sockName = s.sockName;
-			_this.sockPort = s.sockPort;
-			_this.peerName = s.peerName; // only available once connected
-			_this.peerPort = s.peerPort; // only available once connected
-			_connectionTimeout && io.RemoveTimeout(_connectionTimeout);
-			delete _this.Connect; // cannot connect twice
-			_this.OnConnected && _this.OnConnected();
+		_socket.readable = function(s) { // (TBD) link _socket.readable to _this.OnData ?
 
-			_socket.readable = function(s) { // (TBD) link _socket.readable to _this.OnData ?
+			if ( _socket.available ) {
 
-				if ( s.available ) {
+				_this.OnData && _this.OnData(_this);
+			} else { // disconnected case
 
-					_this.OnData && _this.OnData(_this);
-				} else { // disconnected case
-
-					delete s.readable;
-					delete s.writable;
-					delete _this.Sleep;
-					delete _this.Read;
-					delete _this.Write;
-					io.RemoveDescriptor(s); // no more read/write notifications are needed
-					_this.OnDisconnected && _this.OnDisconnected(true); // (TBD) define an enum like REMOTELY ?
-					MaybeCollectGarbage();
-				}
+				delete _socket.readable;
+				delete _socket.writable;
+				delete _this.Sleep;
+				delete _this.Read;
+				delete _this.Write;
+				io.RemoveDescriptor(s); // no more read/write notifications are needed
+				_this.OnDisconnected && _this.OnDisconnected(true); // (TBD) define an enum like REMOTELY ?
+				MaybeCollectGarbage();
 			}
 		}
-
-		io.AddDescriptor(_socket);
 	}
 	
 	if ( host instanceof Socket ) {
 		
 		_socket = host;
-		Connecting(); // the incoming socket is already connected
+		Connected(); // the incoming socket is already connected
 	} else {
 		
 		this.Connect = function( timeout ) {
@@ -405,9 +384,10 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 			_socket = new Socket(Socket.TCP);
 			_socket.nonblocking = true;
 			_socket.noDelay = true;
-			_socket.error = ConnectionFailed;
+			_socket.error = ConnectionFailed; // callback order is: error, exception, readable, writable
 			_socket.exception = ConnectionFailed; // called if cannot connect
 			_socket.readable = function(s) s.available || ConnectionFailed();
+			_socket.writable = Connected;
 			_connectionTimeout = io.AddTimeout( timeout || 5*SECOND, ConnectionFailed );
 			try {
 
@@ -418,9 +398,10 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 				ConnectionFailed();
 				return;
 			}
-			Connecting();
 		}
 	}
+
+	io.AddDescriptor(_socket);
 	
 	var _sleepTimeout;
 	
@@ -508,8 +489,10 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 			
 			delete _socket.writable;
 			try {
+			
 				_socket.Write(_out.ReadAll());
 			} catch (ex if ex instanceof IoError) {
+			
 				// (TBD) check if the diconnection is always detected
 			}
 		}
@@ -597,7 +580,69 @@ WSAECONNRESET 10054 Connection reset by peer.
 The socket is actually receiving an ICMP packet back to tell it the other end's dead - stop sending from the server to the dead client and the error goes away.
 If you've implemented a reliable UDP method (resend / ack) you need to ensure that you also drop all outgoing ack packets queued for that client, and also flush the resend queue for that client.
 
+man 7 socket:
+
+       +----------------------------------------------------------------------+
+       |                             I/O events                               |
+       +-----------+-----------+----------------------------------------------+
+       |Event      | Poll flag | Occurrence                                   |
+       +-----------+-----------+----------------------------------------------+
+       |Read       | POLLIN    | New data arrived.                            |
+       +-----------+-----------+----------------------------------------------+
+       |Read       | POLLIN    | A connection setup has been  completed  (for |
+       |           |           | connection-oriented sockets)                 |
+       +-----------+-----------+----------------------------------------------+
+       |Read       | POLLHUP   | A  disconnection  request has been initiated |
+       |           |           | by the other end.                            |
+       +-----------+-----------+----------------------------------------------+
+       |Read       | POLLHUP   | A connection is broken (only for connection- |
+       |           |           | oriented  protocols).   When  the  socket is |
+       |           |           | written SIGPIPE is also sent.                |
+       +-----------+-----------+----------------------------------------------+
+       |Write      | POLLOUT   | Socket has  enough  send  buffer  space  for |
+       |           |           | writing new data.                            |
+       +-----------+-----------+----------------------------------------------+
+       |Read/Write | POLLIN|   | An outgoing connect(2) finished.             |
+       |           | POLLOUT   |                                              |
+       +-----------+-----------+----------------------------------------------+
+       |Read/Write | POLLERR   | An asynchronous error occurred.              |
+       +-----------+-----------+----------------------------------------------+
+       |Read/Write | POLLHUP   | The other end has shut down one direction.   |
+       +-----------+-----------+----------------------------------------------+
+       |Exception  | POLLPRI   | Urgent data arrived.  SIGURG is sent then.   |
+       +-----------+-----------+----------------------------------------------+
+
+test program:
+	LoadModule('jsstd');
+	LoadModule('jsio');
+
+	var dlist = []; //descriptor list
+	try {
+
+		var clientSocket = new Socket();
+		clientSocket.nonblocking = true;
+		clientSocket.error     = function(s, f) Print('e', f?1:0); // Array.slice(arguments)
+		clientSocket.exception = function(s, f) Print('x', f?1:0);
+		clientSocket.hangup    = function(s, f) Print('h', f?1:0);
+		clientSocket.readable  = function(s, f) Print('r', f?1:0);
+		clientSocket.writable  = function(s, f) Print('w', f?1:0);
+		clientSocket.Connect( 'localhost', 8080 );
+		dlist.push(clientSocket);
+
+		while(!endSignal) {
+
+			Print('.');
+			Poll(dlist,0);
+			Sleep(100); // to avoid my console being flood
+		}
+
+	} catch ( ex if ex instanceof IoError ) { 
+		Print( ex.text + ' ('+ex.code+')', '\n' );
+	} catch (ex) {
+		throw(ex);
+	}
 
 */
+
 
 
