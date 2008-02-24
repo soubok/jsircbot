@@ -75,7 +75,7 @@ var io = new function() {
 	}
 
 	this.Process = function( endPredicate ) {
-		
+
 		do {
 
 			Poll(_descriptorList, Math.min(ProcessTimeout(), 500)); // _descriptorList = _descriptorList.slice();  // copy to avoid memory leaks ( bz404755 )
@@ -315,7 +315,7 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 //	this.OnData;
 //	this.OnDisconnected;
 //	this.OnFailed;
-	
+
 	var _this = this;
 	var _socket, _connectionTimeout;
 	
@@ -358,6 +358,7 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 		
 		_socket = host;
 		Connected(); // the incoming socket is already connected
+		io.AddDescriptor(_socket);
 	} else {
 		
 		this.Connect = function( timeout ) {
@@ -376,7 +377,7 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 				delete _this.Read;
 				delete _this.Write;
 				io.RemoveDescriptor(_socket); // no more read/write notifications are needed
-				ReportWarning( 'TCP FAILED TO CONNECT TO: ' );
+				ReportWarning( 'TCPConnection to '+host+':'+port+' failed');// ('+ex.code+'; os:'+ex.os+', '+ex.text+')' );
 				_this.OnFailed && _this.OnFailed(host, port);
 				_this.Close(); // here we close the socket unlike in this.Disconnect/Disconnected
 			}
@@ -394,14 +395,13 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 				_socket.Connect(host, port);
 			} catch( ex if ex instanceof IoError ) {
 
-				ReportWarning( 'TCPConnection to '+host+':'+port+' failed ('+ex.code+'; os:'+ex.os+', '+ex.text+')' );
 				ConnectionFailed();
 				return;
 			}
+			io.AddDescriptor(_socket);
 		}
 	}
 
-	io.AddDescriptor(_socket);
 	
 	var _sleepTimeout;
 	
@@ -557,7 +557,6 @@ function TCPServer( portRange, ip, backlog ) {
 		_socket.Close();
 	}
 	io.AddDescriptor(_socket);
-
 	DBG && ReportNotice( 'TCP LISTENING: ' + this.name+':'+this.port );
 }
 
