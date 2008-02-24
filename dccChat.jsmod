@@ -61,21 +61,44 @@
 		}
 	};
 	
+	
+	var _pendingConnections = [];
+	
 	this.moduleApi = {
 	
 		OpenDCCChat: function( nick, callback ) {
 
 			var _dccAcceptTimeout, ip = getData( $D.sockName );
-			var server = new TCPServer( getData( $D.DCC.portRange ), ip );
+			var server = new TCPServer( getData( $D.DCC.portRange ), ip ); // (TBD) close the connection on module shutdown
+			_pendingConnections.push(server);
 			server.OnIncoming = function(connection) {
 
 				io.RemoveTimeout(_dccAcceptTimeout);
 				server.Close(); // we accept only one connection
+				RemoveArrayElement(_pendingConnections, server);
 				callback(connection);
 			}
 			_dccAcceptTimeout = io.AddTimeout( getData( $D.DCC.requestTimeout ) , function() server.Close() );
 			$A.CtcpRequest( nick, 'DCC', 'CHAT chat '+IpToInteger(ip)+' '+server.port );
 		}	
 	};
+
+	this.stateListener = [
+		{
+			set: function(s) s[STATE_RUNNING] && s[_name],
+			reset: function(s) !s[STATE_RUNNING] || !s[_name],
+			trigger: function(polarity) {
+				
+				if (polarity) {
+					
+				} else {
+					
+//					for each ( var server in _pendingConnections )
+//						_pendingConnections
+					//CloseConnections(); // (TBD) close pending connections & timeouts
+				}
+			}
+		}
+	];	
 
 })

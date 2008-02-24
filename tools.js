@@ -171,8 +171,8 @@ function Listener( catchCallback ) {
 	
 	var _list = [];
 	this.Add = function( set ) _list.push(set);
-	this.Remove = function( set ) DeleteArrayElement(_list, set);
-	this.Toggle = function( set, polarity ) void polarity ? _list.push(set) : DeleteArrayElement(_list, set);
+	this.Remove = function( set ) RemoveArrayElement(_list, set);
+	this.Toggle = function( set, polarity ) void polarity ? _list.push(set) : RemoveArrayElement(_list, set);
 	this.Fire = function Fire() { // beware, Fire is only used for the function name
 	
 		try {
@@ -653,7 +653,7 @@ function ObjectToArray(obj) { // { '5':true, 'foo':true, 7:false } -> [5,'foo']
 }
 
 
-function DeleteArrayElement( array, element ) !!let (pos=array.lastIndexOf(element)) pos != -1 && array.splice(pos, 1);
+function RemoveArrayElement( array, element ) !!let (pos=array.lastIndexOf(element)) pos != -1 && array.splice(pos, 1);
 
 
 function SetOnceObject() new ObjEx( undefined,undefined,undefined, function(name, value) this[name] ? Failed('Property Already defined') : value );

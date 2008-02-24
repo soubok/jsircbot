@@ -214,7 +214,7 @@ function Core( $D, endPredicate ) {
 
 		RemoveModule: function( module ) {
 		
-			if ( !DeleteArrayElement(_modules, module) ) // remove the module from the module list
+			if ( !RemoveArrayElement(_modules, module) ) // remove the module from the module list
 				return;
 
 			$S.Leave(module.name);

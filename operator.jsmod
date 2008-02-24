@@ -54,7 +54,7 @@
 					return;
 				}
 
-				DeleteArrayElement( getData( $MD.list ), from );
+				RemoveArrayElement( getData( $MD.list ), from );
 				$A.Privmsg( replyTo, 'Done.' );
 			},
 
