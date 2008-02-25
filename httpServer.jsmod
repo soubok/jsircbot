@@ -172,28 +172,6 @@
 		return buf + headers.Serialize() + CRLF;
 	}
 
-	
-	function ParseQueryData(str) {
-		
-		var map = NewDataObj();
-		if ( str )
-			for each ( var p in str.split('&') )
-				let ( [key, val] = p.split('=') ) // report a "strict warning: reference to undefined property 1" because 'foo'.split('=') do not have a [1]
-					map[key] = val;
-		return map;
-	}
-
-
-	function ParseCookieData(str) {
-		
-		var map = NewDataObj();
-		if ( str )
-			for each ( var p in str.split('; ') ) // (TBD) enhance this
-				let ( [key, val] = p.split('=') )
-					map[key] = val;
-		return map;
-	}
-
 
 	function NormalizePath( path ) { // (TBD) try with regexp
 
@@ -263,7 +241,7 @@
 					file.Close();
 					req.Send(TransferEncodingFilter(''));
 					req.End();
-					return;
+					return undefined;
 				}
 				return TransferEncodingFilter(data);
 			}, true );
@@ -271,39 +249,34 @@
 		}
 	}
 
-
-
 	
     function IrcTextToWeb(text) {
         
-        var colors = { 0:'FFF', 1:'000', 2:'007', 3:'070', 4:'F00', 5:'700', 6:'909', 7:'F70', 
-                       8:'FF0', 9:'0F0', 10:'077', 11:'0FF', 12:'00F', 13:'F0F', 14:'777', 15:'DDD' };
-        var lines = text.split('\x03');
-        var end = '';
-        for ( var i=1; i<lines.length; i++ ) {
-            
-            var [m,fg,bg] = /^(\d{1,2})(?:,(\d{1,2}))?/(lines[i]);
-            var html = '';
-            html += isNaN(fg)?'':('color:#'+colors[fg]+';');
-            html += isNaN(bg)?'':('background-color:#'+colors[bg]+';');
-            lines[i] = '<span style="'+html+'">'+lines[i].substr(m.length);;
-            end += '</span>';
-        }
-        return lines.join('')+end;
-    }
+		var colors = { 0:'FFF', 1:'000', 2:'007', 3:'070', 4:'F00', 5:'700', 6:'909', 7:'F70', 
+						  8:'FF0', 9:'0F0', 10:'077', 11:'0FF', 12:'00F', 13:'F0F', 14:'777', 15:'DDD' };
+		var lines = text.split('\x03');
+		var end = '';
+		for ( var i=1; i<lines.length; i++ ) {
+
+			var [m,fg,bg] = /^(\d{1,2})(?:,(\d{1,2}))?/(lines[i]);
+			var html = '';
+			html += isNaN(fg)?'':('color:#'+colors[fg]+';');
+			html += isNaN(bg)?'':('background-color:#'+colors[bg]+';');
+			lines[i] = '<span style="'+html+'">'+lines[i].substr(m.length);;
+			end += '</span>';
+		}
+		return lines.join('')+end;
+	}
 
 
 	function TermIrc(term) {
 
-		var consoleWebModule = new File('./webConsole.js').content; // (TBD) filename from config
-		term.Send( 'AddModule', consoleWebModule );
-		
 		var _currentChan;
-		term.Send('Welcome to the IRC term<br/> HELP:<br/> /j &lt;channel&gt; : join<br/> /q : quit<br/> /names : name list<br/>');
+		term.Send(['cout','Welcome to the IRC term<br/> HELP:<br/> /j &lt;channel&gt; : join<br/> /q : quit<br/> /names : name list<br/>']);
 		
-		term.OnRequest = function(data) {
+		term.OnRequest = function([name, data]) {
 			
-			if ( !data )
+			if ( name != 'cin' || !data )
 				return;
 
 			if ( data[0] == '/' ) {
@@ -312,26 +285,26 @@
 				switch (arg[0].toLowerCase()) {
 					case 'q':
 						$A.RemoveModuleListener(listener);
-						InitTermSession(term);
+						TermLogin(term);
 						break;
 					case 'j':
 						_currentChan = $A.NormalizeChannelName((arg[1][0] == '#' ? '' : '#') + arg[1]);
 						$A.Join( _currentChan );
-						term.Send('* Now talking in '+_currentChan+'<br/>');
+						term.Send(['cout', '* Now talking in '+_currentChan+'<br/>']);
 						break;
 					case 'names':
 						var names = '';
 						for ( let name in $D.channel[_currentChan].names )
 							names += ($A.IsVoice(_currentChan, name)?'+':'') + ($A.IsOp(_currentChan, name)?'@':'') + name + '  ';
-						term.Send(names+'<br/>');
+						term.Send(['cout', names+'<br/>']);
 						break;
 					default:
-						term.Send('unknown command<br/>');
+						term.Send(['cout', 'unknown command<br/>']);
 				}
 			} else {
 				
 				_currentChan && $A.Privmsg( _currentChan, data );
-				term.Send( '<i>'+_currentChan+'</i> &lt;'+getData($D.nick)+'&gt; '+data+'<br/>' );
+				term.Send(['cout', '<i>'+_currentChan+'</i> &lt;'+getData($D.nick)+'&gt; '+data+'<br/>']);
 			}
 		}
 
@@ -340,7 +313,7 @@
 				
 				to = $A.NormalizeChannelName(to);
 				if ( _currentChan && to == _currentChan )
-					term.Send( '<i>' + to + '</i> &lt;' + StrBefore(from, '!') +'&gt; ' + IrcTextToWeb(msg) + '<br/>' );
+					term.Send(['cout', '<i>' + to + '</i> &lt;' + StrBefore(from, '!') +'&gt; ' + IrcTextToWeb(msg) + '<br/>']);
 			}
 		}};
 		$A.AddModuleListener(listener);
@@ -348,31 +321,52 @@
 	}
 
 
-	function InitTermSession(term) {
-		
+	function TermLogin(term) {
+	
 		term.Send(['cout', 'Login as: ']);
-		term.OnRequest = function(data) {
-			
+		term.OnRequest = function([name, data]) {
+
+			if ( name != 'cin' )
+				return;
+
 			term.Send(['cout', data+'<br/>password: ']);
-			term.OnRequest = function(data) {
-				
+			term.OnRequest = function([name, data]) {
+
+				if ( name != 'cin' )
+					return;
+
 				term.Send(['cout', StringRepeat('*', data.length)+'<br/><br/>']);
-				if ( data == getData($MD.termPasword) ) {
-					
+				if ( data == getData($MD.consolePasword) ) {
+
 					TermIrc(term);
 				} else {
+				
 					term.Send(['cout', '<span style="color:red">Invalid password, bye.</span><br/>']);
 					term.Close();
 				}
 			}
 		}
+
 		term.OnClose = Noop;
+	}
+
+
+	function TermSession() {
+
+		this.OnShow = function(persisted) {
+			
+			var consoleWebModule = new File('./webConsole.js').content; // (TBD) filename from config
+			this.Send(['AddModule', consoleWebModule]);
+			this.Send(['config', 'termSessionTimeout', getData($MD.termSessionTimeout)]);
+			TermLogin(this);
+		}
 	}
 
 
 ////
 
 
+/*
 	function TermSession() {
 		
 		var _term = this;
@@ -401,7 +395,8 @@
 				Send(['cout','Ready.<br/>']);
 				io.AddTimeout( 2000, function() {
 
-					Send(['cout', i+'<br/>']);
+					Send(['cout', i+'(1/2)']);
+					Send(['cout', i+'(2/2)<br/>']);
 					io.AddTimeout( 500, arguments.callee );
 					i++;
 				});
@@ -418,7 +413,7 @@
 
 		_term.OnClose = function() {}
 	}
-
+*/
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -434,17 +429,26 @@
 		
 		if ( !req.Respond )
 			return;
-		var data = EncodeArray([ EncodeArray(item) for each (item in itemList) ]);
-		itemList.splice(0);
-		if ( data.length >= 512 && req.iHeaders.Has('Accept-Encoding') && req.iHeaders.Contain('Accept-Encoding', 'deflate') ) {
-			
-			if ( !req.iHeaders.Contain('User-Agent', 'MSIE') ) {
+		
+		var data;
+		if ( itemList.length ) {
+		
+			data = EncodeArray([ EncodeArray(item) for each (item in itemList) ]);
+			itemList.splice(0);
+			if ( data.length >= 512 && req.iHeaders.Has('Accept-Encoding') && req.iHeaders.Contain('Accept-Encoding', 'deflate') ) {
 
-				req.oHeaders.Set('Content-Encoding', 'deflate');
-				data = new Z(Z.DEFLATE)(data, true); // send all at once
+				if ( !req.iHeaders.Contain('User-Agent', 'MSIE') ) {
+
+					req.oHeaders.Set('Content-Encoding', 'deflate');
+					data = new Z(Z.DEFLATE)(data, true); // send all at once
+				}
 			}
+			req.oHeaders.Set('Content-Type', 'application/x-www-form-urlencoded');
+		} else {
+		
+			data = '';
 		}
-		req.oHeaders.Set('Content-Type', 'application/x-www-form-urlencoded');
+		
 		req.oHeaders.Set('Content-Length', data.length);
 		req.Respond(200)(data);
 		req.End();
@@ -452,8 +456,8 @@
 	
 	function ProcessTermAccess(req) {
 
-		var action = ParseQueryData(req.iStatus.query||'').action;
-		var term = _termList[ParseCookieData(req.iHeaders.Get('Cookie')||'').sid];
+		var action = ParseHttpQueryString(req.iStatus.query||'').action;
+		var term = _termList[ParseHttpCookie(req.iHeaders.Get('Cookie')||'').sid];
 		
 		if ( !action ) {
 			
@@ -480,8 +484,8 @@
 					term.messageCount++;
 				}
 
-				term.pub.Close = function() {
-
+				term.pub.Close = function() { // a terminal close is not a HTTP connection close !!
+				
 					delete term.pub.Close; // avoid Close() to be called in OnClose()
 					delete term.pub.OnRequest;
 					term.pub.OnClose && term.pub.OnClose();
@@ -502,7 +506,7 @@
 				req.oHeaders.Set('Set-Cookie', 'sid='+sid+'; path='+req.iStatus.path); // Set-Cookie: <name>=<value>[; <name>=<value>]... [; expires=<date>][; domain=<domain_name>][; path=<some_path>][; secure][; httponly]
 
 				ReportNotice( _name+' @ProcessTermAccess - create by ' + req.peerName );
-			} else {
+			} else { // else if term
 
 				ReportNotice( _name+' @ProcessTermAccess - restored by ' + req.peerName );
 			}
@@ -513,7 +517,6 @@
 			req.oHeaders.Set('Content-Length', content.length);
 			req.Respond(200)(content);
 			req.End();
-			
 			term.pub.OnShow && term.pub.OnShow(term.messageCount > 0); // false on the initial load.
 			term.ResetTimeout(getData($MD.termSessionTimeout));
 			return;
@@ -527,42 +530,45 @@
 			req.End();
 			return;
 		}
-
 		
 		term.ResetTimeout(getData($MD.termSessionTimeout));
-
 		req._termData = '';
 		req.OnBodyData = function(req, buf) req._termData += buf;
 		req.OnEndOfBody = function(req) {
 
 			if ( req.iStatus.method == 'POST' ) {
-				
-				var tmp = term.pub.Send; // don't waste the pending request
+
+				DBG && DebugTrace( _name+' @ProcessTermAccess: processing term data from req #'+IdOf(req) );
+//				var tmp = term.Send; // don't waste the pending request (if any).
+//				delete term.Send; // messages sent while OnRequest is called will be sent in pendingMessagesQueue.
 				for each ( let item in DecodeArray(req._termData) )
 					term.pub.OnRequest && term.pub.OnRequest.call(term.pub, DecodeArray(item));
 				delete req._termData;
-				term.pub.Send = tmp;
+//				term.Send = tmp;
 			}
 
 			if ( term.pendingMessagesQueue.length ) {
-
-				SendItemList(req, term.pendingMessagesQueue);
-				return;
+			
+				DBG && DebugTrace( _name+' @ProcessTermAccess: sending pending term data using req #'+IdOf(req) );
+				SendItemList(req, term.pendingMessagesQueue); // misnamed: TryToSendItemList
 			}
 			
-			if ( term.Send ) { // we need only one pending request, else end the current request (very unusual case)
-
-				req.Respond(200);
-				req.End(); // nothing else to do with this request
-				return;
-			}
-
-			term.Send = function(item) {
-
-				SendItemList(req, term.pendingMessagesQueue);
+			if ( term.Send ) {
+				
+				DBG && DebugTrace( _name+' @ProcessTermAccess: replacing pending request' );
+				term.Send(); // end the current pending request (BUT the connection may be keep-alive)
 				delete term.Send;
 			}
 
+			DBG && DebugTrace( _name+' @ProcessTermAccess: setting pending request' );
+			term.Send = function() {
+
+				DBG && DebugTrace( _name+' @ProcessTermAccess: sending data using req #'+IdOf(req) );
+				SendItemList(req, term.pendingMessagesQueue); // misnamed: TryToSendItemList
+				delete term.Send;
+			}
+
+			// stop timeout
 		}
 	}
 
@@ -575,12 +581,13 @@
 	INSPECT.push(function() 'TERMINAL '+ObjPropertyCount(_termList));
 
 
+
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //
 //  HTTP Server
 //
-
 
 	var _serverConnection;
 	var _requestHandlerList = {};
@@ -606,10 +613,10 @@
 		protoVersion = protoVersion || this.iStatus.protoVersion;
 		var connectionKeepAliveMax = getData($MD.connectionKeepAliveMax);
 
-		if ( this.iStatus.protoVersion >= 1.1 
+		if ( this.iStatus.protoVersion >= 1.1
 			  && this.iHeaders.Is('Connection', 'keep-alive')
 			  && !this.oHeaders.Is('Connection', 'close')
-			  && this.count <= connectionKeepAliveMax 
+			  && this.count <= connectionKeepAliveMax
 		     && (this.oHeaders.Has('Content-Length') || this.oHeaders.Is('Transfer-Encoding', 'chunked')) ) {
 
 			this.oHeaders.Set('Connection', 'keep-klive' );
@@ -627,6 +634,8 @@
 	
 	function ProcessHttpConnection(connection) { // Entry point of a new incoming HTTP connection
 	
+		DBG && DebugTrace( _name+' @ProcessHttpConnection: #'+IdOf(connection) );
+
 		_incomingConnectionRatePerPeer.Inc(connection.peerName, 1);
 		_connectionCountByHost.Add(connection.peerName, 1);
 		
@@ -662,6 +671,7 @@
 		
 		function CloseConnection() {
 
+			DBG && DebugTrace( _name+' @CloseConnection: #'+IdOf(connection) );
 			ResetTimeout();
 			delete _httpConnectionList[currentConnectionIndex];
 			_totalConnectionCount--;
@@ -682,8 +692,8 @@
 
 			if ( input.length > 8*KILOBYTE ) { // invalid headers size
 
-				CloseConnection(); // connection.Disconnect(); is too gentle for this case
 				ReportWarning( _name + ' @ProcessHttpHeader - incoming HTTP request header too long ('+input.length+') from '+_socket.peerName+':'+_socket.peerPort )
+				CloseConnection(); // connection.Disconnect(); is too gentle for this case
 				return;
 			}	
 
@@ -758,6 +768,8 @@
 		function ProcessEndOfRequest() {
 
 			OnData = Noop;
+			
+			ResetTimeout(); // no timeout for the response. It's up to us to not block the request too long !
 
 			if ( !incomingRequestRate.Inc(1) )
 				connection.Sleep( incomingRequestRate.RestTime() );
@@ -781,7 +793,9 @@
 		}
 		
 		function Disconnect() {
-
+		
+			DBG && DebugTrace( _name+' @Disconnect: #'+IdOf(connection) );
+		
 			req.Send( function() void connection.Disconnect() );
 			delete req.Respond;
 			delete req.Send;
@@ -796,23 +810,37 @@
 		_serverConnection = new TCPServer( getData($MD.port), getData($MD.bind), getData($MD.socketBackLog) );
 		_serverConnection.OnIncoming = function(connection) {
 
-			if ( _incomingConnectionRatePerPeer.Check(connection.peerName)
-				  && _totalConnectionCount <= getData($MD.maxConnections) 
-				  && _connectionCountByHost.Check(connection.peerName) 
-			) {
-
-				ProcessHttpConnection(connection);
-			} else {
+			if ( _totalConnectionCount > getData($MD.maxConnections) ) {
+				
+				ReportWarning( _name+' incomming connection from '+connection.peerName+' refused: too many connections' );
+				connection.Close(); // hard close.
+				 _serverConnection.Sleep(500); // ignore incomming connections for a while
+				return;
+			}
 			
+			if ( !_incomingConnectionRatePerPeer.Check(connection.peerName) ) {
+				
+				ReportWarning( _name+' incomming connection from '+connection.peerName+' refused: connection rate too high' );
+				
 				if ( _incomingConnectionRatePerPeer.Ratio(connection.peerName) < 2 ) { // try to detect spam
 	
 					connection.Write('HTTP/1.1 503 Service Unavailable'+CRLF+'Retry-After: 2'+CRLF+'Connection: close'+CRLF+CRLF, true);
 					connection.Write(function() connection.Disconnect(), true);
-					return;
+				} else {
+					
+					connection.Close(); // hard close.
 				}
-				connection.Close(); // hard close.
-				_serverConnection.Sleep(500); // ignore incomming connections for a while
+				return;				
 			}
+
+			if ( !_connectionCountByHost.Check(connection.peerName) ) {
+				
+				ReportWarning( _name+' incomming connection from '+connection.peerName+' refused: too many connections from this host' );
+				connection.Close(); // hard close.
+				return;
+			}
+
+			ProcessHttpConnection(connection);
 		}
 	}
 

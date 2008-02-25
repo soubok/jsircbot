@@ -322,7 +322,10 @@ function DataExpander() {
 	
 	var _itemQueue = [];
 	
-	this.Write = function(item) _itemQueue.push(item); // item is string|function|generator|array
+	this.Write = function(item) { 
+
+		_itemQueue.push(item); // item is string|function|generator|array
+	}
 	
 	this.Read = function() { // rename to ReadOne ???
 
@@ -331,8 +334,10 @@ function DataExpander() {
 			var item = _itemQueue.shift();
 			if (!item) // '', null, undefined, false, 0
 				continue;
-			if (typeof item == 'string')
+			if (typeof item == 'string') {
+			
 				return item;
+			}
 			if (item instanceof Array) {
 			
 				_itemQueue = Array.concat(item, _itemQueue);
@@ -530,10 +535,32 @@ function FormURLEncode( list ) {
 	return data.substr(1);
 }
 
+
 function MakeStatusLine( method, path, version ) {
 
 	return method + SPC + path + SPC + (version||'HTTP/1.0');
 }
+
+
+function ParseHttpCookie(str) { // cf. http://www.faqs.org/rfcs/rfc2965.html
+
+	var map = NewDataObj();
+	if (str)
+		for each ( var pair in [ /\s*(.*?)\s*=\s*(?:"(.*)"|(.*))\s*/(p) for each ( p in str.split(';')) ] )
+			map[pair[1]] = pair[2] || pair[3];
+	return map;
+}
+
+
+function ParseHttpQueryString(str) {
+
+	var map = NewDataObj();
+	if (str)
+		for each ( var pair in [ p.split('=') for each ( p in str.split('&') ) ] )
+			 map[decodeURIComponent(pair[0])] = decodeURIComponent(pair[1]);
+	return map;
+}
+
 
 /*
 function HttpHeaders() { this.hList = {} }
@@ -1106,7 +1133,7 @@ function Inspect() [fct() for each (fct in INSPECT)].join(LF);
 
 function DPrint() {
 	
-	Print(LF);
+	Print(LF+'DPRINT  ');
 	for ( var i = 0; i < arguments.length; i++ )
 		Print( '{'+arguments[i]+'} ' );
 	Print(LF);

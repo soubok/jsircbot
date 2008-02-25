@@ -59,7 +59,7 @@ var io = new function() {
 		return _min - now;
 	}
 
-	this.AddDescriptor = function(d) _descriptorList.push(d); // (TBD) do a poll after the new descriptor has been added ?
+	this.AddDescriptor = function(d) _descriptorList.push(d); // (TBD) do a poll after the new descriptor has been added ? NO !
 
 	this.HasDescriptor = function(d) _descriptorList.some( function(item) item == d );
 
@@ -163,13 +163,12 @@ function UDPGet( host, port, data, timeout, OnResponse ) { // OnResponse( status
 		OnResponse && OnResponse.call(OnResponse, status, data, IntervalNow() - time);
 	}
 
-/* (TBD) manage UDP errors and UDP exceptions
 	socket.error =
 	socket.exception = function() {
-	
-		DPrint( 'UDP socket error or exception' );
+		
+		io.RemoveTimeout(timeoutId);
+		OnResponse && OnResponse.call(OnResponse, UNREACHABLE);
 	}
-*/
 
 	io.AddDescriptor(socket);
 	timeoutId = io.AddTimeout( timeout, function() {
@@ -355,7 +354,7 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 	}
 	
 	if ( host instanceof Socket ) {
-		
+
 		_socket = host;
 		Connected(); // the incoming socket is already connected
 		io.AddDescriptor(_socket);
@@ -462,10 +461,12 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 		}
 
 		try {
+		
 			data = s.Write(data);
-		} catch (ex if ex instanceof IoError) { 
+		} catch (ex if ex instanceof IoError) {
+		
 			//if ( ex.code == -5961 || ex.code == -5928 ) { // Connection reset by peer | Connection aborted
-			// (TBD) check if the diconnection is always detected
+			// (TBD) check if the diconnection is always detected: YES
 			ReportError('@TCPConnection::Sender - IoError:'+ex.code+' '+ex.text);
 			delete _out;
 			delete s.writable;
@@ -490,7 +491,8 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 			delete _socket.writable;
 			try {
 			
-				_socket.Write(_out.ReadAll());
+				let missed = _socket.Write(_out.ReadAll());
+				missed && ReportWarning('@TCPConnection::Write - uable to send data at once to ('+_socket.peerName+':'+_socket.peerPort+')');
 			} catch (ex if ex instanceof IoError) {
 			
 				// (TBD) check if the diconnection is always detected

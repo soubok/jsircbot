@@ -15,7 +15,7 @@
 
 (function DCCChatModule($D, $A) { // http://en.wikipedia.org/wiki/Direct_Client-to-Client
 	
-	this.name = this.constructor.name;
+	var _name = this.name = this.constructor.name;
 	var $MD = $D[this.name];
 	
 	var _DCCConnectionsCount = 0;

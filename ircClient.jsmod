@@ -88,27 +88,25 @@
 		}
 
 		var getServer = new function() {
+
+			for (;;) {			
 			
-			for ( var j = 0; j < getData($D.serverRetry); j++ )
-				for each ( let serverInfo in getData($D.serverList) ) {
-					
-					var [server, ports] = serverInfo.split(':', 2);
-					for each ( let port in ExpandStringRanges(ports) )
-						for ( var i = 0; i < getData($D.serverRetry); i++ )
-							yield [server, port];
-				}
+				ReportError('starting/repeating IRC server list.');
+
+				for ( var j = 0; j < getData($D.serverRetry); j++ )
+					for each ( let serverInfo in getData($D.serverList) ) {
+
+						var [server, ports] = serverInfo.split(':', 2);
+						for each ( let port in ExpandStringRanges(ports) )
+							for ( var i = 0; i < getData($D.serverRetry); i++ )
+								yield [server, port];
+					}
+			}
 		}
 		
 		function TryNextServer() {
 			
-			try {
-			
-				var [host, port] = getServer.next();
-			} catch(ex if ex == StopIteration) {
-			
-				Failed('Unable to connect to any server.');
-			}
-			
+			var [host, port] = getServer.next();
 			ReportNotice( 'Trying to connect to ' + host + ':' + port );
 			_connection = new TCPConnection(host, port);
 			_connection.OnFailed = function() {
