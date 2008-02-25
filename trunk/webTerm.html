@@ -58,43 +58,42 @@ $A.HttpRequest = function(OnResponse) {
 		return xhr.readyState == 0 || xhr.readyState == 4;
 	}
 
-	this.Abort = function() {
+	this.Close = function() {
 
 		if ( this.Ready() )
 			return;
+		delete xhr.onreadystatechange;
 		if ( 'abort' in xhr )
 			xhr.abort();
 		else
-			xhr.open( 'GET', 'about:blank', false );
+			xhr.open('GET', '/', false);
 	}
 
-	this.Send = function(url, data, type, sync) {
+	this.Send = function(url, requestData, requestType) {
 
+		var status, responseData, responseType;
 		try {
-			xhr.open( data == undefined ? 'GET' : 'POST', url, !sync );
+			xhr.open( requestData == undefined ? 'GET' : 'POST', url, true );
+			xhr.onreadystatechange = function() {
 
-			if ( !sync ) {
-				xhr.onreadystatechange = function() {
-
-					var status;
-					try {
-						if ( xhr.readyState != 4 )
-							return;
-						status = xhr.status;
-						if ( status != 200 )
-							throw 0;
-						else
-							OnResponse && OnResponse(_this, true, xhr.responseText, xhr.getResponseHeader('Content-Type'));
-					} catch(ex) { OnResponse && OnResponse(_this, false, status ) }
-				}
+				try {
+					if ( xhr.readyState != 4 )
+						return;
+					delete xhr.onreadystatechange;
+					status = xhr.status;
+					responseData = xhr.responseText;
+					responseType = xhr.getResponseHeader('Content-Type');
+				} catch(ex) {}
+				OnResponse && OnResponse(_this, status, responseData, responseType, url, requestData, requestType);
 			}
-			if (type != undefined)
-				xhr.setRequestHeader('Content-Type', type);
-			xhr.send(data == undefined ? null : data);
-			if ( sync && xhr.status == 200 )
-				return xhr.responseText;
+			if (requestType != undefined)
+				xhr.setRequestHeader('Content-Type', requestType);
+			xhr.send(requestData == undefined ? null : requestData);
+		} catch(ex) {
 
-		} catch(ex) { OnResponse && OnResponse(_this, false) }
+			delete xhr.onreadystatechange;
+			OnResponse && OnResponse(_this, status, responseData, responseType, url, requestData, requestType);
+		}
 	}
 }
 
@@ -116,6 +115,7 @@ $A.Dispatch = function(call /*, ...*/) {
 	for ( var moduleName in $M )
 		$M[moduleName][call] && $M[moduleName][call].apply($M[moduleName], arguments);
 }
+
 
 function CoreModule() {
 
@@ -146,19 +146,30 @@ function CoreModule() {
 			$A.Dispatch.apply(this, DecodeArray(tmp[i]));
 	}
 
+	var maxRetry = 10; // (TBD) make configurable
+	var retry = 0;
 	var sendingQueue = [];
-	var xhrPool = [ new $A.HttpRequest(OnResponse), new $A.HttpRequest(OnResponse) ];
 
-	function OnResponse(xhr, status, data, type) {
+	var xhrList = [];
+	for (var i=0; i<2; i++) // (TBD) make configurable
+		xhrList.push(new $A.HttpRequest(OnResponse));
+	var xhrPool = xhrList.slice();
 
-		if ( status && data != '' ) {
+	function OnResponse(xhr, status, responseData, responseType, url, requestData, requestType) {
 
-			xhrPool.push(xhr);
-			DispatchResponse(data, type);
-			if ( sendingQueue.length || xhrPool.length == 2 )
-				$A.Send();
-		} else
-			$A.Dispatch(CONNECTION_ERROR);
+		xhrPool.push(xhr);
+		responseData && DispatchResponse(responseData, responseType);
+		if (status == 200)
+			retry = 0;
+		else
+			if (++retry >= maxRetry) {
+
+				$A.Dispatch(CONNECTION_ERROR);
+				return;
+			}
+
+		if (sendingQueue.length || xhrPool.length == 2)
+			_win.setTimeout($A.Send, retry ? retry*250 : 0);
 	}
 
 	$A.Send = function(message) {
@@ -182,19 +193,35 @@ function CoreModule() {
 
 	$A.Send(); // pending request
 
+	this.OnRemove = function() {
+
+		while (xhrList.length)
+			xhrList.shift().Close(); // IE seems to not close pending XHR request on page reload.
+	}
+
 	this.AddModule = function( _, moduleSrc ) {
 
 		$A.AddModule(Function(moduleSrc));
 	}
 }
 
-$A.AddEvent( window, 'load', function() {
+
+$A.AddEvent( _win, 'load', function() {
 
 	_doc = _win.document;
 	_html = _doc.documentElement;
 	_body = _doc.body;
+	$A.RemoveEvent( _win, 'load', arguments.callee );
 	$A.AddModule(CoreModule);
+	$A.AddEvent( _win, 'unload', function() {
+
+		$A.RemoveEvent( _win, 'unload', arguments.callee );
+		$A.RemoveModule('core');
+	});
 });
+
+
+
 </script>
 </head><body></body>
 </html>
