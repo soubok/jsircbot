@@ -1,15 +1,12 @@
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
-<html>
-<head>
-<title></title>
-<style id="style" type="text/css" rel="stylesheet"></style>
-<script type="text/javascript">
+<html><head><title></title><style id="style" type="text/css" rel="stylesheet"></style><script type="text/javascript">
 
 var CONNECTION_ERROR = 'CONNECTION_ERROR';
 
 var _body, _html, _doc, _win = window;
 var $M = {}; // modules
 var $A = {}; // public api
+var $C = { xhrPoolSize:2, maxRetry:3 }; // configuration
 
 $A.NewXMLHttpRequest = _win.ActiveXObject ? function() { return new ActiveXObject('Microsoft.XMLHTTP') } : function() { return new _win.XMLHttpRequest() };
 $A.AddEvent = _win.attachEvent ? function( elt, ev, handler ) { elt.attachEvent( 'on'+ev, handler ) } : function( elt, ev, handler ) { elt.addEventListener( ev, handler, false ) };
@@ -60,13 +57,13 @@ $A.HttpRequest = function(OnResponse) {
 
 	this.Close = function() {
 
+		xhr.onreadystatechange = function(){};
 		if ( this.Ready() )
 			return;
-		delete xhr.onreadystatechange;
 		if ( 'abort' in xhr )
 			xhr.abort();
 		else
-			xhr.open('GET', '/', false);
+			xhr.open('GET', '/', true);
 	}
 
 	this.Send = function(url, requestData, requestType) {
@@ -79,7 +76,7 @@ $A.HttpRequest = function(OnResponse) {
 				try {
 					if ( xhr.readyState != 4 )
 						return;
-					delete xhr.onreadystatechange;
+					xhr.onreadystatechange = function(){};
 					status = xhr.status;
 					responseData = xhr.responseText;
 					responseType = xhr.getResponseHeader('Content-Type');
@@ -91,7 +88,7 @@ $A.HttpRequest = function(OnResponse) {
 			xhr.send(requestData == undefined ? null : requestData);
 		} catch(ex) {
 
-			delete xhr.onreadystatechange;
+			xhr.onreadystatechange = function(){};
 			OnResponse && OnResponse(_this, status, responseData, responseType, url, requestData, requestType);
 		}
 	}
@@ -146,12 +143,12 @@ function CoreModule() {
 			$A.Dispatch.apply(this, DecodeArray(tmp[i]));
 	}
 
-	var maxRetry = 10; // (TBD) make configurable
+	var maxRetry = $C.maxRetry;
 	var retry = 0;
 	var sendingQueue = [];
 
 	var xhrList = [];
-	for (var i=0; i<2; i++) // (TBD) make configurable
+	for (var i=0; i<$C.xhrPoolSize; i++) // (TBD) make configurable
 		xhrList.push(new $A.HttpRequest(OnResponse));
 	var xhrPool = xhrList.slice();
 
@@ -169,7 +166,7 @@ function CoreModule() {
 			}
 
 		if (sendingQueue.length || xhrPool.length == 2)
-			_win.setTimeout($A.Send, retry ? retry*250 : 0);
+			_win.setTimeout($A.Send, retry ? retry*500 : 0);
 	}
 
 	$A.Send = function(message) {
@@ -195,6 +192,7 @@ function CoreModule() {
 
 	this.OnRemove = function() {
 
+		delete $A.Send;
 		while (xhrList.length)
 			xhrList.shift().Close(); // IE seems to not close pending XHR request on page reload.
 	}
@@ -220,8 +218,4 @@ $A.AddEvent( _win, 'load', function() {
 	});
 });
 
-
-
-</script>
-</head><body></body>
-</html>
+</script></head><body></body></html>

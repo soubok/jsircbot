@@ -56,7 +56,8 @@ ENUM({
 	EMPTYRESPONSE:undefined,
 	UNAVAILABLE:undefined,
 	UNREACHABLE:undefined,
-	NOSUCHMETHOD:undefined
+	NOSUCHMETHOD:undefined,
+	INCOMPLETE:undefined
 });
 
 
@@ -358,6 +359,7 @@ function DataExpander() {
 				continue;
 			}
 		}
+		this.OnEmpty && this.OnEmpty();
 		return ''; // no more data for the moment
 	}
 	
@@ -372,6 +374,8 @@ function DataExpander() {
 	}
 
 	this.UnRead = function(item) _itemQueue.unshift(item); // item is string|function|generator|array
+	
+//	this.IsEmpty = function() _itemQueue.length == 0;
 }
 
 
