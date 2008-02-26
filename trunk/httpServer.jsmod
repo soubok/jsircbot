@@ -539,18 +539,19 @@
 			if ( req.iStatus.method == 'POST' ) {
 
 				DBG && DebugTrace( _name+' @ProcessTermAccess: processing term data from req #'+IdOf(req) );
-//				var tmp = term.Send; // don't waste the pending request (if any).
-//				delete term.Send; // messages sent while OnRequest is called will be sent in pendingMessagesQueue.
+				let sendFct = term.Send; // we prefer sending the whole response at once to avoid out-of-order responses !
+				delete term.Send; // messages sent while OnRequest is called will be sent in pendingMessagesQueue.
 				for each ( let item in DecodeArray(req._termData) )
 					term.pub.OnRequest && term.pub.OnRequest.call(term.pub, DecodeArray(item));
 				delete req._termData;
-//				term.Send = tmp;
+				term.Send = sendFct;
 			}
 
 			if ( term.pendingMessagesQueue.length ) {
 			
 				DBG && DebugTrace( _name+' @ProcessTermAccess: sending pending term data using req #'+IdOf(req) );
 				SendItemList(req, term.pendingMessagesQueue); // misnamed: TryToSendItemList
+				return;
 			}
 			
 			if ( term.Send ) {
@@ -565,7 +566,7 @@
 
 				DBG && DebugTrace( _name+' @ProcessTermAccess: sending data using req #'+IdOf(req) );
 				SendItemList(req, term.pendingMessagesQueue); // misnamed: TryToSendItemList
-				delete term.Send;
+				delete term.Send; // if sucessful or not, this Send is no more usable.
 			}
 
 			// stop timeout

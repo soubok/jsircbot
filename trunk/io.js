@@ -480,23 +480,36 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 		}
 	}
 
-	this.Write = function(item, async) { // string|array|function|generator, use_asynchronous_writing // (TBD) add a timeout
+	this.Write = function(item, async /*, OnWritten*/) { // string|array|function|generator, use_asynchronous_writing // (TBD) add a timeout
 		
+		delete _socket.writable;
 		_out.Write(item);
+//		if ( OnWritten ) // (TBD)
+//			_out.OnEmpty = function() OnWritten(OK);
 		if (async) {
-			
-			_socket.writable = Sender;
+
+			var data = _out.Read(); // even if we are sending data asynchronously, we send the first chunk immediately.
+			if (data) {
+
+				let missed = _socket.Write(data);
+				missed && _out.UnRead( missed );
+				_socket.writable = Sender;
+			}
 		} else {
 			
-			delete _socket.writable;
+			let status, data;
 			try {
 			
-				let missed = _socket.Write(_out.ReadAll());
-				missed && ReportWarning('@TCPConnection::Write - uable to send data at once to ('+_socket.peerName+':'+_socket.peerPort+')');
+				data = _socket.Write(_out.ReadAll());
+				data && ReportWarning('@TCPConnection::Write - uable to send data at once to ('+_socket.peerName+':'+_socket.peerPort+')');
+				status = data ? INCOMPLETE : OK;
 			} catch (ex if ex instanceof IoError) {
-			
+
+				status = ERROR;
+				data = ex;
 				// (TBD) check if the diconnection is always detected
 			}
+//			OnWritten && OnWritten( status, data );
 		}
 	}
 }

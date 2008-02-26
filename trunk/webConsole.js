@@ -5,7 +5,7 @@ function StripHTML(html) { return html.replace( /<(.|\n)+?>/mg, ' ').replace( /[
 $A.SetStyle('\
 	html { overflow-x: hidden; overflow-y: scroll; overflow: -moz-scrollbars-vertical } \
 	body { margin: 1px } \
-	html, #in { background-color: white; color: #CCC; white-space: nowrap; font-family: console, monospace; font-weight: bold; font-size: 10pt } \
+	html, #in { background-color: #111; color: #ccc; white-space: nowrap; font-family: console, monospace; font-weight: bold; font-size: 10pt } \
 	#in { border-style: none; padding: 0px; width: 100%; outline:0 } \
 ');
 
