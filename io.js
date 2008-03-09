@@ -46,13 +46,16 @@ var io = new function() {
 			for ( date in _tlist )
 				if ( date <= now )
 					expiredList[date] = _tlist[date];
+
 			for ( date in expiredList ) {
 
 				delete _tlist[date];
 				void expiredList[date].call(expiredList[date]); // 'this' will be the function itself
 			}
+			
 			_min = Infinity;
-			for ( let date in Iterator(_tlist, true) )
+			
+			for ( date in _tlist )
 				if ( date < _min )
 					_min = date;
 		}
@@ -76,12 +79,14 @@ var io = new function() {
 
 	this.Process = function( endPredicate ) {
 		
-		var timeout;
+		var count, timeout;
 		do {
-			timeout = Math.min(ProcessTimeout(), 500);
+
+			timeout = Math.min(ProcessTimeout(), 1*SECOND);
+			DBG && DebugTrace( 'Poll('+_descriptorList.length+' descriptors, '+timeout+'ms timeout)' );
+			count = Poll(_descriptorList, timeout); // _descriptorList = _descriptorList.slice();  // copy to avoid memory leaks ( bz404755 )
+			DBG && DebugTrace( 'Poll returns '+ count );
 			
-			DBG && DebugTrace( 'Poll('+_descriptorList.length' descriptors+', '+timeout+'ms timeout+')' );
-			Poll(_descriptorList, timeout); // _descriptorList = _descriptorList.slice();  // copy to avoid memory leaks ( bz404755 )
 		} while ( !endPredicate() );
 	}
 
