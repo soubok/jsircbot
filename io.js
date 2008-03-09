@@ -42,7 +42,7 @@ var io = new function() {
 		var now = IntervalNow();
 		if ( _min <= now ) {
 
-			var date, expiredList = {};
+			let date, expiredList = {};
 			for ( date in _tlist )
 				if ( date <= now )
 					expiredList[date] = _tlist[date];
