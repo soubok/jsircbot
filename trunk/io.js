@@ -75,10 +75,13 @@ var io = new function() {
 	}
 
 	this.Process = function( endPredicate ) {
-
+		
+		var timeout;
 		do {
-
-			Poll(_descriptorList, Math.min(ProcessTimeout(), 500)); // _descriptorList = _descriptorList.slice();  // copy to avoid memory leaks ( bz404755 )
+			timeout = Math.min(ProcessTimeout(), 500);
+			
+			DBG && DebugTrace( 'Poll('+_descriptorList.length' descriptors+', '+timeout+'ms timeout+')' );
+			Poll(_descriptorList, timeout); // _descriptorList = _descriptorList.slice();  // copy to avoid memory leaks ( bz404755 )
 		} while ( !endPredicate() );
 	}
 
@@ -101,7 +104,7 @@ function GetHostByName( hostName ) {
 		return Socket.GetHostsByName(hostName).shift(); // GetHostsByName returns an array of IP
 	} catch(ex if ex instanceof IoError) {
 	
-		DBG && ReportError( 'GetHostByName failed', hostName, ex.code, ex.text );
+		DBG && DebugTrace( 'GetHostByName failed', hostName, ex.code, ex.text );
 	}
 	return undefined;
 }
@@ -167,6 +170,7 @@ function UDPGet( host, port, data, timeout, OnResponse ) { // OnResponse( status
 	socket.exception = function() {
 		
 		io.RemoveTimeout(timeoutId);
+		io.RemoveDescriptor(socket);
 		OnResponse && OnResponse.call(OnResponse, UNREACHABLE);
 	}
 

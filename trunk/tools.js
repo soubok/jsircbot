@@ -200,7 +200,7 @@ function Listener( catchCallback ) {
 
 function StartAsyncProc( procedure ) {
 	
-	DBG && DebugTrace( 'START PROC', (procedure.name||'???')+'()' );
+	DBG && DebugTrace( 'START PROC', (procedure.name||'ANONYMOUS')+'()' );
 	try {
 
 		procedure._running = true; 

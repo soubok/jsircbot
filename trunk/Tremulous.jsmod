@@ -274,6 +274,8 @@
 		yield AsyncSleep( 5*SECOND ); // let ServerListUpdater do its job
 
 		for (;;) {
+
+			ReportNotice( 'PlayerScanner: Starting scan on '+_tremulousServerList.length+' servers' );
 			
 			_tremPlayersCount = 0;
 			_tremServerCount = 0;
