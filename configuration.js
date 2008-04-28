@@ -6,8 +6,8 @@ function(data) {
 	var sessionLogFileName = './jsircbot_'+(new Date).toLocaleFormat('%Y-%m-%d,%H.%M.%S')+'.log';
 
 	setData( data.logFilter, [
-		[ MakeLogFile(function() sessionLogFileName, false), LOG_ALL - LOG_NET ],
-		[ MakeLogScreen(), LOG_FAILURE | LOG_ERROR | LOG_WARNING ]
+//		[ MakeLogFile(function() sessionLogFileName, false), LOG_ALL - LOG_NET ],
+		[ MakeLogScreen(), LOG_ALL ]
 	]);
 	
 
