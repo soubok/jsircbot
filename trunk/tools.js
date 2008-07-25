@@ -817,7 +817,7 @@ function StringPad( str, count, chr ) {
 	return str;
 }
 
-function AddSlashes(str) { return str.replace(/['"\\]/g, function(c) { return '\\'+c }) }
+function AddSlashes(str) { return str.replace(/['"\\]/g, function(c) { return '\\'+c }) } // fc. ''.quote()
 
 function StripHTML(html) html.replace( /<(.|\n)+?>/mg, ' ').replace( /[ \n]+/g, ' ');
 
