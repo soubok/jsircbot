@@ -269,9 +269,10 @@ function Event() {
 
 function AsyncEventWait(event) function(callback) event.Wait(callback); // helper function
 
-//
 
-function Semaphore( res ) {
+// Semaphore
+
+function Sema( res ) {
 	
 	var _lockList = [];
 
@@ -293,7 +294,7 @@ function Semaphore( res ) {
 	}
 }
 
-function AsyncSemaphoreAcquire(semaphore) function(callback) semaphore.Acquire(callback); // helper function
+function AsyncSemaAcquire(semaphore) function(callback) semaphore.Acquire(callback); // helper function
 
 
 /////////////////////////////////////////////////////// Call Scheduler system
@@ -483,7 +484,15 @@ var log = new function(data) {
 	this.Write = function(type /*, data, ...*/) {
 
 // (TBD) fix LOG_ERROR <TypeError: can't convert Array.slice(arguments, 1).join to string (tools.js:414)>
-		var data = FormatedTime()+' '+String(type)+' <'+Array.slice(arguments,1).join('> <')+'>'; // ('+gcByte+') 
+
+		try {
+		
+			var data = FormatedTime()+' '+String(type)+' <'+Array.slice(arguments,1).join('> <')+'>'; // ('+gcByte+') 
+		} catch(ex) {
+
+			var data = '!LOG ERROR '+ex.toString();
+		}
+		
 		for each ( var [output, typeList] in _outputList )
 			typeList & type && void output(data);
 	}

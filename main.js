@@ -124,7 +124,7 @@ function LoadModuleFromURL( url, retryCount, retryPause, callback ) { // callbac
 
 function LoadModuleList( coreApi, moduleList, retry, retryPause ) {
 	
-	var sem = new Semaphore(2); // only 2 concurrent loads
+	var sem = new Sema(2); // only 2 concurrent loads
 		
 	function ModuleLoaded(status, moduleConstructor, creationFunction, source) {
 	
@@ -137,7 +137,7 @@ function LoadModuleList( coreApi, moduleList, retry, retryPause ) {
 
 		for each ( let moduleURL in moduleList ) {
 		
-			yield AsyncSemaphoreAcquire(sem);
+			yield AsyncSemaAcquire(sem);
 			LoadModuleFromURL( moduleURL, retry, retryPause, ModuleLoaded );
 		}		
 	});
