@@ -140,7 +140,8 @@
 				return;
 			}
 		
-			var p = new Pack(new Buffer(data));
+			var p = new Pack(new Buffer());
+			p.buffer.Write(data);
 			
 			var responseHdr = tremQueryPrefix+'getserversResponse\\';
 			if ( p.buffer.Read(responseHdr.length) != responseHdr ) {
@@ -155,13 +156,16 @@
 				var ip = p.ReadInt(1, false) + '.' + p.ReadInt(1, false) + '.' + p.ReadInt(1, false) + '.' + p.ReadInt(1, false);
 				var port = p.ReadInt(2, false, true);
 
-				if ( !p.buffer.Match('\\') ) {
+				if ( !p.buffer.Match('\\', true) ) {
 
 					OnResult(BADRESPONSE);
 					return;
 				}
 				serverList.push(ip+':'+port);
 			}
+			
+			// message ends with: EOT\0\0\0
+			
 			OnResult(OK, serverList);
 		});
 	}
