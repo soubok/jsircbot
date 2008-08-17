@@ -336,7 +336,7 @@ function DataExpander() {
 			var item = _itemQueue.shift();
 			if (!item) // '', null, undefined, false, 0
 				continue;
-			if (typeof item == 'string' || item instanceof String || item instanceof Blob) {
+			if (typeof(item) == 'string' || item instanceof String || item instanceof Blob) {
 			
 				return item;
 			}
@@ -1167,7 +1167,7 @@ function DebugTraceCall(name) {
 		var out = '';
 		for ( var i in args ) {
 
-			if ( typeof args[i] == 'string' || args[i] instanceof String || args[i] instanceof Blob ) {
+			if ( typeof(args[i]) == 'string' || args[i] instanceof String || args[i] instanceof Blob ) {
 
 				args[i] = '"'+args[i]+'"';
 				continue;
