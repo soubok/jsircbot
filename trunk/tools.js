@@ -336,7 +336,7 @@ function DataExpander() {
 			var item = _itemQueue.shift();
 			if (!item) // '', null, undefined, false, 0
 				continue;
-			if (typeof item == 'string') {
+			if (typeof item == 'string' || item instanceof String || item instanceof Blob) {
 			
 				return item;
 			}
@@ -912,7 +912,7 @@ function Dump( data, tab ) {
     tab = tab||'';
     if ( data === null ) return 'null';
     if ( data === undefined ) return 'undefined';
-    if ( typeof(data) == 'string' || data instanceof String ) return '"' + data + '"';
+    if ( typeof(data) == 'string' || data instanceof String || data instanceof Blob ) return '"' + data + '"';
     if ( typeof(data) == 'number' || data instanceof Number ) return data;
     if ( data instanceof Function ) return data.toSource().substr(1,50) + '...';
     if ( data instanceof Date ) return data;
@@ -1167,7 +1167,7 @@ function DebugTraceCall(name) {
 		var out = '';
 		for ( var i in args ) {
 
-			if ( typeof args[i] == 'string' ) {
+			if ( typeof args[i] == 'string' || args[i] instanceof String || args[i] instanceof Blob ) {
 
 				args[i] = '"'+args[i]+'"';
 				continue;
