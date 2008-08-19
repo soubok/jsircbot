@@ -19,6 +19,8 @@ var io = new function() {
 	this.AddTimeout = function(time, func) {
 
 		DBG && isNaN(time) && Failed('the timeout is not a number ('+time+')');
+		DBG && Math.floor(time) != time && ReportWarning('timeout should be an integer. see: '+GetCurrentCallStack(0));
+		time = Math.floor(time); // (TBD) should be avoid;
 		var date = IntervalNow() + time;
 		while ( date in _tlist )
 			date++; // avoid same time because we use the time as timer id

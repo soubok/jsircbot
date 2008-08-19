@@ -1154,7 +1154,9 @@ function DPrint() {
 
 var Trace = DPrint;
 
-function DStack(skip) { try { throw Error() } catch(ex) { Print( 'Stack: ', String(ex.stack).split(LF).slice(skip||0).join(LF), LF ) } }
+function GetCurrentCallStack(skip) { try { throw Error() } catch (ex) { return String(ex.stack).split(LF).slice(skip || 0).join(LF) + LF }}
+
+function DStack(skip) { Print( 'Stack: ', GetCurrentCallStack(skip) ) }
 
 function DArgs() { Print( 'Arguments: ', Array.slice(DArgs.caller.arguments).toSource(), LF ) }
 
