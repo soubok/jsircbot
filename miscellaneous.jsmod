@@ -112,7 +112,7 @@ function Ascii(data) data.replace(/[\x00-\x1F,\x7F-\xFF]/g, '?');
 					if ( !hasData($D.channel[to].names[name]) ) // has been renamed
 						continue;
 					switch ( cmdData ) {
-						case '':
+						case undefined:
 							return;
 						case '@':
 							if ( !$A.IsOp(to,name) ) //if ( !getData($D.channel[to].names[name].operator) )
@@ -121,7 +121,8 @@ function Ascii(data) data.replace(/[\x00-\x1F,\x7F-\xFF]/g, '?');
 						case '*':
 							break;
 						default:
-							if ( name.toLowerCase().indexOf(cmdData.toLowerCase()) == -1 )
+ 
+							if ( name.toLowerCase().indexOf(cmdData.toLowerCase()) == -1 ) // LOG_ERROR <TypeError: cmdData is undefined (./miscellaneous.jsmod:124)>
 								continue;
 							break;
 					}
