@@ -189,7 +189,7 @@
 			$S.Toggle('STATE_HAS_WEB_ACCESS', status == OK );
 			if ( status == OK )
 				yield AsyncSleep( 30*MINUTE );
-			yield AsyncSleep( RandomRange(2,7)*MINUTE );
+			yield AsyncSleep( Math.floor(RandomRange(2,7)*MINUTE) );
 		}
 	});
 
