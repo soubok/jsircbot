@@ -21,26 +21,113 @@
 	var $MD = $D[this.name];
 
 	function GatherPath(channelName) $MD[$A.NormalizeChannelName(channelName)];
+
+
+	function GatherManager() {
+
+		var players = {};
+
+		this.Count = function( teamNameList ) {
+			
+			var count = 0;
+			if ( teamNameList ) {
+			
+				for each ( teamName in players )
+					if ( teamNameList.indexOf(teamName) != -1 )
+						count++;
+			} else {
+			
+				for ( nick in players )
+					count++;
+			}
+			return count;
+		}
+
+		this.AddPlayer = function( nick, teamName ) {
+
+			players[nick] = teamName;
+		}
+
+		this.GetPlayer = function( nick ) {
+
+			return players[nick];
+		}
+		
+		this.TeamNameList = function() {
+			
+			var map = {};
+			for each ( var teamName in players )
+				map[teamName] = true;
+			return [ teamName for (teamName in map) ];
+		}
+
+		this.GetTeam = function( teamName ) {
+
+			if ( teamName )
+				return [ nick for (nick in players) if (players[nick] == teamName) ];
+			else
+				return [ nick for (nick in players) ];
+		}
+
+		this.RemovePlayers = function( nickList ) {
+
+			for each ( var nick in nickList )
+				delete players[nick];
+		}
+
+		this.RemoveTeams = function( teamNameList ) {
+
+			var removedNickList = [];
+			for each ( var teamName in teamNameList ) {
+
+				var nickList = this.GetTeam(teamName);
+				this.RemovePlayers(nickList);
+				removedNickList = removedNickList.concat(nickList);
+			}
+			return removedNickList;
+		}
+
+		this.SetPlayerTeam = function( nick, teamName ) {
+
+			players[nick] = teamName;
+		}
+
+		this.SpreadPlayers = function( nickList, teamNameList ) {
+
+			nickList = nickList.sort(function() Math.random() > 0.5 ? 1 : -1);
+			while ( nickList.length )
+				players[nickList.pop()] = teamNameList[nickList.length % teamNameList.length]
+		}
+
+		this.TogglePlayer = function( nick, teamNameList ) {
+
+			for ( var i in teamNameList )
+				if ( players[nick] == teamNameList[i] )
+					break;
+			players[nick] = teamNameList[++i % teamNameList.length];
+		}
+	}
+
 	
 	function SendGatherStatus(channel) {
 		
 		if ( !hasData(GatherPath(channel)) ) {
 		
-			$A.Privmsg(channel, 'No gather in progress. To create a gather, type: !gather <number players by team> [<map name>]' );
+			$A.Privmsg(channel, 'No gather in progress. To create a gather, type: !gather <max players count> [<map name>]' );
 			return;
 		}
-		var gatherData = getData(GatherPath(channel));
-		var currentCount = ObjPropertyCount(gatherData.nickList);
-		$A.Privmsg(channel, 'Gather' + (gatherData.mapName ? ' on '+gatherData.mapName:'')+' with '+[player for (player in gatherData.nickList)].join(', ') + ' ... ' + (2*gatherData.count-ObjPropertyCount(gatherData.nickList))+' slots left.' );
+		var gather = getData(GatherPath(channel));
+		$A.Privmsg(channel, 'Gather' + (gather.mapName ? ' on '+gather.mapName:'')+' with '+gather.GetTeam().join(', ') + ' ... ' + (gather.maxPlayers - gather.Count())+' slots left.' );
 	}
 	
 	function StopGather(channel) {
 
-		var gatherData = getData(GatherPath(channel));
-		var players = [player for (player in gatherData.nickList)].sort(function() Math.random() - 0.5);
-		$A.Privmsg(channel, 'Alien team: '+players.slice(0, gatherData.count).join(', '));
-		$A.Privmsg(channel, 'Human team: '+players.slice(gatherData.count).join(', '));
-		io.RemoveTimeout(gatherData.timeout);
+		var gather = getData(GatherPath(channel));
+		
+		gather.SpreadPlayers( gather.RemoveTeams(['spectator']), ['alien', 'human']);
+		$A.Privmsg(channel, 'Alien team: ' + gather.GetTeam('alien').join(', '));
+		$A.Privmsg(channel, 'Human team: ' + gather.GetTeam('human').join(', '));
+		io.RemoveTimeout(gather.timeout);
 		delData(GatherPath(channel));
 	}
 	
@@ -73,8 +160,8 @@
 						return;
 					}
 
-					var gatherData = getData(GatherPath(to));
-					io.RemoveTimeout( gatherData.timeout );
+					var gather = getData(GatherPath(to));
+					io.RemoveTimeout( gather.timeout );
 					delData(GatherPath(to));
 					$A.Privmsg( to, 'Gather canceled.' );
 					return;
@@ -87,14 +174,11 @@
 						$A.Privmsg( to, 'Gather in progress. type !gather 0 to cancel the gather, or !gather to list current players.' );
 						return;
 					}
-
-					var gatherData = setData(GatherPath(to), {} );
-
-					gatherData.count = parseInt(count);
-					gatherData.mapName = mapName;
-					gatherData.nickList = NewDataObj();
-					gatherData.timeout = io.AddTimeout( 3*MINUTE, function() SendGatherStatus(to) );
-
+					
+					var gather = setData(GatherPath(to), new GatherManager() );
+					gather.maxPlayers = parseInt(count);
+					gather.mapName = mapName;
+					gather.timeout = io.AddTimeout( 3*MINUTE, function() SendGatherStatus(to) );
 					SendGatherStatus(to);
 				}
 			},
@@ -107,8 +191,9 @@
 					return;
 				}
 
+				var gather = getData(GatherPath(to));
 				var nick = StrBefore(from, '!');
-				delete getData(GatherPath(to)).nickList[nick];
+				gather.RemovePlayers([nick]);
 				SendGatherStatus(to);
 			},
 			
@@ -121,19 +206,18 @@
 					return;
 				}
 
+				var gather = getData(GatherPath(to));
 				var nick = StrBefore(from, '!');
-				var gatherData = getData(GatherPath(to));
-
-				if ( gatherData.nickList[nick] ) {
+				if ( gather.GetPlayer(nick) ) {
 					
 					$A.Privmsg(to, 'You are already in the gather.' );
 					return;
 				}
 
-				gatherData.nickList[nick] = Now();
-				var currentCount = ObjPropertyCount(gatherData.nickList);
+				gather.AddPlayer(nick, 'spectator');
+				var currentCount = gather.Count();
 
-				if ( currentCount >= gatherData.count * 2 )
+				if ( currentCount >= gather.maxPlayers )
 					StopGather(to);
 				else
 					SendGatherStatus(to);
