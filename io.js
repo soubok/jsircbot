@@ -501,8 +501,20 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 
 			var data = _out.Read(); // even if we are sending data asynchronously, we send the first chunk immediately.
 			if (data) {
-
-				let missed = _socket.Write(data);
+			
+				let missed;
+			
+				try {
+				
+					missed = _socket.Write(data);
+				} catch ( ex if ex instanceof IoError ) {
+					
+					if ( ex.code == -5928 ) { // Connection aborted
+						
+						ReportWarning('@TCPConnection::Write - Connection aborted.'); // DStack(3);
+						return;
+					}
+				}
 				missed && _out.UnRead( missed );
 				_socket.writable = Sender;
 			}
