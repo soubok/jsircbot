@@ -86,15 +86,6 @@ function Failed(text) { ReportFailure(text, DStack()); throw new Error(text) } /
 
 function ERR() { throw ERR }
 
-function TRY(fct) {
-
-	try {
-		void fct();
-		return true;
-	} catch(ex if ex == ERR) {}
-	return false;
-}
-
 function CHK(v) v || ERR(); // check that the argument is not !!false
 
 function CHKN(v) !v || ERR(); // check that the argument is not !!true
@@ -103,7 +94,16 @@ function CHKEQ(value, eq) value == eq ? value : ERR();
 
 function CHKNEQ(value, neq) value != neq ? value : ERR();
 
+function TryToCall(fct) { try { fct() } catch(ex) {} }
 
+function TRY(fct) {
+
+	try {
+		void fct();
+		return true;
+	} catch(ex if ex == ERR) {}
+	return false;
+}
 
 /////////////////////////////////////////////////////// State Keeper
 
@@ -1138,7 +1138,8 @@ function GetExitValue() _exitValue;
 /////////////////////////////////////////////////////// Debug inspect
 
 var INSPECT = [];
-function Inspect() [fct() for each (fct in INSPECT)].join(LF);
+//function Inspect() [fct() for each (fct in INSPECT)].join(LF);
+function Inspect() [TryToCall(fct) for each (fct in INSPECT)].join(LF);
 
 
 
