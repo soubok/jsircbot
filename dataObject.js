@@ -12,7 +12,7 @@
  * License.
  * ***** END LICENSE BLOCK ***** */
 
-LoadModule('jsobjex');
+LoadModule('jsstd');
 
 function newDataNode(parent) new ObjEx(undefined,undefined,newDataNode.get,undefined,{listenerList:[],parent:parent});
 
