@@ -14,7 +14,6 @@
 
 LoadModule('jsstd'); 
 LoadModule('jsio');
-LoadModule('jsobjex');
 
 var DBG = true;
 

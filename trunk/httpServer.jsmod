@@ -538,7 +538,7 @@
 
 			if ( req.iStatus.method == 'POST' ) {
 
-				DBG && DebugTrace( _name+' @ProcessTermAccess: processing term data from req #'+IdOf(req) );
+				DBG && DebugTrace( _name+' @ProcessTermAccess: processing term data from req #'+ObjectToId(req) );
 				let sendFct = term.Send; // we prefer sending the whole response at once to avoid out-of-order responses !
 				delete term.Send; // messages sent while OnRequest is called will be sent in pendingMessagesQueue.
 				for each ( let item in DecodeArray(req._termData) )
@@ -549,7 +549,7 @@
 
 			if ( term.pendingMessagesQueue.length ) {
 			
-				DBG && DebugTrace( _name+' @ProcessTermAccess: sending pending term data using req #'+IdOf(req) );
+				DBG && DebugTrace( _name+' @ProcessTermAccess: sending pending term data using req #'+ObjectToId(req) );
 				SendItemList(req, term.pendingMessagesQueue); // misnamed: TryToSendItemList
 				return;
 			}
@@ -564,7 +564,7 @@
 			DBG && DebugTrace( _name+' @ProcessTermAccess: setting pending request' );
 			term.Send = function() {
 
-				DBG && DebugTrace( _name+' @ProcessTermAccess: sending data using req #'+IdOf(req) );
+				DBG && DebugTrace( _name+' @ProcessTermAccess: sending data using req #'+ObjectToId(req) );
 				SendItemList(req, term.pendingMessagesQueue); // misnamed: TryToSendItemList
 				delete term.Send; // if sucessful or not, this Send is no more usable.
 			}
@@ -635,7 +635,7 @@
 	
 	function ProcessHttpConnection(connection) { // Entry point of a new incoming HTTP connection
 	
-		DBG && DebugTrace( _name+' @ProcessHttpConnection: #'+IdOf(connection) );
+		DBG && DebugTrace( _name+' @ProcessHttpConnection: #'+ObjectToId(connection) );
 
 		_incomingConnectionRatePerPeer.Inc(connection.peerName, 1);
 		_connectionCountByHost.Add(connection.peerName, 1);
@@ -672,7 +672,7 @@
 		
 		function CloseConnection() {
 
-			DBG && DebugTrace( _name+' @CloseConnection: #'+IdOf(connection) );
+			DBG && DebugTrace( _name+' @CloseConnection: #'+ObjectToId(connection) );
 			ResetTimeout();
 			delete _httpConnectionList[currentConnectionIndex];
 			_totalConnectionCount--;
@@ -795,7 +795,7 @@
 		
 		function Disconnect() {
 		
-			DBG && DebugTrace( _name+' @Disconnect: #'+IdOf(connection) );
+			DBG && DebugTrace( _name+' @Disconnect: #'+ObjectToId(connection) );
 		
 			req.Send( function() void connection.Disconnect() );
 			delete req.Respond;
