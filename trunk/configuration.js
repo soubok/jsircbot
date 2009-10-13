@@ -1,4 +1,4 @@
-function(data) {
+(function(data) {
 	
 	//function DateString() let ( d = new Date ) d.getFullYear() + StringPad(d.getMonth()+1,2,'0') + StringPad(d.getDate(),2,'0');
 	//var thisSession = 'jsircbot_'+(Now())+'.log'; // used to create ONE log file by session
@@ -135,4 +135,4 @@ function(data) {
 	setData(data.webServerModule.consoleSessionTimeout, 15*MINUTE);
 	setData(data.webServerModule.consolePasword, '**********');
 
-}
+})
