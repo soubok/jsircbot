@@ -118,10 +118,11 @@ function StateKeeper( catchCallback ) {
 			return;
 		DBG && DebugTrace( 'STATE', stateName, state );
 		_stateList[stateName] = state;
-		
+
 		try {
 		
 			for each ( var item in _predicateList ) { // item = [0:setPredicate, 1:resetPredicate, 2:callback, 3:<the state of stateName>]
+			
 				var callback = item[2];
 				if ( !item[3] )
 					item[0](_stateList, stateName) && callback.call(callback, (item[3] = true), _predicateList); // 'this' will be the function itself
@@ -147,7 +148,7 @@ function StateKeeper( catchCallback ) {
 	}
 
 	this.AddStateListener = function( setPredicate, resetPredicate, callback, initialState ) 
-		_predicateList.push(arguments);
+		_predicateList.push(/*arguments*/[setPredicate, resetPredicate, callback, initialState]); // wait to replace with arguments (cf. https://bugzilla.mozilla.org/show_bug.cgi?id=522072)
 	this.RemoveStateListener = function( setPredicate, resetPredicate, callback ) 
 		_predicateList.some( function(item, index) item[0] == setPredicate && item[1] == resetPredicate && item[2] == callback && _predicateList.splice(index,1) );
 
