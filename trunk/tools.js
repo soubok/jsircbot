@@ -492,17 +492,9 @@ var log = new function(data) {
 
 	this.Write = function(type /*, data, ...*/) {
 
-		var info = '';
-		
-		if ( DBG )
-			if ( type == LOG_FAILURE && IsFunction(global.Locate) )
-				info += '@'+Locate(-2).join(':');
-
-// (TBD) fix LOG_ERROR <TypeError: can't convert Array.slice(arguments, 1).join to string (tools.js:414)>
-
 		try {
 		
-			var data = FormatedTime()+' '+String(type)+' '+info+' <'+Array.slice(arguments,1).join('> <')+'>'; // ('+gcByte+') 
+			var data = FormatedTime()+' '+String(type)+' <'+Array.slice(arguments, 1).join('> <')+'>'; // ('+gcByte+') 
 		} catch(ex) {
 
 			var data = '!LOG ERROR '+ex.toString();
@@ -518,7 +510,11 @@ function DebugTrace(text) log.Write.apply( null, [LOG_DEBUG].concat(Array.slice(
 function ReportNotice() log.Write.apply( null, [LOG_NOTICE].concat(Array.slice(arguments)) );
 function ReportWarning() log.Write.apply( null, [LOG_WARNING].concat(Array.slice(arguments)) );
 function ReportError() log.Write.apply( null, [LOG_ERROR].concat(Array.slice(arguments)) );
-function ReportFailure() log.Write.apply( null, [LOG_FAILURE].concat(Array.slice(arguments)) );
+function ReportFailure() { 
+	
+	var location = IsFunction(global.Locate) ? '@'+Locate(-1).join(':') : '';
+	log.Write.apply( null, [LOG_FAILURE, location].concat(Array.slice(arguments)) );
+}
 
 
 
