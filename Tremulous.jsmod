@@ -52,7 +52,7 @@
 		var tpl = {num:1, score:2, ping:3, name:4, lastmsg:5, ip:6, port:7, qport:8, rate:9};
 		try {
 		
-			var lines = data.split('\n');
+			var lines = data.split(LF);
 			CHK( lines.shift() == tremQueryPrefix + 'print' );
 			var [,map] = CHK(/^map: (.*)$/(lines.shift()));
 			lines.shift(); // col names
@@ -81,7 +81,7 @@
 				return;
 			}
 
-			var lines = buf.split('\n');
+			var lines = buf.split(LF);
 			if ( !lines ) {
 
 				OnResult(BADRESPONSE);

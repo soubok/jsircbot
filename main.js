@@ -15,7 +15,7 @@
 LoadModule('jsstd'); 
 LoadModule('jsio');
 
-var DBG = true;
+var DBG = !_configuration.unsafeMode;
 
 Exec('tools.js', false);
 Exec('dataObject.js', false);
