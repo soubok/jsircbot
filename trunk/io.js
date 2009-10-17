@@ -86,7 +86,7 @@ var io = new function() {
 
 			timeout = Math.min(ProcessTimeout(), 1*SECOND);
 			DBG && DebugTrace( 'Poll('+_descriptorList.length+' descriptors, '+timeout+'ms timeout)' );
-			count = Poll(_descriptorList, timeout); // _descriptorList = _descriptorList.slice();  // copy to avoid memory leaks ( bz404755 )
+			count = Poll(_descriptorList, timeout);
 			DBG && DebugTrace( 'Poll returns '+ count );
 			
 		} while ( !endPredicate() );
@@ -122,7 +122,7 @@ function GetHostByName( hostName ) {
 
 function TryBindSocket( Socket, portRange, ip ) {
 
-	for each ( let port in ExpandStringRanges(String(portRange)) )
+	for each ( let port in ExpandStringRanges(portRange) )
 		if ( Socket.Bind( port, ip ) )
 			return true;
 	return false;
@@ -138,7 +138,6 @@ function UDPGet( host, port, data, timeout, OnResponse ) { // OnResponse( status
 	var time = IntervalNow();
 	var socket = new Socket( Socket.UDP );
 	socket.nonblocking = true;
-	// socket.noDelay = true; // (TBD) good for UDP ?
 
 	try {
 	
@@ -359,7 +358,7 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 				delete _this.Write;
 				io.RemoveDescriptor(s); // no more read/write notifications are needed
 				_this.OnDisconnected && _this.OnDisconnected(true); // (TBD) define an enum like REMOTELY ?
-				MaybeCollectGarbage();
+				//MaybeCollectGarbage();
 			}
 		}
 	}
@@ -428,9 +427,10 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 		io.RemoveTimeout(_sleepTimeout, true);
 		io.RemoveDescriptor(_socket); // no more read/write notifications are needed
 		_socket.Close();
-		Clear(_this);
+		Clear(_this); // jsstd
 	}
 
+	// Only disconnects the socket, it is up to the caller to call Close()
 	this.Disconnect = function() {
 		
 		io.RemoveTimeout(_sleepTimeout, true);
@@ -448,7 +448,7 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 			delete _this.sockName;
 			delete _this.peerPort;
 			delete _this.peerName;
-			MaybeCollectGarbage();
+			//MaybeCollectGarbage();
 		}
 		_socket.readable = Disconnected;
 		shutdownTimeout = io.AddTimeout( 2*SECOND, Disconnected ); // force disconnect after the timeout
@@ -473,7 +473,7 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 
 		try {
 		
-			data = s.Write(data);
+			data = s.Write(data); // returns undefined on: PR_CONNECT_ABORTED_ERROR, PR_CONNECT_RESET_ERROR
 		} catch (ex if ex instanceof IoError) {
 		
 			//if ( ex.code == -5961 || ex.code == -5928 ) { // Connection reset by peer | Connection aborted
@@ -506,15 +506,19 @@ function TCPConnection( host, port ) { // use ( host, port ) OR ( rendez-vous so
 			
 				try {
 				
-					missed = _socket.Write(data);
+					missed = _socket.Write(data); // returns undefined on: PR_CONNECT_ABORTED_ERROR, PR_CONNECT_RESET_ERROR
 				} catch ( ex if ex instanceof IoError ) {
 					
-					if ( ex.code == -5928 ) { // Connection aborted
-						
-						ReportWarning('@TCPConnection::Write - Connection aborted.'); // DStack(3);
-						return;
-					}
+					ReportError('@TCPConnection::Write - IoError:'+ex.code+' '+ex.text);
+					return;
 				}
+				
+				if ( missed == undefined ) {
+					
+					ReportWarning('@TCPConnection::Write - Connection abort or reset.'); // DStack(3);
+					return;
+				}
+				
 				missed && _out.UnRead( missed );
 				_socket.writable = Sender;
 			}
