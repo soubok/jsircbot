@@ -855,7 +855,7 @@ function Match(v) Array.indexOf(arguments,v,1) - 1;
 
 function ExpandStringRanges(rangesStr) {
 
-    for each (var range in rangesStr.split(',')) {
+    for each (var range in String(rangesStr).split(',')) {
 
         var minmax = range.split('-', 2);
         if (minmax.length == 2)
