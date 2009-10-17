@@ -283,7 +283,7 @@ try {
 	Core($D, function() endSignal);
 } catch( ex if ex instanceof IoError ) {
 
-	ReportFailure( 'IoError: nspr code: '+ex.code+', os code: '+ex.os+', os reason: '+ex.text );
+	ReportFailure( 'IoError: nspr code: '+ex.code+', os code: '+ex.os+', os reason: '+ex.text+'('+ex.fileName+':'+ex.lineNumber+')' );
 }
 
 ReportNotice(' ********** '+'Gracefully end at '+(new Date())+' ********** ');
