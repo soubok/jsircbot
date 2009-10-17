@@ -178,9 +178,9 @@
 			while ( _messageQueue.length ) {
 
 				var [message, highPriorityMessage, OnSent] = _messageQueue[0]; // peek
-				if ( message.length >= 512 )
+				if ( message.length >= getData($D.maxMessageLength) )
 					Failed('Message too long');
-				if ( data.length + message.length >= 512 )
+				if ( data.length + message.length >= getData($D.maxMessageLength) ) // we cannot append this message
 					break;
 				data += message;
 				sentNodifyList.push(OnSent);
@@ -213,12 +213,19 @@
 			if ( message instanceof Array )
 				message = message.join(CRLF);
 			message += CRLF;
+			if ( message.length >= getData($D.maxMessageLength) ) {
+				
+				//Failed('Message too long');
+				ReportError('Message too long');
+				return false;
+			}
 			OnSent = OnSent||Noop;
 			if ( highPriorityMessage )
 				_messageQueue.unshift([message, highPriorityMessage, OnSent]);
 			else
 				_messageQueue.push([message, highPriorityMessage, OnSent]);
 			_messageEvent.Fire();
+			return true;
 		}
 	};
 	
