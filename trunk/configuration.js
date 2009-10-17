@@ -50,6 +50,7 @@
 	setData( data.connectTimeout, 1*SECOND );
 	setData( data.serverRetry, 2 );
 	setData( data.serverRetryPause, 0.5*SECOND );
+	setData( data.maxMessageLength, 512 );
 
 
 //	setData( data.server, 'irc.freenode.net' );
