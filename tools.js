@@ -94,7 +94,7 @@ function CHKEQ(value, eq) value == eq ? value : ERR();
 
 function CHKNEQ(value, neq) value != neq ? value : ERR();
 
-function TryToCall(fct) { try { fct() } catch(ex) {} }
+function TryToCall(fct) { var res; try { res = fct() } catch(ex) {} return res; }
 
 function TRY(fct) {
 
@@ -455,6 +455,14 @@ function MakeLogEMail(mailTo) {
 	}
 }
 
+function MakeLogDebugOutput() {
+
+	return function(data) {
+		if ( data !== LOG_CLOSE_FILTER )
+			global.DebugOutput && DebugOutput(data+CRLF);
+	}
+}
+
 var log = new function(data) {
 
 	var _outputList = [];
@@ -484,11 +492,17 @@ var log = new function(data) {
 
 	this.Write = function(type /*, data, ...*/) {
 
+		var info = '';
+		
+		if ( DBG )
+			if ( type == LOG_FAILURE && IsFunction(global.Locate) )
+				info += '@'+Locate(-2);
+
 // (TBD) fix LOG_ERROR <TypeError: can't convert Array.slice(arguments, 1).join to string (tools.js:414)>
 
 		try {
 		
-			var data = FormatedTime()+' '+String(type)+' <'+Array.slice(arguments,1).join('> <')+'>'; // ('+gcByte+') 
+			var data = FormatedTime()+' '+String(type)+' '+info+' <'+Array.slice(arguments,1).join('> <')+'>'; // ('+gcByte+') 
 		} catch(ex) {
 
 			var data = '!LOG ERROR '+ex.toString();
@@ -518,7 +532,7 @@ function ParseUri(source) { // ParseUri 1.2; MIT License By Steven Levithan. htt
 	return uri;
 };
 
-ParseUri.options = {
+ParseUri.options = { // ParseUri 1.2;
 	strictMode: false,
 	key: ["source","protocol","authority","userInfo","user","password","host","port","relative","path","directory","file","query","anchor"],
 	q: {
