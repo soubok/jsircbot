@@ -386,10 +386,10 @@ function DataExpander() {
 
 var bit = 1;
 ENUM({
-	LOG_FAILURE : bit*=2,
-	LOG_ERROR   : bit*=2,
-	LOG_WARNING : bit*=2,
-	LOG_NOTICE  : bit*=2,
+	LOG_FAILURE : bit*=2, // fatal error, the system could not continue to run correctly.
+	LOG_ERROR   : bit*=2, // non-fatal error, but the current operation was interrupted.
+	LOG_WARNING : bit*=2, // operation could be dangerous, this situation should be avoided.
+	LOG_NOTICE  : bit*=2, // this operation must draw your attention.
 	LOG_DEBUG   : bit*=2,
 	LOG_MISC    : bit*=2,
 	LOG_IRCMSG  : bit*=2,
@@ -496,7 +496,7 @@ var log = new function(data) {
 		
 		if ( DBG )
 			if ( type == LOG_FAILURE && IsFunction(global.Locate) )
-				info += '@'+Locate(-2);
+				info += '@'+Locate(-2).join(':');
 
 // (TBD) fix LOG_ERROR <TypeError: can't convert Array.slice(arguments, 1).join to string (tools.js:414)>
 
@@ -841,18 +841,19 @@ function StringPad( str, count, chr ) {
 	return str;
 }
 
-function AddSlashes(str) { return str.replace(/['"\\]/g, function(c) { return '\\'+c }) } // fc. ''.quote()
+//function AddSlashes(str) { return str.replace(/['"\\]/g, function(c) { return '\\'+c }) } // fc. ''.quote();
 
 function StripHTML(html) html.replace( /<(.|\n)+?>/mg, ' ').replace( /[ \n]+/g, ' ');
 
 
-function LTrim(str) str.replace(/^\s+/, '');
+//function LTrim(str) str.replace(/^\s+/, '');
+function LTrim(str) str.trimLeft();
 
+//function RTrim(str) str.replace(/\s+$/, '');
+function RTrim(str) str.trimRight();
 
-function RTrim(str) str.replace(/\s+$/, '');
-
-
-function Trim(str) str.replace(/^\s+|\s+$/g, ''); // or function Trim(string) /^ *(.*?) *$/(string)[1];
+//function Trim(str) str.replace(/^\s+|\s+$/g, ''); // or function Trim(string) /^ *(.*?) *$/(string)[1];
+function Trim(str) str.trim();
 
 
 function StrBefore(str, sep) (sep = str.indexOf(sep)) == -1 ? str : str.substr(0, sep);

@@ -261,8 +261,7 @@
 				if ( cmdData ) {
 
 					try {
-
-						res = String(eval( cmdData, context )).split('\n');
+						res = String(eval(cmdData)).split('\n');
 					} catch(ex) {
 
 						res = ex;

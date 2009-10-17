@@ -188,7 +188,7 @@ function Core( $D, endPredicate ) {
 						$A[f] = module.moduleApi[f];
 
 			if ( module.stateListener )
-				for each ( let {set:set, reset:reset, trigger:trigger} in module.stateListener )
+				for each ( let {set, reset, trigger} in module.stateListener ) // {set:set, reset:reset, trigger:trigger}
 					$S.AddStateListener(set, reset, trigger);
 
 			if ( module.moduleListener )
@@ -226,7 +226,7 @@ function Core( $D, endPredicate ) {
 					delete $A[f];
 
 			if ( module.stateListener )
-				for each ( let {set:set, reset:reset, trigger:trigger} in module.stateListener )
+				for each ( let {set, reset, trigger} in module.stateListener ) // {set:set, reset:reset, trigger:trigger}
 					$S.RemoveStateListener(set, reset, trigger);
 
 			Clear(module); // jsstd
